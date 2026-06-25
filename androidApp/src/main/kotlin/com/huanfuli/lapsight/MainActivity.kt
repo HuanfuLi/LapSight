@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.huanfuli.lapsight.shared.App
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.OrientationController
+import com.huanfuli.lapsight.shared.storage.StoragePaths
 
 class MainActivity : ComponentActivity() {
     // Locks the window to the user's chosen orientation using fixed
@@ -28,8 +29,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        // Wire the app-private storage root before any save/load access (D-21).
+        StoragePaths.initialize(this)
+
         setContent {
-            App(orientationController)
+            App(
+                orientationController = orientationController,
+                sessionStore = StoragePaths.fileSessionStore(),
+            )
         }
     }
 }

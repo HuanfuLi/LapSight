@@ -28,4 +28,7 @@ actual object StoragePaths {
     }
 
     actual fun fileSystem(): FileSystem = FileSystem.SYSTEM
+
+    actual fun fileSessionStore(): LocalSessionStore =
+        FileSessionStore(fileSystem = fileSystem(), root = appPrivateRoot())
 }

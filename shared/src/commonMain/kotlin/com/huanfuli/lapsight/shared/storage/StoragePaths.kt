@@ -17,4 +17,12 @@ expect object StoragePaths {
 
     /** Returns the platform [FileSystem] used for app-private I/O. */
     fun fileSystem(): FileSystem
+
+    /**
+     * Returns a ready-to-use [LocalSessionStore] backed by the platform
+     * app-private root. Platform entrypoints use this instead of constructing a
+     * [FileSessionStore] directly so consumers do not need Okio on their
+     * compile classpath (the shared module exposes Okio as `implementation`).
+     */
+    fun fileSessionStore(): LocalSessionStore
 }
