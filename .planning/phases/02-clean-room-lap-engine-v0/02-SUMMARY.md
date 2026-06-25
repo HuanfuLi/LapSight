@@ -95,7 +95,7 @@ Each task was committed atomically:
 6. **Task 6: Integrate lap timing into mounted-phone dash** - `5f2a47e` (feat)
 7. **Task 7: Update docs and verification artifacts** - `0adc5f3` (docs)
 
-**Plan metadata:** _(final docs commit appended after this summary)_
+**Plan metadata:** `8b2209a` (docs: complete plan)
 
 ## Files Created/Modified
 
