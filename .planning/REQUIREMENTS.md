@@ -19,17 +19,17 @@
 - [ ] **GPS-02**: User can see live speed, location accuracy, and update rate during a session.
 - [ ] **GPS-03**: App records timestamped GPS samples with latitude, longitude, accuracy, speed, heading/course when available, and altitude when available.
 - [ ] **GPS-04**: App marks samples with quality metadata so noisy data can be filtered or diagnosed.
-- [ ] **GPS-05**: User can replay a recorded GPS session through the lap engine for debugging.
+- [x] **GPS-05**: User can replay a recorded GPS session through the lap engine for debugging.
 
 ### Lap Engine
 
-- [ ] **LAP-01**: User can define a start/finish line using two GPS points or current position plus heading.
-- [ ] **LAP-02**: App detects crossing of the start/finish line from consecutive GPS samples.
-- [ ] **LAP-03**: App estimates crossing time by interpolation between GPS samples.
-- [ ] **LAP-04**: App prevents false laps using direction gating, minimum lap time, speed threshold, cooldown, and GPS accuracy filters.
-- [ ] **LAP-05**: User can see current lap time, last lap time, best lap time, lap count, and speed live.
-- [ ] **LAP-06**: Lap engine can run from synthetic and recorded replay fixtures without UI or platform services.
-- [ ] **LAP-07**: User can configure sector lines, see sector split timing in the live dash, and replay sector-line crossings through the lap engine.
+- [x] **LAP-01**: User can define a start/finish line using two GPS points or current position plus heading.
+- [x] **LAP-02**: App detects crossing of the start/finish line from consecutive GPS samples.
+- [x] **LAP-03**: App estimates crossing time by interpolation between GPS samples.
+- [x] **LAP-04**: App prevents false laps using direction gating, minimum lap time, speed threshold, cooldown, and GPS accuracy filters.
+- [x] **LAP-05**: User can see current lap time, last lap time, best lap time, lap count, and speed live.
+- [x] **LAP-06**: Lap engine can run from synthetic and recorded replay fixtures without UI or platform services.
+- [x] **LAP-07**: User can configure sector lines, see sector split timing in the live dash, and replay sector-line crossings through the lap engine.
 
 ### Ghost and Delta
 
@@ -51,12 +51,12 @@
 - [ ] **SAFE-01**: Live dash uses large typography and high contrast suitable for quick glances.
 - [ ] **SAFE-02**: Live dash avoids small controls and complex navigation during movement.
 - [ ] **SAFE-03**: App displays a closed-course/private-track safety note during onboarding or first session setup.
-- [ ] **SAFE-04**: App exposes GPS accuracy limitations clearly instead of implying pro-grade timing precision.
+- [x] **SAFE-04**: App exposes GPS accuracy limitations clearly instead of implying pro-grade timing precision.
 
 ### Architecture and Compliance
 
 - [ ] **ARCH-01**: Shared lap engine contains no platform UI dependencies.
-- [ ] **ARCH-02**: Shared lap engine has automated tests for geometry, line crossing, interpolation, filters, and replay scenarios.
+- [x] **ARCH-02**: Shared lap engine has automated tests for geometry, line crossing, interpolation, filters, and replay scenarios.
 - [ ] **ARCH-03**: App documents all third-party code and licenses before direct reuse.
 - [ ] **ARCH-04**: GPL-licensed projects may be studied as references but not copied unless the project explicitly adopts a compatible license.
 
@@ -104,14 +104,14 @@
 | GPS-02 | Phase 1 | Pending |
 | GPS-03 | Phase 1 | Pending |
 | GPS-04 | Phase 1 | Pending |
-| GPS-05 | Phase 2 | Pending |
-| LAP-01 | Phase 2 | Pending |
-| LAP-02 | Phase 2 | Pending |
-| LAP-03 | Phase 2 | Pending |
-| LAP-04 | Phase 2 | Pending |
-| LAP-05 | Phase 2 | Pending |
-| LAP-06 | Phase 2 | Pending |
-| LAP-07 | Phase 2 | Pending |
+| GPS-05 | Phase 2 | Complete |
+| LAP-01 | Phase 2 | Complete |
+| LAP-02 | Phase 2 | Complete |
+| LAP-03 | Phase 2 | Complete |
+| LAP-04 | Phase 2 | Complete |
+| LAP-05 | Phase 2 | Complete |
+| LAP-06 | Phase 2 | Complete |
+| LAP-07 | Phase 2 | Complete |
 | SESS-01 | Phase 3 | Pending |
 | SESS-02 | Phase 3 | Pending |
 | SESS-03 | Phase 3 | Pending |
@@ -124,9 +124,9 @@
 | SAFE-01 | Phase 1 | Pending |
 | SAFE-02 | Phase 1 | Pending |
 | SAFE-03 | Phase 1 | Pending |
-| SAFE-04 | Phase 2 | Pending |
+| SAFE-04 | Phase 2 | Complete |
 | ARCH-01 | Phase 1 | Pending |
-| ARCH-02 | Phase 2 | Pending |
+| ARCH-02 | Phase 2 | Complete |
 | ARCH-03 | Phase 1 | Pending |
 | ARCH-04 | Phase 1 | Pending |
 

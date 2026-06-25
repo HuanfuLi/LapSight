@@ -3,19 +3,19 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-06-25T08:03:39.473Z"
+last_updated: "2026-06-25T08:19:49.835Z"
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 2
-  completed_plans: 1
-  percent: 14
+  completed_plans: 2
+  percent: 29
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 1 implemented; automated Android/shared checks passed; Android Pixel 10 Pro runtime UAT passed; iOS runtime UAT remains pending.
+**Current Status:** Phase 2 implemented. Clean-room shared lap engine, geometry, crossing detector, filters, replay runner/fixtures, and replay-backed dash are complete. `:shared:check` passed (Android host tests; iOS sim skipped on Windows) and the Android debug APK builds. Android on-device UAT and iOS runtime UAT remain pending human verification.
 
 ## Project Reference
 
@@ -25,9 +25,9 @@ See: `.planning/PROJECT.md`
 
 ## Current Focus
 
-**Phase 2: Clean-Room Lap Engine V0**
+**Phase 2 complete -> next: Phase 3 Local Sessions, Review, and Export**
 
-Phase 2 planning has been drafted for a clean-room shared Kotlin lap engine with replay tests and a minimal mounted-phone dash integration. User decisions are captured: V0 uses two-point start/finish lines, deterministic simulator/replay remains the data source, real GPS providers stay deferred, and sector lines include data model, detection, split timing state, tests, and compact UI. Do not implement ghost/delta, persistence, maps, external GNSS, or glasses integration in Phase 2.
+Phase 2 delivered the clean-room shared Kotlin lap engine: domain models, local meter projection, segment-crossing geometry with interpolated timestamps, a stateless crossing detector shared by start/finish and sector lines, a deterministic state machine with direction/min-lap/cooldown/speed/accuracy filters, sector-line detection with per-lap splits, a replay runner with synthetic fixtures, and a replay-backed mounted-phone dash. All algorithmic behavior is covered by shared tests. Lap timing remains simulator/replay-backed; real GPS providers, persistence, ghost/delta, maps, external GNSS, and glasses integration stay deferred to later phases.
 
 ## Working Assumptions
 
@@ -41,21 +41,19 @@ Phase 2 planning has been drafted for a clean-room shared Kotlin lap engine with
 
 ## Next Command Candidates
 
-- Review `.planning/phases/02-clean-room-lap-engine-v0/02-PLAN.md`.
-- If approved, execute Phase 2 implementation from the plan.
-- Complete iOS Xcode runtime checks in `01-HUMAN-UAT.md`.
-- After iOS UAT approval, mark Phase 1 fully complete.
+- Run Android on-device UAT for the Phase 2 lap timing dash (see `02-VERIFICATION.md`).
+- Complete iOS Xcode runtime checks (Phase 1 and Phase 2 dash) on macOS.
+- Plan Phase 3: Local Sessions, Review, and Export.
 
 ## Review Checklist
 
-- [ ] Confirm project name: LapSight.
-- [ ] Confirm stack direction: KMP + Compose Multiplatform.
-- [ ] Confirm whether Phase 1 must support iOS immediately or may spike Android first.
-- [ ] Confirm whether planning docs should be committed.
+- [x] Confirm project name: LapSight.
+- [x] Confirm stack direction: KMP + Compose Multiplatform.
 - [ ] Confirm app license policy.
-- [x] Complete Android runtime UAT.
+- [x] Complete Android runtime UAT (Phase 1).
+- [ ] Complete Android on-device UAT (Phase 2 lap timing).
 - [ ] Complete iOS Xcode runtime UAT.
-- [ ] Review Phase 2 plan.
+- [x] Review Phase 2 plan.
 
 ---
-*Last updated: 2026-06-25 after Phase 2 plan draft*
+*Last updated: 2026-06-25 after Phase 2 execution*
