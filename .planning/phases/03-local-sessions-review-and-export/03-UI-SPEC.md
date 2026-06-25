@@ -1,10 +1,11 @@
 ---
 phase: 3
 slug: local-sessions-review-and-export
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-25
+reviewed_at: 2026-06-25
 ---
 
 # Phase 3 — UI Design Contract
