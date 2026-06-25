@@ -15,6 +15,7 @@ Build the phone-first product that proves live GPS capture, lap timing, local se
 **Requirements:** PLAT-01, PLAT-02, PLAT-03, PLAT-04, PLAT-05, GPS-01, GPS-02, GPS-03, GPS-04, SAFE-01, SAFE-02, SAFE-03, ARCH-01, ARCH-03, ARCH-04
 
 **Success Criteria:**
+
 1. Android and iOS apps build from the same repository.
 2. Live dash shows speed, GPS accuracy, update rate, and permission/fix state.
 3. Portrait and landscape layouts are usable without redesigning the information hierarchy.
@@ -22,6 +23,7 @@ Build the phone-first product that proves live GPS capture, lap timing, local se
 5. The app clearly states closed-course use and GPS accuracy limits.
 
 **Implementation Notes:**
+
 - Use Kotlin Multiplatform for shared state/models.
 - Use Compose Multiplatform for the initial shared UI unless a platform blocker appears.
 - Use Android Fused Location Provider and iOS Core Location behind a shared `LocationSampleProvider` interface.
@@ -35,6 +37,7 @@ Build the phone-first product that proves live GPS capture, lap timing, local se
 **Requirements:** GPS-05, LAP-01, LAP-02, LAP-03, LAP-04, LAP-05, LAP-06, LAP-07, SAFE-04, ARCH-02
 
 **Success Criteria:**
+
 1. User can define a start/finish line using two points or current position plus heading.
 2. Lap engine detects segment crossing between consecutive GPS samples.
 3. Crossing timestamp is interpolated and stable under replay.
@@ -44,6 +47,7 @@ Build the phone-first product that proves live GPS capture, lap timing, local se
 7. Engine tests cover geometry, crossing, interpolation, filters, sector detection, and replay fixtures.
 
 **Implementation Notes:**
+
 - Do not copy DovesLapTimer code; reproduce behavior from first principles and tests.
 - Convert GPS samples to a local meter coordinate space near the session origin for geometry.
 - Treat start/finish as a line segment/corridor, not a single point.
@@ -60,16 +64,40 @@ Build the phone-first product that proves live GPS capture, lap timing, local se
 **Plans:** 8 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 03-01-PLAN.md - Simulated GPS feed and fixture-backed Drive slice
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 03-02-PLAN.md - Blocking package verification gate
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 03-03-PLAN.md - Versioned local storage foundation (deps, schema, file store)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 03-04-PLAN.md - Reference-line extraction domain and Track Review state
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 03-05-PLAN.md - Three-tab shell, Mark New Track, and Track Review UI
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 03-06-PLAN.md - Timing session drafts, save/discard, and review summaries
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 03-07-PLAN.md - Offline vector trace review
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 03-08-PLAN.md - Explicit JSON and GPX export with platform share handoff
 
 **Success Criteria:**
+
 1. User can start, stop, save, discard, and reopen a session.
 2. Session review shows lap list, best lap, total duration, sample count, and GPS quality summary.
 3. Session review shows a basic track trace.
@@ -77,6 +105,7 @@ Plans:
 5. GPX or equivalent GPS export works for external tools.
 
 **Implementation Notes:**
+
 - Prefer local-first storage.
 - Keep schema versioned from the first saved format.
 - Export should support future web/PWA analysis tools and future glasses bridge debugging.
@@ -89,6 +118,7 @@ Plans:
 **Requirements:** GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
 **Success Criteria:**
+
 1. User can save/select a reference lap.
 2. Engine calculates current progress distance along the lap.
 3. Engine calculates delta against the reference lap at equivalent progress distance.
@@ -96,6 +126,7 @@ Plans:
 5. Reference lap data persists across sessions.
 
 **Implementation Notes:**
+
 - Use distance-normalized matching before attempting coordinate-nearest matching.
 - Keep ghost visualization simple in v1: delta number and ahead/behind state are more important than a map animation.
 - Later map ghost can reuse the same reference-lap model.
@@ -110,6 +141,7 @@ Plans:
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
 **Success Criteria:**
+
 1. User can save named track/course profiles.
 2. User can edit start/finish line and optional sector lines.
 3. App can reuse prior course setup for new sessions.
@@ -123,6 +155,7 @@ Plans:
 **Requirements:** EXT-01, EXT-02, EXT-03
 
 **Success Criteria:**
+
 1. App can ingest external GPS samples from at least one transport.
 2. App records sample source and frequency.
 3. Lap engine works unchanged regardless of phone GPS vs external GNSS input.
@@ -138,6 +171,7 @@ Plans:
 **Requirements:** MR-01, MR-02, MR-03
 
 **Success Criteria:**
+
 1. Phone app exposes a minimal live timing state stream.
 2. Glasses web app consumes current lap, last lap, best lap, speed, and delta.
 3. Glasses HUD remains passive and readable on a 600x600 display.
