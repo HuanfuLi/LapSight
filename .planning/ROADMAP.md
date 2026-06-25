@@ -40,12 +40,14 @@ Build the phone-first product that proves live GPS capture, lap timing, local se
 3. Crossing timestamp is interpolated and stable under replay.
 4. False positives are reduced by minimum lap time, speed, direction, cooldown, and accuracy filters.
 5. Live dash shows current lap, last lap, best lap, lap count, and speed.
-6. Engine tests cover geometry, crossing, interpolation, filters, and replay fixtures.
+6. Live dash shows compact sector split information from sector-line detection.
+7. Engine tests cover geometry, crossing, interpolation, filters, sector detection, and replay fixtures.
 
 **Implementation Notes:**
 - Do not copy DovesLapTimer code; reproduce behavior from first principles and tests.
 - Convert GPS samples to a local meter coordinate space near the session origin for geometry.
 - Treat start/finish as a line segment/corridor, not a single point.
+- Treat sector lines as first-class timing lines in Phase 2, including data model, detection, tests, and compact live UI.
 - Use synthetic replay fixtures before testing on a real track.
 
 ### Phase 3: Local Sessions, Review, and Export

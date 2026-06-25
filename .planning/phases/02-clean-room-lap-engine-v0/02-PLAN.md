@@ -2,7 +2,7 @@
 phase: 02
 name: Clean-Room Lap Engine V0
 type: implementation
-status: draft_pending_review
+status: ready_for_execution_pending_user_approval
 wave: 1
 depends_on:
   - 01-mobile-walking-skeleton-gps-probe
@@ -34,6 +34,13 @@ Build a clean-room shared Kotlin lap engine that can detect start/finish crossin
 
 The phone app remains the source of truth. This phase does not build ghost delta, maps, session persistence, external GNSS, or the Meta glasses bridge.
 
+## User Decisions Captured
+
+- V0 start/finish setup uses two points as the first version.
+- Phase 2 continues to use deterministic simulator/replay data.
+- Real Android/iOS GPS provider work stays deferred.
+- Sector lines are in scope beyond data modeling: Phase 2 must include sector-line data model, sector crossing detection, sector split timing state, and minimal UI display.
+
 ## Product Slice
 
 After this phase, the user should be able to launch the phone app, start a demo timing session, see lap timing fields update from deterministic GPS-like samples, and trust that the same lap engine is covered by replay/unit tests independent of UI and platform APIs.
@@ -44,9 +51,11 @@ After this phase, the user should be able to launch the phone app, start a demo 
 
 - Shared domain model for lap timing:
   - start/finish line
-  - sector-line data model placeholder
+  - sector-line model
   - lap event
+  - sector/split event
   - lap timing state
+  - sector timing state
   - lap detection config
   - rejection/quality reason flags
 - Local meter projection near session origin.
@@ -54,8 +63,8 @@ After this phase, the user should be able to launch the phone app, start a demo 
 - Crossing timestamp interpolation.
 - Direction, minimum lap time, cooldown, speed, and accuracy filters.
 - Deterministic synthetic replay fixtures.
-- Shared tests for geometry, interpolation, filters, replay, and state updates.
-- Minimal Compose dash integration that displays lap timing state.
+- Shared tests for geometry, interpolation, filters, replay, sector detection, and state updates.
+- Minimal Compose dash integration that displays lap timing and sector/split timing state.
 - Explicit GPS limitation copy in the Phase 2 UI path.
 
 ### Out of Scope
@@ -70,8 +79,9 @@ After this phase, the user should be able to launch the phone app, start a demo 
 ## Planning Assumptions
 
 - Phase 2 uses existing `LocationSample`-style data from shared code and may refine it only if required by the lap engine contract.
-- Start/finish definition for V0 is two GPS points. A "current position plus heading" helper can be modeled if cheap, but it is not required for the first vertical slice.
-- The observable app slice can use simulator-backed replay data. Real GPS providers are still a later phase unless explicitly reprioritized.
+- Start/finish definition for V0 is locked to two GPS points.
+- The observable app slice uses simulator-backed deterministic replay data. Real GPS providers remain deferred.
+- Sector lines use the same two-point line concept as start/finish, with ordered sector IDs/names and per-lap split state.
 - All algorithmic behavior must be deterministic under tests.
 - Geometry is implemented from first principles in shared Kotlin; open-source projects remain research inputs only.
 
@@ -89,6 +99,8 @@ shared/src/commonMain/kotlin/com/huanfuli/lapsight/shared/
 │  ├─ LapEngineConfig.kt
 │  ├─ LapTimingState.kt
 │  ├─ LapEvent.kt
+│  ├─ SectorEvent.kt
+│  ├─ SectorTimingState.kt
 │  ├─ StartFinishLine.kt
 │  ├─ SectorLine.kt
 │  ├─ CrossingDetector.kt
@@ -124,6 +136,8 @@ Add shared Kotlin models for:
 - `LocalPoint`
 - `StartFinishLine`
 - `SectorLine`
+- `SectorEvent`
+- `SectorTimingState`
 - `LapEngineConfig`
 - `LapEvent`
 - `LapRejectReason`
@@ -136,7 +150,8 @@ Reuse or migrate the existing `LocationSample` model instead of duplicating para
 
 - Models compile in commonMain.
 - Domain models have no Compose, Android, iOS, file system, or database dependency.
-- Sector-line model exists even if sector detection UI does not.
+- Sector-line model supports ordered sectors with stable IDs/names and two-point line geometry.
+- Sector timing state can represent pending, crossed, rejected, and reset-per-lap sector status.
 - Config has explicit defaults for:
   - minimum lap duration
   - crossing cooldown
@@ -180,11 +195,11 @@ Use a simple local tangent/equirectangular approximation suitable for track-scal
 - Unit tests for positive/negative crossing cases.
 - Unit tests for interpolation ratio and interpolated timestamp.
 
-### Task 3: Implement clean-room crossing detector
+### Task 3: Implement clean-room line crossing detector
 
 **Action**
 
-Create a `CrossingDetector` that receives two consecutive projected samples and a start/finish line, then returns a crossing candidate containing:
+Create a reusable `CrossingDetector` that receives two consecutive projected samples and a timing line, then returns a crossing candidate containing:
 
 - crossing point
 - interpolation ratio
@@ -192,11 +207,14 @@ Create a `CrossingDetector` that receives two consecutive projected samples and 
 - movement heading/direction metadata
 - candidate quality flags
 
+Use this detector for both the start/finish line and sector lines. Start/finish and sectors may have different acceptance rules at the engine level, but the geometry primitive should be shared.
+
 **Acceptance Criteria**
 
 - Detector does not mutate session state.
 - Detector reports no crossing when samples do not cross the line.
 - Detector reports exactly one candidate for one valid movement segment.
+- Detector can identify which timing line was crossed.
 - Detector behavior is testable without UI/platform code.
 
 **Verify**
@@ -214,7 +232,8 @@ Implement `LapEngine` as a deterministic state machine:
 1. Before first valid crossing: acquiring/awaiting start.
 2. First valid crossing: start lap 1.
 3. Subsequent valid crossing: finish current lap, update last/best/lap count, start next lap.
-4. Rejected crossing: preserve state and expose reject reason for diagnostics.
+4. Valid sector crossing inside the current lap: record sector split time, update current lap sector state, and prevent duplicate sector splits for the same sector in the same lap.
+5. Rejected crossing: preserve state and expose reject reason for diagnostics.
 
 Apply filters before accepting a lap:
 
@@ -230,6 +249,9 @@ Apply filters before accepting a lap:
 - Every rejection reason is observable in state or event output.
 - Minimum lap time and cooldown cannot produce duplicate laps from jitter around the line.
 - Direction filtering can be disabled or configured for tests.
+- Sector splits are recorded only after a lap has started.
+- Sector splits reset for each new lap.
+- Repeated crossing of the same sector within one lap is rejected or ignored with a diagnostic reason.
 
 **Verify**
 
@@ -242,6 +264,10 @@ Apply filters before accepting a lap:
   - accuracy threshold blocks poor samples
   - speed threshold blocks stationary samples
   - direction gate blocks wrong-way crossings
+  - sector crossing records a split inside a lap
+  - sector crossing before lap start is ignored
+  - duplicate sector crossing in one lap is rejected/ignored
+  - sector state resets after start/finish completes a lap
 
 ### Task 5: Add replay runner and synthetic fixtures
 
@@ -258,6 +284,8 @@ Add synthetic fixture builders for:
 - low-frequency GPS samples
 - wrong-direction crossing
 - poor-accuracy samples
+- one-lap loop with one sector
+- multi-lap loop with multiple sectors
 
 Keep fixtures as Kotlin builders or lightweight test resources. Do not introduce persistence/schema decisions in Phase 2.
 
@@ -266,6 +294,7 @@ Keep fixtures as Kotlin builders or lightweight test resources. Do not introduce
 - Replay tests can run as part of `:shared:check`.
 - Fixture timestamps are deterministic.
 - Multi-lap fixture produces expected current/last/best/lap count.
+- Sector fixtures produce expected per-lap split timings.
 - Jitter fixture does not create duplicate laps.
 
 **Verify**
@@ -283,14 +312,17 @@ Extend the existing simulator-backed app path so the mounted-phone dash can disp
 - last lap time
 - best lap time
 - lap count
+- current sector/split summary
+- latest sector split
 - speed
 - fix/source state
 
-Provide a minimal way to run a demo lap session from deterministic replay/simulator data. Keep controls passive and large:
+Provide a minimal way to run a demo lap session from deterministic replay/simulator data with a preset two-point start/finish line and preset sector lines. Keep controls passive and large:
 
 - Start Timing / Stop Timing
 - Reset
-- optional Demo Line / preset start-finish label
+- Demo Course label
+- compact sector/split readout
 
 Do not add a map, dense settings screen, or ghost visualization.
 
@@ -299,6 +331,7 @@ Do not add a map, dense settings screen, or ghost visualization.
 - Dash remains readable in portrait and landscape.
 - Safety/accuracy copy remains visible.
 - Lap timing fields update without needing real GPS provider work.
+- Sector/split fields update from deterministic demo replay.
 - UI consumes presentation state derived from the lap engine rather than reimplementing lap logic.
 
 **Verify**
@@ -363,9 +396,10 @@ On attached Android device:
 4. Start demo timing session.
 5. Confirm current lap timer advances.
 6. Confirm at least one completed lap updates last/best/lap count.
-7. Stop and reset.
-8. Manually rotate to landscape and repeat readability/control smoke test.
-9. Check logcat for app crash markers.
+7. Confirm at least one sector split updates during the lap.
+8. Stop and reset.
+9. Manually rotate to landscape and repeat readability/control smoke test.
+10. Check logcat for app crash markers.
 
 ### Future iOS UAT
 
@@ -384,11 +418,11 @@ On macOS/Xcode:
 | LAP-02 | Crossing detector checks consecutive sample movement segment against start/finish line. |
 | LAP-03 | Crossing timestamp interpolated from sample timestamps and crossing ratio. |
 | LAP-04 | Direction, minimum lap duration, cooldown, speed, and accuracy filters. |
-| LAP-05 | Dash shows current lap, last lap, best lap, lap count, and speed. |
+| LAP-05 | Dash shows current lap, last lap, best lap, lap count, sector/split summary, and speed. |
 | LAP-06 | Engine runs from synthetic replay fixtures without UI/platform services. |
-| LAP-07 | Sector-line data model included; sector detection/UI deferred. |
+| LAP-07 | Sector-line data model, detection, per-lap split state, replay tests, and minimal UI included. |
 | SAFE-04 | UI/docs explicitly state GPS accuracy limits and simulator/replay status. |
-| ARCH-02 | Tests cover geometry, crossing, interpolation, filters, and replay scenarios. |
+| ARCH-02 | Tests cover geometry, crossing, interpolation, filters, sector detection, and replay scenarios. |
 
 ## Risks and Mitigations
 
@@ -400,21 +434,22 @@ On macOS/Xcode:
 | UI starts owning lap logic. | Keep `LapEngine` in common domain; UI only renders `LapTimingState`/presentation state. |
 | GPL contamination from reference projects. | Implement from first principles; do not copy source, tests, naming, or structure from GPL projects. |
 | Phase grows into session persistence or ghost delta. | Keep persistence and ghost out of Phase 2; defer to Phases 3 and 4. |
+| Sector UI makes the mounted dash dense. | Show only compact current/latest sector split state; defer detailed sector table/review to later session review work. |
 
 ## Definition of Done
 
 - Shared lap engine models, projection, crossing detector, and state machine are implemented.
-- Automated tests cover geometry, interpolation, filters, and replay fixtures.
-- Existing dash shows lap timing state from the engine in a demo/replay-backed session.
+- Automated tests cover geometry, interpolation, filters, sector detection, and replay fixtures.
+- Existing dash shows lap timing and sector/split state from the engine in a demo/replay-backed session.
 - Android debug APK builds and Android smoke test is documented.
 - No GPL code is copied.
 - Phase 2 summary and verification docs are written.
 
-## Review Questions for User
+## Resolved Review Questions
 
-1. For V0, is a two-point start/finish line acceptable as the first user-facing setup path?
-2. Should the Phase 2 app demo use a deterministic simulator loop, or should we pull real phone GPS provider work forward from a later phase?
-3. Should sector-line support remain data-model-only in Phase 2, as planned?
+1. V0 uses a two-point start/finish line.
+2. Phase 2 uses deterministic simulator/replay data and does not pull real GPS provider work forward.
+3. Sector-line support includes data model, detection, per-lap split timing state, tests, and minimal UI.
 
 ---
 

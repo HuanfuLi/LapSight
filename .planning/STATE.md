@@ -13,7 +13,7 @@ See: `.planning/PROJECT.md`
 
 **Phase 2: Clean-Room Lap Engine V0**
 
-Phase 2 planning has been drafted for a clean-room shared Kotlin lap engine with replay tests and a minimal mounted-phone dash integration. Do not implement ghost/delta, persistence, maps, external GNSS, or glasses integration in Phase 2.
+Phase 2 planning has been drafted for a clean-room shared Kotlin lap engine with replay tests and a minimal mounted-phone dash integration. User decisions are captured: V0 uses two-point start/finish lines, deterministic simulator/replay remains the data source, real GPS providers stay deferred, and sector lines include data model, detection, split timing state, tests, and compact UI. Do not implement ghost/delta, persistence, maps, external GNSS, or glasses integration in Phase 2.
 
 ## Working Assumptions
 

@@ -29,7 +29,7 @@
 - [ ] **LAP-04**: App prevents false laps using direction gating, minimum lap time, speed threshold, cooldown, and GPS accuracy filters.
 - [ ] **LAP-05**: User can see current lap time, last lap time, best lap time, lap count, and speed live.
 - [ ] **LAP-06**: Lap engine can run from synthetic and recorded replay fixtures without UI or platform services.
-- [ ] **LAP-07**: Lap engine supports sector-line data model even if sector UI ships later.
+- [ ] **LAP-07**: User can configure sector lines, see sector split timing in the live dash, and replay sector-line crossings through the lap engine.
 
 ### Ghost and Delta
 
