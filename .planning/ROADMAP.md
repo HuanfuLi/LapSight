@@ -57,15 +57,17 @@ Build the phone-first product that proves live GPS capture, lap timing, local se
 
 **Requirements:** SESS-01, SESS-02, SESS-03, SESS-04, SESS-05
 
-**Plans:** 6 plans
+**Plans:** 8 plans
 
 Plans:
 - [ ] 03-01-PLAN.md - Simulated GPS feed and fixture-backed Drive slice
 - [ ] 03-02-PLAN.md - Blocking package verification gate
-- [ ] 03-03-PLAN.md - Track marking, Track Review, and local JSON storage
-- [ ] 03-04-PLAN.md - Timing session drafts, save/discard, and review summaries
-- [ ] 03-05-PLAN.md - Offline vector trace review
-- [ ] 03-06-PLAN.md - Explicit JSON and GPX export
+- [ ] 03-03-PLAN.md - Versioned local storage foundation (deps, schema, file store)
+- [ ] 03-04-PLAN.md - Reference-line extraction domain and Track Review state
+- [ ] 03-05-PLAN.md - Three-tab shell, Mark New Track, and Track Review UI
+- [ ] 03-06-PLAN.md - Timing session drafts, save/discard, and review summaries
+- [ ] 03-07-PLAN.md - Offline vector trace review
+- [ ] 03-08-PLAN.md - Explicit JSON and GPX export with platform share handoff
 
 **Success Criteria:**
 1. User can start, stop, save, discard, and reopen a session.

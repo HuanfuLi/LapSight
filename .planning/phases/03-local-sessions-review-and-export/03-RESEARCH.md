@@ -627,22 +627,25 @@ sealed interface AppRoute {
 | A5 | Compose raw resources are an acceptable place for committed demo fixture JSON files used by the app. | Recommended Project Structure | KMP resource access could create test/platform friction and require a different fixture path. |
 | A6 | Session data is sensitive enough to keep in app-private storage by default, but Phase 3 does not require at-rest encryption unless the user decides so. | Security Domain | Privacy expectations may require encrypted storage or retention controls earlier. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Package install checkpoint**
+1. **Package install checkpoint** — RESOLVED
    - What we know: The recommended packages are official upstream Maven/Gradle artifacts and registry metadata verifies current versions. [CITED: https://github.com/Kotlin/kotlinx.serialization; CITED: https://square.github.io/okio/; VERIFIED: Maven metadata]
    - What's unclear: `slopcheck` flagged Maven coordinates as `SUS`, likely from weak Maven heuristics rather than real slopsquatting evidence. [VERIFIED: slopcheck]
    - Recommendation: Planner must include a human verification checkpoint before applying the serialization plugin and adding Okio/serialization dependencies. [VERIFIED: slopcheck]
+   - **RESOLVED:** Plan 03-02 is a blocking human-verify dependency gate covering all four new coordinates; Plan 03-03 then edits Gradle files using only the approved coordinates. No code change is needed.
 
-2. **Discard deletion semantics**
+2. **Discard deletion semantics** — RESOLVED
    - What we know: Discarded drafts must not become formal review history. [VERIFIED: .planning/phases/03-local-sessions-review-and-export/03-CONTEXT.md]
    - What's unclear: Whether discard should physically delete immediately, tombstone for recovery, or keep a debug-only recovery window. [ASSUMED]
    - Recommendation: Plan immediate removal from index/history and physical deletion of draft payloads for Phase 3; leave recovery/tombstones deferred unless the user requests them. [ASSUMED]
+   - **RESOLVED:** Plans 03-05 (track Discard) and 03-06 (timing Discard) implement immediate removal from index/history and physical deletion of draft payloads; tombstones/recovery windows remain deferred.
 
-3. **Platform share surface**
+3. **Platform share surface** — RESOLVED
    - What we know: JSON and GPX export must work from Review detail screens. [VERIFIED: .planning/phases/03-local-sessions-review-and-export/03-CONTEXT.md]
    - What's unclear: Whether Phase 3 needs native share sheets on both Android and iOS, or just writes export files and exposes a platform-specific save/share action. [ASSUMED]
    - Recommendation: Plan a platform export boundary (`expect/actual` or injected interface) so shared export services return bytes/filename, and Android/iOS own the share/save handoff. [CITED: https://kotlinlang.org/docs/multiplatform/multiplatform-expect-actual.html; ASSUMED]
+   - **RESOLVED:** Plan 03-08 adds `ExportShareTarget` as an `expect interface` with `actual` per platform. Shared export services return `ExportArtifact(fileName, mimeType, bytes)`; the Android actual hands it to `Intent.ACTION_SEND` (FileProvider/cache-staged) and the iOS actual to `UIActivityViewController`. Exports therefore reach a user-accessible destination (share sheet / Files / Downloads / another app) instead of remaining trapped in app-private `exports/`, so SESS-04/SESS-05 are reachably delivered. [CITED: https://kotlinlang.org/docs/multiplatform/multiplatform-expect-actual.html]
 
 ## Environment Availability
 
