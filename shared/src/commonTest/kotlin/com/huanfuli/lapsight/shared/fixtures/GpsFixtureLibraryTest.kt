@@ -40,10 +40,10 @@ class GpsFixtureLibraryTest {
 
         // Realistic metadata present and explicitly simulated (D-02/D-42).
         a.forEach { sample ->
-            assertNotNull(sample.speedMetersPerSecond, "speed must be present")
+            val speed = assertNotNull(sample.speedMetersPerSecond, "speed must be present")
             assertNotNull(sample.horizontalAccuracyMeters, "accuracy must be present")
             assertNotNull(sample.headingDegrees, "heading must be present")
-            assertTrue(sample.speedMetersPerSecond!! > 0.0, "moving feed has non-zero speed")
+            assertTrue(speed > 0.0, "moving feed has non-zero speed")
             assertEquals(LocationSource.Simulated, sample.source)
         }
     }
@@ -95,9 +95,9 @@ class GpsFixtureLibraryTest {
         assertTrue(summary.durationMillis > 0)
         assertTrue(summary.averageUpdateRateHz > 0.0)
         assertEquals(setOf(LocationSource.Simulated), summary.sources)
-        assertNotNull(summary.bestAccuracyMeters)
-        assertNotNull(summary.worstAccuracyMeters)
-        assertTrue(summary.bestAccuracyMeters!! <= summary.worstAccuracyMeters!!)
+        val best = assertNotNull(summary.bestAccuracyMeters)
+        val worst = assertNotNull(summary.worstAccuracyMeters)
+        assertTrue(best <= worst)
     }
 
     @Test

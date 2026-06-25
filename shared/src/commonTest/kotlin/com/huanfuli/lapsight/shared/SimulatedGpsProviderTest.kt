@@ -32,13 +32,11 @@ class SimulatedGpsProviderTest {
         assertTrue(provider.isRunning, "feed runs without any timing/marking session (D-03)")
 
         // Advances continuously while running, even beyond a single loop length (D-05).
-        var previous = provider.nextSample()
-        assertNotNull(previous, "running feed must emit a first sample")
+        var previous = assertNotNull(provider.nextSample(), "running feed must emit a first sample")
         repeat(500) {
-            val next = provider.nextSample()
-            assertNotNull(next, "running feed must emit continuously")
+            val next = assertNotNull(provider.nextSample(), "running feed must emit continuously")
             assertTrue(
-                next!!.elapsedMillis >= previous!!.elapsedMillis,
+                next.elapsedMillis >= previous.elapsedMillis,
                 "feed time must move forward",
             )
             assertEquals(LocationSource.Simulated, next.source, "feed is simulated (D-42)")

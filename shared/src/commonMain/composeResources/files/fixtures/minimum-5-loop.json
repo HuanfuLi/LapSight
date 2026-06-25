@@ -1,0 +1,2410 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "minimum-5-loop",
+  "name": "Minimum 5-loop",
+  "description": "Five clean loops: the minimum marking input.",
+  "source": "Simulated",
+  "sampleCount": 240,
+  "samples": [
+    {
+      "elapsedMillis": 0,
+      "latitude": 39.8132678,
+      "longitude": -86.1062,
+      "horizontalAccuracyMeters": 4.92,
+      "speedMetersPerSecond": 52.36,
+      "headingDegrees": 90.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 500,
+      "latitude": 39.8132578,
+      "longitude": -86.1058947,
+      "horizontalAccuracyMeters": 4.73,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 94.89,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 1000,
+      "latitude": 39.813228,
+      "longitude": -86.1055946,
+      "horizontalAccuracyMeters": 4.64,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 99.88,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 1500,
+      "latitude": 39.8131789,
+      "longitude": -86.1053049,
+      "horizontalAccuracyMeters": 4.98,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 105.07,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 2000,
+      "latitude": 39.8131113,
+      "longitude": -86.1050305,
+      "horizontalAccuracyMeters": 4.78,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 110.57,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 2500,
+      "latitude": 39.8130265,
+      "longitude": -86.1047762,
+      "horizontalAccuracyMeters": 5.25,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 116.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 3000,
+      "latitude": 39.8129258,
+      "longitude": -86.1045461,
+      "horizontalAccuracyMeters": 4.62,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 123.02,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 3500,
+      "latitude": 39.8128109,
+      "longitude": -86.1043444,
+      "horizontalAccuracyMeters": 5.06,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 130.27,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 4000,
+      "latitude": 39.8126839,
+      "longitude": -86.1041745,
+      "horizontalAccuracyMeters": 5.24,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 138.39,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 4500,
+      "latitude": 39.8125469,
+      "longitude": -86.1040391,
+      "horizontalAccuracyMeters": 4.54,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 147.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 5000,
+      "latitude": 39.8124023,
+      "longitude": -86.1039408,
+      "horizontalAccuracyMeters": 4.98,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 157.6,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 5500,
+      "latitude": 39.8122524,
+      "longitude": -86.1038811,
+      "horizontalAccuracyMeters": 4.51,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 168.55,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 6000,
+      "latitude": 39.8121,
+      "longitude": -86.1038611,
+      "horizontalAccuracyMeters": 4.68,
+      "speedMetersPerSecond": 34.03,
+      "headingDegrees": 180.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 6500,
+      "latitude": 39.8119476,
+      "longitude": -86.1038811,
+      "horizontalAccuracyMeters": 5.07,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 191.45,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 7000,
+      "latitude": 39.8117977,
+      "longitude": -86.1039408,
+      "horizontalAccuracyMeters": 4.54,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 202.4,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 7500,
+      "latitude": 39.8116531,
+      "longitude": -86.1040391,
+      "horizontalAccuracyMeters": 5.09,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 212.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 8000,
+      "latitude": 39.8115161,
+      "longitude": -86.1041745,
+      "horizontalAccuracyMeters": 4.78,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 221.61,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 8500,
+      "latitude": 39.8113891,
+      "longitude": -86.1043444,
+      "horizontalAccuracyMeters": 5.09,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 229.73,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 9000,
+      "latitude": 39.8112742,
+      "longitude": -86.1045461,
+      "horizontalAccuracyMeters": 4.56,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 236.98,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 9500,
+      "latitude": 39.8111735,
+      "longitude": -86.1047762,
+      "horizontalAccuracyMeters": 4.84,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 243.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 10000,
+      "latitude": 39.8110887,
+      "longitude": -86.1050305,
+      "horizontalAccuracyMeters": 4.83,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 249.43,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 10500,
+      "latitude": 39.8110211,
+      "longitude": -86.1053049,
+      "horizontalAccuracyMeters": 5.24,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 254.93,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 11000,
+      "latitude": 39.810972,
+      "longitude": -86.1055946,
+      "horizontalAccuracyMeters": 4.9,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 260.12,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 11500,
+      "latitude": 39.8109422,
+      "longitude": -86.1058947,
+      "horizontalAccuracyMeters": 4.89,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 265.11,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 12000,
+      "latitude": 39.8109322,
+      "longitude": -86.1062,
+      "horizontalAccuracyMeters": 4.55,
+      "speedMetersPerSecond": 52.36,
+      "headingDegrees": 270.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 12500,
+      "latitude": 39.8109422,
+      "longitude": -86.1065053,
+      "horizontalAccuracyMeters": 5.08,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 274.89,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 13000,
+      "latitude": 39.810972,
+      "longitude": -86.1068054,
+      "horizontalAccuracyMeters": 4.87,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 279.88,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 13500,
+      "latitude": 39.8110211,
+      "longitude": -86.1070951,
+      "horizontalAccuracyMeters": 5.23,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 285.07,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 14000,
+      "latitude": 39.8110887,
+      "longitude": -86.1073695,
+      "horizontalAccuracyMeters": 5.14,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 290.57,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 14500,
+      "latitude": 39.8111735,
+      "longitude": -86.1076238,
+      "horizontalAccuracyMeters": 5.09,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 296.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 15000,
+      "latitude": 39.8112742,
+      "longitude": -86.1078539,
+      "horizontalAccuracyMeters": 4.93,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 303.02,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 15500,
+      "latitude": 39.8113891,
+      "longitude": -86.1080556,
+      "horizontalAccuracyMeters": 5.24,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 310.27,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 16000,
+      "latitude": 39.8115161,
+      "longitude": -86.1082255,
+      "horizontalAccuracyMeters": 4.88,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 318.39,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 16500,
+      "latitude": 39.8116531,
+      "longitude": -86.1083609,
+      "horizontalAccuracyMeters": 5.02,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 327.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 17000,
+      "latitude": 39.8117977,
+      "longitude": -86.1084592,
+      "horizontalAccuracyMeters": 5.16,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 337.6,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 17500,
+      "latitude": 39.8119476,
+      "longitude": -86.1085189,
+      "horizontalAccuracyMeters": 5.1,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 348.55,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 18000,
+      "latitude": 39.8121,
+      "longitude": -86.1085389,
+      "horizontalAccuracyMeters": 5.1,
+      "speedMetersPerSecond": 34.03,
+      "headingDegrees": 0.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 18500,
+      "latitude": 39.8122524,
+      "longitude": -86.1085189,
+      "horizontalAccuracyMeters": 4.95,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 11.45,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 19000,
+      "latitude": 39.8124023,
+      "longitude": -86.1084592,
+      "horizontalAccuracyMeters": 4.97,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 22.4,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 19500,
+      "latitude": 39.8125469,
+      "longitude": -86.1083609,
+      "horizontalAccuracyMeters": 4.98,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 32.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 20000,
+      "latitude": 39.8126839,
+      "longitude": -86.1082255,
+      "horizontalAccuracyMeters": 5.27,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 41.61,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 20500,
+      "latitude": 39.8128109,
+      "longitude": -86.1080556,
+      "horizontalAccuracyMeters": 4.81,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 49.73,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 21000,
+      "latitude": 39.8129258,
+      "longitude": -86.1078539,
+      "horizontalAccuracyMeters": 4.74,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 56.98,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 21500,
+      "latitude": 39.8130265,
+      "longitude": -86.1076238,
+      "horizontalAccuracyMeters": 4.99,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 63.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 22000,
+      "latitude": 39.8131113,
+      "longitude": -86.1073695,
+      "horizontalAccuracyMeters": 4.83,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 69.43,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 22500,
+      "latitude": 39.8131789,
+      "longitude": -86.1070951,
+      "horizontalAccuracyMeters": 5.08,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 74.93,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 23000,
+      "latitude": 39.813228,
+      "longitude": -86.1068054,
+      "horizontalAccuracyMeters": 5.3,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 80.12,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 23500,
+      "latitude": 39.8132578,
+      "longitude": -86.1065053,
+      "horizontalAccuracyMeters": 4.91,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 85.11,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 24000,
+      "latitude": 39.8132678,
+      "longitude": -86.1062,
+      "horizontalAccuracyMeters": 4.74,
+      "speedMetersPerSecond": 52.36,
+      "headingDegrees": 90.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 24500,
+      "latitude": 39.8132578,
+      "longitude": -86.1058947,
+      "horizontalAccuracyMeters": 5.21,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 94.89,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 25000,
+      "latitude": 39.813228,
+      "longitude": -86.1055946,
+      "horizontalAccuracyMeters": 4.99,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 99.88,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 25500,
+      "latitude": 39.8131789,
+      "longitude": -86.1053049,
+      "horizontalAccuracyMeters": 4.69,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 105.07,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 26000,
+      "latitude": 39.8131113,
+      "longitude": -86.1050305,
+      "horizontalAccuracyMeters": 4.53,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 110.57,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 26500,
+      "latitude": 39.8130265,
+      "longitude": -86.1047762,
+      "horizontalAccuracyMeters": 4.62,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 116.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 27000,
+      "latitude": 39.8129258,
+      "longitude": -86.1045461,
+      "horizontalAccuracyMeters": 4.74,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 123.02,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 27500,
+      "latitude": 39.8128109,
+      "longitude": -86.1043444,
+      "horizontalAccuracyMeters": 5.05,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 130.27,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 28000,
+      "latitude": 39.8126839,
+      "longitude": -86.1041745,
+      "horizontalAccuracyMeters": 4.59,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 138.39,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 28500,
+      "latitude": 39.8125469,
+      "longitude": -86.1040391,
+      "horizontalAccuracyMeters": 4.74,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 147.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 29000,
+      "latitude": 39.8124023,
+      "longitude": -86.1039408,
+      "horizontalAccuracyMeters": 4.75,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 157.6,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 29500,
+      "latitude": 39.8122524,
+      "longitude": -86.1038811,
+      "horizontalAccuracyMeters": 5.26,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 168.55,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 30000,
+      "latitude": 39.8121,
+      "longitude": -86.1038611,
+      "horizontalAccuracyMeters": 4.64,
+      "speedMetersPerSecond": 34.03,
+      "headingDegrees": 180.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 30500,
+      "latitude": 39.8119476,
+      "longitude": -86.1038811,
+      "horizontalAccuracyMeters": 5.28,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 191.45,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 31000,
+      "latitude": 39.8117977,
+      "longitude": -86.1039408,
+      "horizontalAccuracyMeters": 5.23,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 202.4,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 31500,
+      "latitude": 39.8116531,
+      "longitude": -86.1040391,
+      "horizontalAccuracyMeters": 5.25,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 212.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 32000,
+      "latitude": 39.8115161,
+      "longitude": -86.1041745,
+      "horizontalAccuracyMeters": 4.68,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 221.61,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 32500,
+      "latitude": 39.8113891,
+      "longitude": -86.1043444,
+      "horizontalAccuracyMeters": 5.27,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 229.73,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 33000,
+      "latitude": 39.8112742,
+      "longitude": -86.1045461,
+      "horizontalAccuracyMeters": 5.13,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 236.98,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 33500,
+      "latitude": 39.8111735,
+      "longitude": -86.1047762,
+      "horizontalAccuracyMeters": 5.17,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 243.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 34000,
+      "latitude": 39.8110887,
+      "longitude": -86.1050305,
+      "horizontalAccuracyMeters": 5.03,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 249.43,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 34500,
+      "latitude": 39.8110211,
+      "longitude": -86.1053049,
+      "horizontalAccuracyMeters": 5.08,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 254.93,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 35000,
+      "latitude": 39.810972,
+      "longitude": -86.1055946,
+      "horizontalAccuracyMeters": 4.78,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 260.12,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 35500,
+      "latitude": 39.8109422,
+      "longitude": -86.1058947,
+      "horizontalAccuracyMeters": 5.23,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 265.11,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 36000,
+      "latitude": 39.8109322,
+      "longitude": -86.1062,
+      "horizontalAccuracyMeters": 4.82,
+      "speedMetersPerSecond": 52.36,
+      "headingDegrees": 270.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 36500,
+      "latitude": 39.8109422,
+      "longitude": -86.1065053,
+      "horizontalAccuracyMeters": 4.75,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 274.89,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 37000,
+      "latitude": 39.810972,
+      "longitude": -86.1068054,
+      "horizontalAccuracyMeters": 5.2,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 279.88,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 37500,
+      "latitude": 39.8110211,
+      "longitude": -86.1070951,
+      "horizontalAccuracyMeters": 5.09,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 285.07,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 38000,
+      "latitude": 39.8110887,
+      "longitude": -86.1073695,
+      "horizontalAccuracyMeters": 5.0,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 290.57,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 38500,
+      "latitude": 39.8111735,
+      "longitude": -86.1076238,
+      "horizontalAccuracyMeters": 4.59,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 296.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 39000,
+      "latitude": 39.8112742,
+      "longitude": -86.1078539,
+      "horizontalAccuracyMeters": 5.09,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 303.02,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 39500,
+      "latitude": 39.8113891,
+      "longitude": -86.1080556,
+      "horizontalAccuracyMeters": 5.21,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 310.27,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 40000,
+      "latitude": 39.8115161,
+      "longitude": -86.1082255,
+      "horizontalAccuracyMeters": 5.28,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 318.39,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 40500,
+      "latitude": 39.8116531,
+      "longitude": -86.1083609,
+      "horizontalAccuracyMeters": 4.74,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 327.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 41000,
+      "latitude": 39.8117977,
+      "longitude": -86.1084592,
+      "horizontalAccuracyMeters": 4.74,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 337.6,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 41500,
+      "latitude": 39.8119476,
+      "longitude": -86.1085189,
+      "horizontalAccuracyMeters": 4.55,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 348.55,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 42000,
+      "latitude": 39.8121,
+      "longitude": -86.1085389,
+      "horizontalAccuracyMeters": 4.67,
+      "speedMetersPerSecond": 34.03,
+      "headingDegrees": 0.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 42500,
+      "latitude": 39.8122524,
+      "longitude": -86.1085189,
+      "horizontalAccuracyMeters": 5.26,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 11.45,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 43000,
+      "latitude": 39.8124023,
+      "longitude": -86.1084592,
+      "horizontalAccuracyMeters": 5.14,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 22.4,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 43500,
+      "latitude": 39.8125469,
+      "longitude": -86.1083609,
+      "horizontalAccuracyMeters": 4.6,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 32.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 44000,
+      "latitude": 39.8126839,
+      "longitude": -86.1082255,
+      "horizontalAccuracyMeters": 5.05,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 41.61,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 44500,
+      "latitude": 39.8128109,
+      "longitude": -86.1080556,
+      "horizontalAccuracyMeters": 5.28,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 49.73,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 45000,
+      "latitude": 39.8129258,
+      "longitude": -86.1078539,
+      "horizontalAccuracyMeters": 5.2,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 56.98,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 45500,
+      "latitude": 39.8130265,
+      "longitude": -86.1076238,
+      "horizontalAccuracyMeters": 4.74,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 63.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 46000,
+      "latitude": 39.8131113,
+      "longitude": -86.1073695,
+      "horizontalAccuracyMeters": 5.24,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 69.43,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 46500,
+      "latitude": 39.8131789,
+      "longitude": -86.1070951,
+      "horizontalAccuracyMeters": 4.51,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 74.93,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 47000,
+      "latitude": 39.813228,
+      "longitude": -86.1068054,
+      "horizontalAccuracyMeters": 5.29,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 80.12,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 47500,
+      "latitude": 39.8132578,
+      "longitude": -86.1065053,
+      "horizontalAccuracyMeters": 4.99,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 85.11,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 48000,
+      "latitude": 39.8132678,
+      "longitude": -86.1062,
+      "horizontalAccuracyMeters": 4.79,
+      "speedMetersPerSecond": 52.36,
+      "headingDegrees": 90.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 48500,
+      "latitude": 39.8132578,
+      "longitude": -86.1058947,
+      "horizontalAccuracyMeters": 4.97,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 94.89,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 49000,
+      "latitude": 39.813228,
+      "longitude": -86.1055946,
+      "horizontalAccuracyMeters": 4.97,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 99.88,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 49500,
+      "latitude": 39.8131789,
+      "longitude": -86.1053049,
+      "horizontalAccuracyMeters": 4.55,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 105.07,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 50000,
+      "latitude": 39.8131113,
+      "longitude": -86.1050305,
+      "horizontalAccuracyMeters": 5.24,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 110.57,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 50500,
+      "latitude": 39.8130265,
+      "longitude": -86.1047762,
+      "horizontalAccuracyMeters": 4.56,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 116.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 51000,
+      "latitude": 39.8129258,
+      "longitude": -86.1045461,
+      "horizontalAccuracyMeters": 4.91,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 123.02,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 51500,
+      "latitude": 39.8128109,
+      "longitude": -86.1043444,
+      "horizontalAccuracyMeters": 4.5,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 130.27,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 52000,
+      "latitude": 39.8126839,
+      "longitude": -86.1041745,
+      "horizontalAccuracyMeters": 4.96,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 138.39,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 52500,
+      "latitude": 39.8125469,
+      "longitude": -86.1040391,
+      "horizontalAccuracyMeters": 4.93,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 147.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 53000,
+      "latitude": 39.8124023,
+      "longitude": -86.1039408,
+      "horizontalAccuracyMeters": 4.77,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 157.6,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 53500,
+      "latitude": 39.8122524,
+      "longitude": -86.1038811,
+      "horizontalAccuracyMeters": 4.55,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 168.55,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 54000,
+      "latitude": 39.8121,
+      "longitude": -86.1038611,
+      "horizontalAccuracyMeters": 4.67,
+      "speedMetersPerSecond": 34.03,
+      "headingDegrees": 180.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 54500,
+      "latitude": 39.8119476,
+      "longitude": -86.1038811,
+      "horizontalAccuracyMeters": 5.18,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 191.45,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 55000,
+      "latitude": 39.8117977,
+      "longitude": -86.1039408,
+      "horizontalAccuracyMeters": 4.57,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 202.4,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 55500,
+      "latitude": 39.8116531,
+      "longitude": -86.1040391,
+      "horizontalAccuracyMeters": 4.69,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 212.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 56000,
+      "latitude": 39.8115161,
+      "longitude": -86.1041745,
+      "horizontalAccuracyMeters": 4.93,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 221.61,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 56500,
+      "latitude": 39.8113891,
+      "longitude": -86.1043444,
+      "horizontalAccuracyMeters": 4.59,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 229.73,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 57000,
+      "latitude": 39.8112742,
+      "longitude": -86.1045461,
+      "horizontalAccuracyMeters": 5.27,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 236.98,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 57500,
+      "latitude": 39.8111735,
+      "longitude": -86.1047762,
+      "horizontalAccuracyMeters": 4.63,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 243.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 58000,
+      "latitude": 39.8110887,
+      "longitude": -86.1050305,
+      "horizontalAccuracyMeters": 5.21,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 249.43,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 58500,
+      "latitude": 39.8110211,
+      "longitude": -86.1053049,
+      "horizontalAccuracyMeters": 4.74,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 254.93,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 59000,
+      "latitude": 39.810972,
+      "longitude": -86.1055946,
+      "horizontalAccuracyMeters": 4.51,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 260.12,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 59500,
+      "latitude": 39.8109422,
+      "longitude": -86.1058947,
+      "horizontalAccuracyMeters": 5.09,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 265.11,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 60000,
+      "latitude": 39.8109322,
+      "longitude": -86.1062,
+      "horizontalAccuracyMeters": 4.81,
+      "speedMetersPerSecond": 52.36,
+      "headingDegrees": 270.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 60500,
+      "latitude": 39.8109422,
+      "longitude": -86.1065053,
+      "horizontalAccuracyMeters": 4.51,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 274.89,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 61000,
+      "latitude": 39.810972,
+      "longitude": -86.1068054,
+      "horizontalAccuracyMeters": 4.7,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 279.88,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 61500,
+      "latitude": 39.8110211,
+      "longitude": -86.1070951,
+      "horizontalAccuracyMeters": 5.1,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 285.07,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 62000,
+      "latitude": 39.8110887,
+      "longitude": -86.1073695,
+      "horizontalAccuracyMeters": 4.6,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 290.57,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 62500,
+      "latitude": 39.8111735,
+      "longitude": -86.1076238,
+      "horizontalAccuracyMeters": 4.52,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 296.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 63000,
+      "latitude": 39.8112742,
+      "longitude": -86.1078539,
+      "horizontalAccuracyMeters": 4.71,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 303.02,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 63500,
+      "latitude": 39.8113891,
+      "longitude": -86.1080556,
+      "horizontalAccuracyMeters": 5.06,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 310.27,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 64000,
+      "latitude": 39.8115161,
+      "longitude": -86.1082255,
+      "horizontalAccuracyMeters": 5.0,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 318.39,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 64500,
+      "latitude": 39.8116531,
+      "longitude": -86.1083609,
+      "horizontalAccuracyMeters": 4.66,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 327.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 65000,
+      "latitude": 39.8117977,
+      "longitude": -86.1084592,
+      "horizontalAccuracyMeters": 4.56,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 337.6,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 65500,
+      "latitude": 39.8119476,
+      "longitude": -86.1085189,
+      "horizontalAccuracyMeters": 4.94,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 348.55,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 66000,
+      "latitude": 39.8121,
+      "longitude": -86.1085389,
+      "horizontalAccuracyMeters": 4.58,
+      "speedMetersPerSecond": 34.03,
+      "headingDegrees": 0.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 66500,
+      "latitude": 39.8122524,
+      "longitude": -86.1085189,
+      "horizontalAccuracyMeters": 4.68,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 11.45,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 67000,
+      "latitude": 39.8124023,
+      "longitude": -86.1084592,
+      "horizontalAccuracyMeters": 4.59,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 22.4,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 67500,
+      "latitude": 39.8125469,
+      "longitude": -86.1083609,
+      "horizontalAccuracyMeters": 4.9,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 32.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 68000,
+      "latitude": 39.8126839,
+      "longitude": -86.1082255,
+      "horizontalAccuracyMeters": 5.24,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 41.61,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 68500,
+      "latitude": 39.8128109,
+      "longitude": -86.1080556,
+      "horizontalAccuracyMeters": 4.72,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 49.73,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 69000,
+      "latitude": 39.8129258,
+      "longitude": -86.1078539,
+      "horizontalAccuracyMeters": 4.82,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 56.98,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 69500,
+      "latitude": 39.8130265,
+      "longitude": -86.1076238,
+      "horizontalAccuracyMeters": 4.51,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 63.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 70000,
+      "latitude": 39.8131113,
+      "longitude": -86.1073695,
+      "horizontalAccuracyMeters": 5.05,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 69.43,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 70500,
+      "latitude": 39.8131789,
+      "longitude": -86.1070951,
+      "horizontalAccuracyMeters": 5.22,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 74.93,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 71000,
+      "latitude": 39.813228,
+      "longitude": -86.1068054,
+      "horizontalAccuracyMeters": 4.82,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 80.12,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 71500,
+      "latitude": 39.8132578,
+      "longitude": -86.1065053,
+      "horizontalAccuracyMeters": 5.1,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 85.11,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 72000,
+      "latitude": 39.8132678,
+      "longitude": -86.1062,
+      "horizontalAccuracyMeters": 4.99,
+      "speedMetersPerSecond": 52.36,
+      "headingDegrees": 90.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 72500,
+      "latitude": 39.8132578,
+      "longitude": -86.1058947,
+      "horizontalAccuracyMeters": 4.71,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 94.89,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 73000,
+      "latitude": 39.813228,
+      "longitude": -86.1055946,
+      "horizontalAccuracyMeters": 4.63,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 99.88,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 73500,
+      "latitude": 39.8131789,
+      "longitude": -86.1053049,
+      "horizontalAccuracyMeters": 4.56,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 105.07,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 74000,
+      "latitude": 39.8131113,
+      "longitude": -86.1050305,
+      "horizontalAccuracyMeters": 5.22,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 110.57,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 74500,
+      "latitude": 39.8130265,
+      "longitude": -86.1047762,
+      "horizontalAccuracyMeters": 4.65,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 116.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 75000,
+      "latitude": 39.8129258,
+      "longitude": -86.1045461,
+      "horizontalAccuracyMeters": 4.58,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 123.02,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 75500,
+      "latitude": 39.8128109,
+      "longitude": -86.1043444,
+      "horizontalAccuracyMeters": 4.96,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 130.27,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 76000,
+      "latitude": 39.8126839,
+      "longitude": -86.1041745,
+      "horizontalAccuracyMeters": 4.76,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 138.39,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 76500,
+      "latitude": 39.8125469,
+      "longitude": -86.1040391,
+      "horizontalAccuracyMeters": 5.26,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 147.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 77000,
+      "latitude": 39.8124023,
+      "longitude": -86.1039408,
+      "horizontalAccuracyMeters": 4.88,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 157.6,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 77500,
+      "latitude": 39.8122524,
+      "longitude": -86.1038811,
+      "horizontalAccuracyMeters": 4.63,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 168.55,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 78000,
+      "latitude": 39.8121,
+      "longitude": -86.1038611,
+      "horizontalAccuracyMeters": 4.94,
+      "speedMetersPerSecond": 34.03,
+      "headingDegrees": 180.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 78500,
+      "latitude": 39.8119476,
+      "longitude": -86.1038811,
+      "horizontalAccuracyMeters": 5.19,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 191.45,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 79000,
+      "latitude": 39.8117977,
+      "longitude": -86.1039408,
+      "horizontalAccuracyMeters": 4.79,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 202.4,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 79500,
+      "latitude": 39.8116531,
+      "longitude": -86.1040391,
+      "horizontalAccuracyMeters": 4.71,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 212.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 80000,
+      "latitude": 39.8115161,
+      "longitude": -86.1041745,
+      "horizontalAccuracyMeters": 4.99,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 221.61,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 80500,
+      "latitude": 39.8113891,
+      "longitude": -86.1043444,
+      "horizontalAccuracyMeters": 4.98,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 229.73,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 81000,
+      "latitude": 39.8112742,
+      "longitude": -86.1045461,
+      "horizontalAccuracyMeters": 4.99,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 236.98,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 81500,
+      "latitude": 39.8111735,
+      "longitude": -86.1047762,
+      "horizontalAccuracyMeters": 5.17,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 243.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 82000,
+      "latitude": 39.8110887,
+      "longitude": -86.1050305,
+      "horizontalAccuracyMeters": 4.59,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 249.43,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 82500,
+      "latitude": 39.8110211,
+      "longitude": -86.1053049,
+      "horizontalAccuracyMeters": 4.82,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 254.93,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 83000,
+      "latitude": 39.810972,
+      "longitude": -86.1055946,
+      "horizontalAccuracyMeters": 4.81,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 260.12,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 83500,
+      "latitude": 39.8109422,
+      "longitude": -86.1058947,
+      "horizontalAccuracyMeters": 5.0,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 265.11,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 84000,
+      "latitude": 39.8109322,
+      "longitude": -86.1062,
+      "horizontalAccuracyMeters": 4.84,
+      "speedMetersPerSecond": 52.36,
+      "headingDegrees": 270.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 84500,
+      "latitude": 39.8109422,
+      "longitude": -86.1065053,
+      "horizontalAccuracyMeters": 4.98,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 274.89,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 85000,
+      "latitude": 39.810972,
+      "longitude": -86.1068054,
+      "horizontalAccuracyMeters": 5.24,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 279.88,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 85500,
+      "latitude": 39.8110211,
+      "longitude": -86.1070951,
+      "horizontalAccuracyMeters": 5.07,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 285.07,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 86000,
+      "latitude": 39.8110887,
+      "longitude": -86.1073695,
+      "horizontalAccuracyMeters": 5.3,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 290.57,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 86500,
+      "latitude": 39.8111735,
+      "longitude": -86.1076238,
+      "horizontalAccuracyMeters": 4.67,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 296.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 87000,
+      "latitude": 39.8112742,
+      "longitude": -86.1078539,
+      "horizontalAccuracyMeters": 5.27,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 303.02,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 87500,
+      "latitude": 39.8113891,
+      "longitude": -86.1080556,
+      "horizontalAccuracyMeters": 4.82,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 310.27,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 88000,
+      "latitude": 39.8115161,
+      "longitude": -86.1082255,
+      "horizontalAccuracyMeters": 4.93,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 318.39,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 88500,
+      "latitude": 39.8116531,
+      "longitude": -86.1083609,
+      "horizontalAccuracyMeters": 4.65,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 327.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 89000,
+      "latitude": 39.8117977,
+      "longitude": -86.1084592,
+      "horizontalAccuracyMeters": 5.08,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 337.6,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 89500,
+      "latitude": 39.8119476,
+      "longitude": -86.1085189,
+      "horizontalAccuracyMeters": 5.18,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 348.55,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 90000,
+      "latitude": 39.8121,
+      "longitude": -86.1085389,
+      "horizontalAccuracyMeters": 5.22,
+      "speedMetersPerSecond": 34.03,
+      "headingDegrees": 0.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 90500,
+      "latitude": 39.8122524,
+      "longitude": -86.1085189,
+      "horizontalAccuracyMeters": 4.61,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 11.45,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 91000,
+      "latitude": 39.8124023,
+      "longitude": -86.1084592,
+      "horizontalAccuracyMeters": 4.71,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 22.4,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 91500,
+      "latitude": 39.8125469,
+      "longitude": -86.1083609,
+      "horizontalAccuracyMeters": 4.78,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 32.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 92000,
+      "latitude": 39.8126839,
+      "longitude": -86.1082255,
+      "horizontalAccuracyMeters": 5.1,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 41.61,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 92500,
+      "latitude": 39.8128109,
+      "longitude": -86.1080556,
+      "horizontalAccuracyMeters": 4.85,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 49.73,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 93000,
+      "latitude": 39.8129258,
+      "longitude": -86.1078539,
+      "horizontalAccuracyMeters": 4.59,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 56.98,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 93500,
+      "latitude": 39.8130265,
+      "longitude": -86.1076238,
+      "horizontalAccuracyMeters": 4.78,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 63.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 94000,
+      "latitude": 39.8131113,
+      "longitude": -86.1073695,
+      "horizontalAccuracyMeters": 4.81,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 69.43,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 94500,
+      "latitude": 39.8131789,
+      "longitude": -86.1070951,
+      "horizontalAccuracyMeters": 4.88,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 74.93,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 95000,
+      "latitude": 39.813228,
+      "longitude": -86.1068054,
+      "horizontalAccuracyMeters": 4.9,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 80.12,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 95500,
+      "latitude": 39.8132578,
+      "longitude": -86.1065053,
+      "horizontalAccuracyMeters": 4.76,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 85.11,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 96000,
+      "latitude": 39.8132678,
+      "longitude": -86.1062,
+      "horizontalAccuracyMeters": 4.64,
+      "speedMetersPerSecond": 52.36,
+      "headingDegrees": 90.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 96500,
+      "latitude": 39.8132578,
+      "longitude": -86.1058947,
+      "horizontalAccuracyMeters": 4.83,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 94.89,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 97000,
+      "latitude": 39.813228,
+      "longitude": -86.1055946,
+      "horizontalAccuracyMeters": 4.75,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 99.88,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 97500,
+      "latitude": 39.8131789,
+      "longitude": -86.1053049,
+      "horizontalAccuracyMeters": 5.17,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 105.07,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 98000,
+      "latitude": 39.8131113,
+      "longitude": -86.1050305,
+      "horizontalAccuracyMeters": 4.89,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 110.57,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 98500,
+      "latitude": 39.8130265,
+      "longitude": -86.1047762,
+      "horizontalAccuracyMeters": 4.84,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 116.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 99000,
+      "latitude": 39.8129258,
+      "longitude": -86.1045461,
+      "horizontalAccuracyMeters": 5.06,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 123.02,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 99500,
+      "latitude": 39.8128109,
+      "longitude": -86.1043444,
+      "horizontalAccuracyMeters": 4.7,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 130.27,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 100000,
+      "latitude": 39.8126839,
+      "longitude": -86.1041745,
+      "horizontalAccuracyMeters": 5.08,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 138.39,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 100500,
+      "latitude": 39.8125469,
+      "longitude": -86.1040391,
+      "horizontalAccuracyMeters": 4.84,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 147.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 101000,
+      "latitude": 39.8124023,
+      "longitude": -86.1039408,
+      "horizontalAccuracyMeters": 5.16,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 157.6,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 101500,
+      "latitude": 39.8122524,
+      "longitude": -86.1038811,
+      "horizontalAccuracyMeters": 4.57,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 168.55,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 102000,
+      "latitude": 39.8121,
+      "longitude": -86.1038611,
+      "horizontalAccuracyMeters": 4.75,
+      "speedMetersPerSecond": 34.03,
+      "headingDegrees": 180.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 102500,
+      "latitude": 39.8119476,
+      "longitude": -86.1038811,
+      "horizontalAccuracyMeters": 4.88,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 191.45,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 103000,
+      "latitude": 39.8117977,
+      "longitude": -86.1039408,
+      "horizontalAccuracyMeters": 5.18,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 202.4,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 103500,
+      "latitude": 39.8116531,
+      "longitude": -86.1040391,
+      "horizontalAccuracyMeters": 4.54,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 212.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 104000,
+      "latitude": 39.8115161,
+      "longitude": -86.1041745,
+      "horizontalAccuracyMeters": 4.85,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 221.61,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 104500,
+      "latitude": 39.8113891,
+      "longitude": -86.1043444,
+      "horizontalAccuracyMeters": 4.67,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 229.73,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 105000,
+      "latitude": 39.8112742,
+      "longitude": -86.1045461,
+      "horizontalAccuracyMeters": 4.77,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 236.98,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 105500,
+      "latitude": 39.8111735,
+      "longitude": -86.1047762,
+      "horizontalAccuracyMeters": 4.98,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 243.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 106000,
+      "latitude": 39.8110887,
+      "longitude": -86.1050305,
+      "horizontalAccuracyMeters": 4.7,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 249.43,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 106500,
+      "latitude": 39.8110211,
+      "longitude": -86.1053049,
+      "horizontalAccuracyMeters": 5.03,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 254.93,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 107000,
+      "latitude": 39.810972,
+      "longitude": -86.1055946,
+      "horizontalAccuracyMeters": 4.58,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 260.12,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 107500,
+      "latitude": 39.8109422,
+      "longitude": -86.1058947,
+      "horizontalAccuracyMeters": 4.94,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 265.11,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 108000,
+      "latitude": 39.8109322,
+      "longitude": -86.1062,
+      "horizontalAccuracyMeters": 4.69,
+      "speedMetersPerSecond": 52.36,
+      "headingDegrees": 270.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 108500,
+      "latitude": 39.8109422,
+      "longitude": -86.1065053,
+      "horizontalAccuracyMeters": 4.61,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 274.89,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 109000,
+      "latitude": 39.810972,
+      "longitude": -86.1068054,
+      "horizontalAccuracyMeters": 5.24,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 279.88,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 109500,
+      "latitude": 39.8110211,
+      "longitude": -86.1070951,
+      "horizontalAccuracyMeters": 4.64,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 285.07,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 110000,
+      "latitude": 39.8110887,
+      "longitude": -86.1073695,
+      "horizontalAccuracyMeters": 4.57,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 290.57,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 110500,
+      "latitude": 39.8111735,
+      "longitude": -86.1076238,
+      "horizontalAccuracyMeters": 4.99,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 296.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 111000,
+      "latitude": 39.8112742,
+      "longitude": -86.1078539,
+      "horizontalAccuracyMeters": 4.9,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 303.02,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 111500,
+      "latitude": 39.8113891,
+      "longitude": -86.1080556,
+      "horizontalAccuracyMeters": 4.71,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 310.27,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 112000,
+      "latitude": 39.8115161,
+      "longitude": -86.1082255,
+      "horizontalAccuracyMeters": 4.85,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 318.39,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 112500,
+      "latitude": 39.8116531,
+      "longitude": -86.1083609,
+      "horizontalAccuracyMeters": 5.23,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 327.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 113000,
+      "latitude": 39.8117977,
+      "longitude": -86.1084592,
+      "horizontalAccuracyMeters": 5.03,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 337.6,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 113500,
+      "latitude": 39.8119476,
+      "longitude": -86.1085189,
+      "horizontalAccuracyMeters": 4.95,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 348.55,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 114000,
+      "latitude": 39.8121,
+      "longitude": -86.1085389,
+      "horizontalAccuracyMeters": 5.19,
+      "speedMetersPerSecond": 34.03,
+      "headingDegrees": 0.0,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 114500,
+      "latitude": 39.8122524,
+      "longitude": -86.1085189,
+      "horizontalAccuracyMeters": 4.76,
+      "speedMetersPerSecond": 34.43,
+      "headingDegrees": 11.45,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 115000,
+      "latitude": 39.8124023,
+      "longitude": -86.1084592,
+      "horizontalAccuracyMeters": 5.02,
+      "speedMetersPerSecond": 35.56,
+      "headingDegrees": 22.4,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 115500,
+      "latitude": 39.8125469,
+      "longitude": -86.1083609,
+      "horizontalAccuracyMeters": 5.23,
+      "speedMetersPerSecond": 37.28,
+      "headingDegrees": 32.51,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 116000,
+      "latitude": 39.8126839,
+      "longitude": -86.1082255,
+      "horizontalAccuracyMeters": 4.9,
+      "speedMetersPerSecond": 39.42,
+      "headingDegrees": 41.61,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 116500,
+      "latitude": 39.8128109,
+      "longitude": -86.1080556,
+      "horizontalAccuracyMeters": 4.64,
+      "speedMetersPerSecond": 41.77,
+      "headingDegrees": 49.73,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 117000,
+      "latitude": 39.8129258,
+      "longitude": -86.1078539,
+      "horizontalAccuracyMeters": 4.52,
+      "speedMetersPerSecond": 44.16,
+      "headingDegrees": 56.98,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 117500,
+      "latitude": 39.8130265,
+      "longitude": -86.1076238,
+      "horizontalAccuracyMeters": 5.29,
+      "speedMetersPerSecond": 46.42,
+      "headingDegrees": 63.49,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 118000,
+      "latitude": 39.8131113,
+      "longitude": -86.1073695,
+      "horizontalAccuracyMeters": 5.22,
+      "speedMetersPerSecond": 48.43,
+      "headingDegrees": 69.43,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 118500,
+      "latitude": 39.8131789,
+      "longitude": -86.1070951,
+      "horizontalAccuracyMeters": 5.19,
+      "speedMetersPerSecond": 50.1,
+      "headingDegrees": 74.93,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 119000,
+      "latitude": 39.813228,
+      "longitude": -86.1068054,
+      "horizontalAccuracyMeters": 5.04,
+      "speedMetersPerSecond": 51.34,
+      "headingDegrees": 80.12,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    },
+    {
+      "elapsedMillis": 119500,
+      "latitude": 39.8132578,
+      "longitude": -86.1065053,
+      "horizontalAccuracyMeters": 4.51,
+      "speedMetersPerSecond": 52.1,
+      "headingDegrees": 85.11,
+      "altitudeMeters": 219.0,
+      "source": "Simulated"
+    }
+  ]
+}
