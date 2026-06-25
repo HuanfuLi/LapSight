@@ -1,7 +1,7 @@
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Planning docs created for review.
+**Current Status:** Phase 1 implemented and automated Android/shared checks passed; human Android/iOS runtime UAT remains pending.
 
 ## Project Reference
 
@@ -13,7 +13,7 @@ See: `.planning/PROJECT.md`
 
 **Phase 1: Mobile Walking Skeleton + GPS Probe**
 
-The next practical step is to turn the empty repository into a runnable mobile project and validate live GPS acquisition on real devices. Do not implement ghost/delta before the GPS probe and lap engine replay tests exist.
+The repository now contains a KMP/CMP mobile skeleton with a simulator-backed GPS probe dash. Do not implement ghost/delta before Phase 1 runtime UAT and the Phase 2 lap engine replay tests exist.
 
 ## Working Assumptions
 
@@ -23,12 +23,12 @@ The next practical step is to turn the empty repository into a runnable mobile p
 - Kotlin Multiplatform + Compose Multiplatform is the current preferred stack.
 - Lap engine must be clean-room and testable.
 - Open-source references are research inputs, not direct copy sources.
+- Phase 1 uses simulator-backed GPS probe state; real providers are next.
 
 ## Next Command Candidates
 
-- `$gsd-discuss-phase 1` — clarify Phase 1 implementation details.
-- `$gsd-ui-phase 1` — define dash UI contract before coding.
-- `$gsd-plan-phase 1` — generate an executable implementation plan.
+- Complete `01-HUMAN-UAT.md` device/Xcode checks.
+- After UAT approval, mark Phase 1 complete and start Phase 2 lap engine planning.
 
 ## Review Checklist
 
@@ -37,6 +37,8 @@ The next practical step is to turn the empty repository into a runnable mobile p
 - [ ] Confirm whether Phase 1 must support iOS immediately or may spike Android first.
 - [ ] Confirm whether planning docs should be committed.
 - [ ] Confirm app license policy.
+- [ ] Complete Android runtime UAT.
+- [ ] Complete iOS Xcode runtime UAT.
 
 ---
-*Last updated: 2026-06-25 after initialization*
+*Last updated: 2026-06-25 after Phase 1 implementation*
