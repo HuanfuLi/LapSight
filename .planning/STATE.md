@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_execute
-last_updated: "2026-06-25T18:22:44.450Z"
+last_updated: "2026-06-25T22:07:31.344Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 10
-  completed_plans: 2
-  percent: 20
+  completed_plans: 6
+  percent: 29
 ---
 
 # State: LapSight
