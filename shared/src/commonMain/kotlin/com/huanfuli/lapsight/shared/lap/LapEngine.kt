@@ -45,14 +45,6 @@ class LapEngine(
      */
     private var expectedStartFinishSign: Double? = null
 
-    /**
-     * Expected movement heading (degrees) for a valid start/finish crossing,
-     * learned from the first accepted crossing. Drives the heading-tolerance
-     * half of the direction gate ([LapEngineConfig.directionToleranceDegrees]).
-     * Stays null until a crossing with a computable heading is seen.
-     */
-    private var expectedStartFinishHeading: Double? = null
-
     var state: LapTimingState = LapTimingState.initial(course)
         private set
 
@@ -63,7 +55,6 @@ class LapEngine(
         previous = null
         lastStartFinishAcceptMillis = null
         expectedStartFinishSign = null
-        expectedStartFinishHeading = null
         state = LapTimingState.initial(course)
     }
 
@@ -108,9 +99,12 @@ class LapEngine(
                 crossings += PendingCrossing(it, sector = sector)
             }
         }
-        // Stable sort by crossing time; start/finish was added first so it wins
-        // ties (treated as completing the lap before the next lap's sectors).
-        crossings.sortedBy { it.candidate.crossingMillis }.forEach { pending ->
+        // Order by interpolated crossing time, then by position along the segment
+        // (ratio) so simultaneous interpolated timestamps are still applied in
+        // physical order rather than insertion order.
+        crossings.sortedWith(
+            compareBy({ it.candidate.crossingMillis }, { it.candidate.ratio }),
+        ).forEach { pending ->
             val sector = pending.sector
             if (sector == null) {
                 handleStartFinish(pending.candidate, movement)
@@ -158,9 +152,6 @@ class LapEngine(
             state = state.copy(lastRejectReason = LapRejectReason.WrongDirection)
             return
         }
-        // Learn lazily in case the first accepted crossing was degenerate
-        // (started on the line / zero-length movement).
-        learnDirection(candidate)
 
         // Cooldown.
         lastStartFinishAcceptMillis?.let { last ->
@@ -176,6 +167,11 @@ class LapEngine(
             state = state.copy(lastRejectReason = LapRejectReason.BelowMinLapDuration)
             return
         }
+
+        // Only now that every gate has passed do we anchor the expected
+        // direction — never from a crossing we end up rejecting (covers the case
+        // where the first lap opened exactly on the line and its side was 0).
+        learnDirection(candidate)
 
         val lapNumber = state.currentLapNumber ?: 1
         val completed = LapEvent(lapNumber, lapStart, candidate.crossingMillis)
@@ -275,47 +271,30 @@ class LapEngine(
     }
 
     /**
-     * Record the side and heading of an accepted crossing as the expected
-     * direction, but only from non-degenerate values: a crossing that starts
-     * exactly on the line (side 0) or has no computable heading must not lock
-     * the gate (WR-01).
+     * Record the approach side of an accepted crossing as the expected
+     * direction, but only from a non-degenerate side: a crossing that starts
+     * exactly on the line has side 0 and must not lock the gate (WR-01). The
+     * side is learned once, from the first accepted crossing with a clear side.
      */
     private fun learnDirection(candidate: CrossingCandidate) {
         if (expectedStartFinishSign == null) {
             val sign = signOf(candidate.signedSide)
             if (sign != 0.0) expectedStartFinishSign = sign
         }
-        if (expectedStartFinishHeading == null) {
-            candidate.headingDegrees?.let { expectedStartFinishHeading = it }
-        }
     }
 
     /**
-     * A crossing matches the learned direction when it approaches from the same
-     * side AND its heading is within [LapEngineConfig.directionToleranceDegrees]
-     * of the expected heading. Each check is skipped while its reference is
-     * unlearned or the candidate value is degenerate, so the gate is permissive
-     * until it has something concrete to compare against.
+     * A crossing matches the learned direction when it approaches the line from
+     * the same side as the first accepted crossing (the sign of the 2D cross
+     * product). This half-plane check is robust to heading noise on
+     * low-frequency GPS. The check is skipped while the expected side is
+     * unlearned or the candidate sits exactly on the line (side 0).
      */
     private fun directionMatches(candidate: CrossingCandidate): Boolean {
-        expectedStartFinishSign?.let { expected ->
-            val sign = signOf(candidate.signedSide)
-            if (sign != 0.0 && sign != expected) return false
-        }
-        val expectedHeading = expectedStartFinishHeading
-        val candidateHeading = candidate.headingDegrees
-        if (expectedHeading != null && candidateHeading != null) {
-            if (angularDifferenceDegrees(expectedHeading, candidateHeading) > config.directionToleranceDegrees) {
-                return false
-            }
-        }
-        return true
-    }
-
-    /** Smallest absolute difference between two headings, in [0, 180]. */
-    private fun angularDifferenceDegrees(a: Double, b: Double): Double {
-        val d = kotlin.math.abs(a - b) % 360.0
-        return if (d > 180.0) 360.0 - d else d
+        val expected = expectedStartFinishSign ?: return true
+        val sign = signOf(candidate.signedSide)
+        if (sign == 0.0) return true
+        return sign == expected
     }
 
     private fun liveElapsed(nowMillis: Long): Long? {

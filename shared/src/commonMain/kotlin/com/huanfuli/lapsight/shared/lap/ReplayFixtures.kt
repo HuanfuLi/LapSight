@@ -43,7 +43,6 @@ object ReplayFixtures {
         crossingCooldownMillis = 2_000,
         maxHorizontalAccuracyMeters = 25.0,
         minSpeedMetersPerSecond = 1.0,
-        directionToleranceDegrees = 80.0,
         enforceDirection = true,
     )
 

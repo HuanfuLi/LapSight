@@ -16,7 +16,6 @@ class LapModelsTest {
         assertEquals(3_000, config.crossingCooldownMillis)
         assertEquals(25.0, config.maxHorizontalAccuracyMeters)
         assertEquals(2.0, config.minSpeedMetersPerSecond)
-        assertEquals(80.0, config.directionToleranceDegrees)
         assertTrue(config.enforceDirection)
     }
 
@@ -38,9 +37,6 @@ class LapModelsTest {
         }
         assertFailsWith<IllegalArgumentException> {
             LapEngineConfig(maxHorizontalAccuracyMeters = 0.0)
-        }
-        assertFailsWith<IllegalArgumentException> {
-            LapEngineConfig(directionToleranceDegrees = 200.0)
         }
     }
 
