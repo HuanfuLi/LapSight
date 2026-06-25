@@ -11,9 +11,9 @@ See: `.planning/PROJECT.md`
 
 ## Current Focus
 
-**Phase 1: Mobile Walking Skeleton + GPS Probe**
+**Phase 2: Clean-Room Lap Engine V0**
 
-The repository now contains a KMP/CMP mobile skeleton with a simulator-backed GPS probe dash. Android runtime UAT passed on Pixel 10 Pro, including portrait, landscape, and Start/Stop/Reset flows. Do not implement ghost/delta before Phase 1 iOS runtime UAT and the Phase 2 lap engine replay tests exist.
+Phase 2 planning has been drafted for a clean-room shared Kotlin lap engine with replay tests and a minimal mounted-phone dash integration. Do not implement ghost/delta, persistence, maps, external GNSS, or glasses integration in Phase 2.
 
 ## Working Assumptions
 
@@ -27,8 +27,10 @@ The repository now contains a KMP/CMP mobile skeleton with a simulator-backed GP
 
 ## Next Command Candidates
 
+- Review `.planning/phases/02-clean-room-lap-engine-v0/02-PLAN.md`.
+- If approved, execute Phase 2 implementation from the plan.
 - Complete iOS Xcode runtime checks in `01-HUMAN-UAT.md`.
-- After UAT approval, mark Phase 1 complete and start Phase 2 lap engine planning.
+- After iOS UAT approval, mark Phase 1 fully complete.
 
 ## Review Checklist
 
@@ -39,6 +41,7 @@ The repository now contains a KMP/CMP mobile skeleton with a simulator-backed GP
 - [ ] Confirm app license policy.
 - [x] Complete Android runtime UAT.
 - [ ] Complete iOS Xcode runtime UAT.
+- [ ] Review Phase 2 plan.
 
 ---
-*Last updated: 2026-06-25 after Android Pixel 10 Pro UAT*
+*Last updated: 2026-06-25 after Phase 2 plan draft*
