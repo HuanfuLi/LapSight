@@ -1,6 +1,6 @@
 # LapSight
 
-LapSight is a phone-first lap timing and ghost delta app for karting, track driving, and cycling. Phase 1 is a Kotlin Multiplatform / Compose Multiplatform mobile walking skeleton with a simulator-backed GPS probe dash.
+LapSight is a phone-first lap timing and ghost delta app for karting, track driving, and cycling. It is built with Kotlin Multiplatform and Compose Multiplatform. Phase 1 delivered a simulator-backed GPS probe dash; Phase 2 adds a clean-room shared lap engine with sector timing, driven from deterministic replay data.
 
 The phone app is the source of truth for GPS, timing state, session data, and future Meta Display Glasses HUD output.
 
@@ -15,14 +15,25 @@ Implemented in Phase 1:
 - Simulator-backed GPS probe state.
 - Closed-course and GPS accuracy messaging.
 
+Implemented in Phase 2:
+
+- Clean-room shared lap engine (start/finish line crossing detection).
+- Local equirectangular meter projection around a session origin.
+- Segment-crossing geometry with interpolated crossing timestamps.
+- Direction, minimum-lap-time, cooldown, speed, and accuracy filters.
+- Sector-line model, sector crossing detection, and per-lap split timing.
+- Deterministic replay runner and synthetic fixtures (covered by tests).
+- Mounted-phone dash showing current/last/best lap, lap count, speed, accuracy, and compact sector splits.
+
+Lap timing is still **simulator/replay-backed**: the dash advances a deterministic replay through the engine. Real GPS providers will feed the same engine in a later phase without changing lap logic or UI.
+
 Not implemented yet:
 
 - Real Android Fused Location Provider.
 - Real iOS Core Location provider.
-- Lap engine.
-- Session persistence.
+- Session persistence, review, and export.
 - Ghost lap / delta-to-best.
-- Meta glasses HUD bridge.
+- Maps, external GNSS, and the Meta glasses HUD bridge.
 
 ## Project Structure
 
@@ -68,6 +79,8 @@ LapSight is intended for closed courses, karting tracks, private test areas, and
 - Requirements: `.planning/REQUIREMENTS.md`
 - Roadmap: `.planning/ROADMAP.md`
 - Phase 1 plan: `.planning/phases/01-mobile-walking-skeleton-gps-probe/01-PLAN.md`
+- Phase 2 plan: `.planning/phases/02-clean-room-lap-engine-v0/02-PLAN.md`
+- Phase 2 verification: `.planning/phases/02-clean-room-lap-engine-v0/02-VERIFICATION.md`
 
 ## Sources
 
