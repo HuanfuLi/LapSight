@@ -26,6 +26,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.huanfuli.lapsight.shared.lap.DemoLapSession
+import com.huanfuli.lapsight.shared.lap.LapDashState
+import com.huanfuli.lapsight.shared.lap.SectorStatus
+import com.huanfuli.lapsight.shared.lap.SectorSummary
 import kotlinx.coroutines.delay
 
 @Composable
@@ -45,34 +49,39 @@ fun App() {
 
 @Composable
 fun LapSightApp() {
-    var state by remember { mutableStateOf(GpsProbeState.idle()) }
-    var tick by remember { mutableStateOf(0) }
+    // The demo session owns the lap engine; the UI only renders dash state and
+    // advances the replay on a timer. Real GPS providers will later replace the
+    // replay sample source without changing this UI.
+    val session = remember { DemoLapSession() }
+    var dash by remember { mutableStateOf(session.dashState) }
 
-    LaunchedEffect(state.isRunning) {
-        while (state.isRunning) {
-            delay(1_000)
-            tick += 1
-            state = GpsProbeSimulator.next(state, tick)
+    LaunchedEffect(dash.isRunning) {
+        while (dash.isRunning && !session.isFinished) {
+            delay(700)
+            dash = session.tick()
         }
     }
 
-    ProbeDashboard(
-        state = state,
+    LapDashboard(
+        dash = dash,
         onStart = {
-            tick = 0
-            state = GpsProbeState.started()
+            session.start()
+            dash = session.dashState
         },
-        onStop = { state = state.stopped() },
+        onStop = {
+            session.stop()
+            dash = session.dashState
+        },
         onReset = {
-            tick = 0
-            state = GpsProbeState.idle()
+            session.reset()
+            dash = session.dashState
         },
     )
 }
 
 @Composable
-private fun ProbeDashboard(
-    state: GpsProbeState,
+private fun LapDashboard(
+    dash: LapDashState,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onReset: () -> Unit,
@@ -94,22 +103,22 @@ private fun ProbeDashboard(
                 horizontalArrangement = Arrangement.spacedBy(if (isCompactLandscape) 12.dp else 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                HeaderPanel(state, Modifier.weight(0.8f), compact = isCompactLandscape)
-                MetricsPanel(state, Modifier.weight(1.2f), compact = isCompactLandscape)
-                ControlPanel(state, onStart, onStop, onReset, Modifier.weight(0.8f), compact = isCompactLandscape)
+                HeaderPanel(dash, Modifier.weight(0.9f), compact = isCompactLandscape)
+                LapMetricsPanel(dash, Modifier.weight(1.3f), compact = isCompactLandscape)
+                ControlPanel(dash, onStart, onStop, onReset, Modifier.weight(0.9f), compact = isCompactLandscape)
             }
         } else {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(dashboardPadding),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                HeaderPanel(state, Modifier.fillMaxWidth())
-                MetricsPanel(state, Modifier.fillMaxWidth())
+                HeaderPanel(dash, Modifier.fillMaxWidth())
+                LapMetricsPanel(dash, Modifier.fillMaxWidth())
                 Spacer(Modifier.weight(1f))
-                ControlPanel(state, onStart, onStop, onReset, Modifier.fillMaxWidth())
+                ControlPanel(dash, onStart, onStop, onReset, Modifier.fillMaxWidth())
             }
         }
     }
@@ -117,7 +126,7 @@ private fun ProbeDashboard(
 
 @Composable
 private fun HeaderPanel(
-    state: GpsProbeState,
+    dash: LapDashState,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -129,31 +138,37 @@ private fun HeaderPanel(
             fontWeight = FontWeight.Black,
         )
         Text(
-            text = "GPS Probe",
+            text = "Lap Timing",
             color = Color(0xFF9AA8B8),
             fontSize = if (compact) 14.sp else 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
+        Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
         Text(
-            text = "Closed-course timing aid. Phone GPS accuracy varies; verify before trusting lap data.",
+            text = "Closed-course timing aid. Phone GPS accuracy varies; this is not pro-grade timing. Verify before trusting lap data.",
             color = Color(0xFFCED7E2),
             fontSize = if (compact) 11.sp else 13.sp,
             lineHeight = if (compact) 15.sp else 17.sp,
         )
-        Spacer(Modifier.height(if (compact) 12.dp else 16.dp))
+        Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
         Text(
-            text = state.fixStatus.label,
-            color = state.fixStatus.color,
-            fontSize = if (compact) 16.sp else 18.sp,
+            text = dash.courseName.uppercase(),
+            color = MaterialTheme.colorScheme.secondary,
+            fontSize = if (compact) 13.sp else 15.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = dash.fixStatus.label,
+            color = dash.fixStatus.color,
+            fontSize = if (compact) 15.sp else 17.sp,
             fontWeight = FontWeight.Bold,
         )
     }
 }
 
 @Composable
-private fun MetricsPanel(
-    state: GpsProbeState,
+private fun LapMetricsPanel(
+    dash: LapDashState,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -161,15 +176,82 @@ private fun MetricsPanel(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
     ) {
-        MetricCard("Speed", state.speedKmhLabel, "km/h", emphasized = true, compact = compact)
+        MetricCard("Current Lap", dash.currentLapLabel, "", emphasized = true, compact = compact)
         Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)) {
-            MetricCard("Accuracy", state.accuracyLabel, "m", Modifier.weight(1f), compact = compact)
-            MetricCard("Rate", state.updateRateLabel, "Hz", Modifier.weight(1f), compact = compact)
+            MetricCard("Last", dash.lastLapLabel, "", Modifier.weight(1f), compact = compact)
+            MetricCard("Best", dash.bestLapLabel, "", Modifier.weight(1f), compact = compact)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)) {
-            MetricCard("Elapsed", state.elapsedLabel, "", Modifier.weight(1f), compact = compact)
-            MetricCard("Samples", state.sampleCount.toString(), "", Modifier.weight(1f), compact = compact)
+            MetricCard("Laps", dash.lapCountLabel, "", Modifier.weight(1f), compact = compact)
+            MetricCard("Speed", dash.speedKmhLabel, "km/h", Modifier.weight(1f), compact = compact)
+            MetricCard("Accuracy", dash.accuracyLabel, "m", Modifier.weight(1f), compact = compact)
         }
+        SectorReadout(dash, compact = compact)
+    }
+}
+
+@Composable
+private fun SectorReadout(
+    dash: LapDashState,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(Modifier.padding(if (compact) 12.dp else 16.dp)) {
+            Text(
+                text = "SECTORS",
+                color = Color(0xFF7E8DA0),
+                fontSize = if (compact) 10.sp else 11.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(6.dp))
+            if (dash.sectorSummaries.isEmpty()) {
+                Text(
+                    text = "No sectors on this course.",
+                    color = Color(0xFF9AA8B8),
+                    fontSize = if (compact) 12.sp else 14.sp,
+                )
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp)) {
+                    dash.sectorSummaries.forEach { sector ->
+                        SectorChip(sector, compact = compact)
+                    }
+                }
+            }
+            dash.latestSectorLabel?.let { label ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Latest: $label ${dash.latestSplitLabel}",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = if (compact) 12.sp else 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectorChip(
+    sector: SectorSummary,
+    compact: Boolean = false,
+) {
+    Column {
+        Text(
+            text = sector.name.uppercase(),
+            color = Color(0xFF9AA8B8),
+            fontSize = if (compact) 10.sp else 11.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = if (sector.status == SectorStatus.Crossed) sector.splitLabel else "--:--.---",
+            color = if (sector.status == SectorStatus.Crossed) Color.White else Color(0xFF5E6B7A),
+            fontSize = if (compact) 14.sp else 18.sp,
+            fontWeight = FontWeight.Black,
+        )
     }
 }
 
@@ -198,8 +280,8 @@ private fun MetricCard(
                     text = value,
                     color = Color.White,
                     fontSize = when {
-                        emphasized && compact -> 42.sp
-                        emphasized -> 54.sp
+                        emphasized && compact -> 40.sp
+                        emphasized -> 52.sp
                         compact -> 22.sp
                         else -> 28.sp
                     },
@@ -233,7 +315,7 @@ private fun MetricCard(
 
 @Composable
 private fun ControlPanel(
-    state: GpsProbeState,
+    dash: LapDashState,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onReset: () -> Unit,
@@ -245,20 +327,20 @@ private fun ControlPanel(
         verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
     ) {
         Button(
-            onClick = if (state.isRunning) onStop else onStart,
+            onClick = if (dash.isRunning) onStop else onStart,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (state.isRunning) "Stop Probe" else "Start Probe")
+            Text(if (dash.isRunning) "Stop Timing" else "Start Timing")
         }
         Button(
             onClick = onReset,
             modifier = Modifier.fillMaxWidth(),
-            enabled = state.sampleCount > 0 || state.fixStatus != GpsFixStatus.Idle,
+            enabled = dash.lapCount > 0 || dash.currentLapMillis != null || dash.isRunning,
         ) {
             Text("Reset")
         }
         Text(
-            text = "Phase 1 uses simulator-backed samples. Real Android/iOS GPS providers plug into this same state model next.",
+            text = "Phase 2 runs the clean-room lap engine on deterministic replay samples. Real Android/iOS GPS providers plug into the same engine next.",
             color = Color(0xFF7E8DA0),
             fontSize = if (compact) 10.sp else 12.sp,
             lineHeight = if (compact) 14.sp else 16.sp,
@@ -270,7 +352,7 @@ private val GpsFixStatus.label: String
     get() = when (this) {
         GpsFixStatus.Idle -> "IDLE"
         GpsFixStatus.Acquiring -> "ACQUIRING"
-        GpsFixStatus.Simulated -> "SIMULATED GPS"
+        GpsFixStatus.Simulated -> "SIMULATED REPLAY"
         GpsFixStatus.Live -> "LIVE GPS"
         GpsFixStatus.Degraded -> "DEGRADED FIX"
         GpsFixStatus.Unavailable -> "UNAVAILABLE"
