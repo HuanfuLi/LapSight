@@ -1,6 +1,7 @@
 package com.huanfuli.lapsight.shared.lap
 
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 
 /**
@@ -29,15 +30,26 @@ class LocalProjection(val origin: GeoPoint) {
         y = (point.latitude - origin.latitude) * metersPerDegLat,
     )
 
-    /** Inverse of [toLocal]. Approximate; for test sanity checks. */
+    /**
+     * Inverse of [toLocal]. Approximate; for test sanity checks. Near the poles
+     * `metersPerDegLon` collapses toward zero, so guard the division to avoid a
+     * non-finite longitude — a degenerate origin keeps the origin longitude.
+     */
     fun toGeo(point: LocalPoint): GeoPoint = GeoPoint(
         latitude = origin.latitude + point.y / metersPerDegLat,
-        longitude = origin.longitude + point.x / metersPerDegLon,
+        longitude = if (abs(metersPerDegLon) < MIN_METERS_PER_DEGREE_LON) {
+            origin.longitude
+        } else {
+            origin.longitude + point.x / metersPerDegLon
+        },
     )
 
     companion object {
         /** Meters per degree of latitude (WGS84 mean). */
         const val METERS_PER_DEGREE: Double = 111_320.0
+
+        /** Below this east-west scale (near the poles) longitude is undefined. */
+        private const val MIN_METERS_PER_DEGREE_LON: Double = 1e-6
     }
 }
 

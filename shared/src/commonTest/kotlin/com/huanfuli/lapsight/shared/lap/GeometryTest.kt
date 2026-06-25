@@ -127,4 +127,15 @@ class GeometryTest {
     fun headingZeroLengthIsNull() {
         assertNull(SegmentGeometry.headingDegrees(LocalPoint(1.0, 1.0), LocalPoint(1.0, 1.0)))
     }
+
+    @Test
+    fun toGeoNearPoleStaysFinite() {
+        // WR-04: at the pole the east-west scale collapses to ~0; toGeo must
+        // guard the division and not return a non-finite longitude.
+        val polar = LocalProjection(GeoPoint(latitude = 90.0, longitude = 10.0))
+        val geo = polar.toGeo(LocalPoint(x = 100.0, y = 0.0))
+
+        assertTrue(geo.latitude.isFinite())
+        assertTrue(geo.longitude.isFinite())
+    }
 }

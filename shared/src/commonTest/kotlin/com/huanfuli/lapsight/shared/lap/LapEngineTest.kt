@@ -254,4 +254,47 @@ class LapEngineTest {
         assertEquals(0, engine.state.lapCount)
         assertNull(engine.state.currentLapNumber)
     }
+
+    @Test
+    fun firstCrossingExactlyOnLineDoesNotLockDirectionGate() {
+        // WR-01: a first crossing that starts exactly on the line has signedSide
+        // == 0. The gate must not adopt sign 0 and reject every later lap.
+        val config = LapEngineConfig(
+            minLapDurationMillis = 0,
+            crossingCooldownMillis = 0,
+            maxHorizontalAccuracyMeters = null,
+            minSpeedMetersPerSecond = 0.0,
+            enforceDirection = true,
+        )
+        val engine = LapEngine(course, config)
+        engine.onSample(sample(0, 0.0))         // start on the line (x = 0)
+        engine.onSample(sample(2_000, 10.0))    // starts lap; side == 0 here
+        // Loop south and complete a normal eastbound lap.
+        engine.onSample(returnSouth(30_000, 10.0))
+        engine.onSample(returnSouth(58_000, -10.0))
+        engine.onSample(sample(60_000, -10.0))
+        val state = engine.onSample(sample(62_000, 10.0))
+
+        assertEquals(1, state.lapCount)
+        assertNull(state.lastRejectReason)
+    }
+
+    @Test
+    fun singleSegmentCrossingStartFinishAndSectorRecordsBoth() {
+        // WR-03/WR-06: one low-frequency segment crosses start/finish (x = 0)
+        // and then a sector (x = 50). The sector split must still be recorded,
+        // not skipped because the same segment also produced a start/finish.
+        val sectorCourse = CourseDefinition(
+            startFinish = verticalStartFinish(),
+            sectors = listOf(verticalSector("S1", "Sector 1", 0, eastMeters = 50.0)),
+        )
+        val engine = LapEngine(sectorCourse, lenient)
+        engine.onSample(sample(0, -10.0))
+        val state = engine.onSample(sample(10_000, 60.0))
+
+        assertEquals(LapPhase.Timing, state.phase)
+        val s1 = state.sectors.first { it.sectorId == "S1" }
+        assertEquals(SectorStatus.Crossed, s1.status)
+        assertTrue(s1.splitMillis != null && s1.splitMillis!! > 0)
+    }
 }

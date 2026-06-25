@@ -39,9 +39,19 @@ class LapEngine(
     /**
      * Expected sign of [CrossingCandidate.signedSide] for a valid start/finish
      * crossing, learned from the first accepted crossing. Used by the direction
-     * gate so later laps must cross the same way.
+     * gate so later laps must cross from the same side. Stays null until a
+     * crossing with a non-zero side is seen (a crossing that starts exactly on
+     * the line has side 0 and must not lock the gate — see WR-01).
      */
     private var expectedStartFinishSign: Double? = null
+
+    /**
+     * Expected movement heading (degrees) for a valid start/finish crossing,
+     * learned from the first accepted crossing. Drives the heading-tolerance
+     * half of the direction gate ([LapEngineConfig.directionToleranceDegrees]).
+     * Stays null until a crossing with a computable heading is seen.
+     */
+    private var expectedStartFinishHeading: Double? = null
 
     var state: LapTimingState = LapTimingState.initial(course)
         private set
@@ -53,6 +63,7 @@ class LapEngine(
         previous = null
         lastStartFinishAcceptMillis = null
         expectedStartFinishSign = null
+        expectedStartFinishHeading = null
         state = LapTimingState.initial(course)
     }
 
@@ -83,13 +94,29 @@ class LapEngine(
             speedMetersPerSecond = sample.speedMetersPerSecond,
         )
 
-        // Start/finish first so a crossing that both finishes and would re-detect
-        // a sector is handled in the correct order.
-        val sfCandidate = det.detectStartFinish(course.startFinish, movement)
-        if (sfCandidate != null) {
-            handleStartFinish(sfCandidate, movement)
-        } else {
-            handleSectors(det, movement)
+        // A single (possibly low-frequency) movement segment can cross the
+        // start/finish line and one or more sector lines at once. Collect every
+        // crossing on this segment and apply them in interpolated-time order so
+        // a sector split is never silently dropped just because the same segment
+        // also produced a start/finish crossing (see WR-03/WR-06).
+        val crossings = mutableListOf<PendingCrossing>()
+        det.detectStartFinish(course.startFinish, movement)?.let {
+            crossings += PendingCrossing(it, sector = null)
+        }
+        for (sector in course.orderedSectors) {
+            det.detectSector(sector, movement)?.let {
+                crossings += PendingCrossing(it, sector = sector)
+            }
+        }
+        // Stable sort by crossing time; start/finish was added first so it wins
+        // ties (treated as completing the lap before the next lap's sectors).
+        crossings.sortedBy { it.candidate.crossingMillis }.forEach { pending ->
+            val sector = pending.sector
+            if (sector == null) {
+                handleStartFinish(pending.candidate, movement)
+            } else {
+                handleSectorCrossing(sector, pending.candidate, movement)
+            }
         }
 
         previous = sample
@@ -111,7 +138,7 @@ class LapEngine(
     }
 
     private fun startFirstLap(candidate: CrossingCandidate) {
-        expectedStartFinishSign = signOf(candidate.signedSide)
+        learnDirection(candidate)
         lastStartFinishAcceptMillis = candidate.crossingMillis
         state = state.copy(
             phase = LapPhase.Timing,
@@ -131,6 +158,9 @@ class LapEngine(
             state = state.copy(lastRejectReason = LapRejectReason.WrongDirection)
             return
         }
+        // Learn lazily in case the first accepted crossing was degenerate
+        // (started on the line / zero-length movement).
+        learnDirection(candidate)
 
         // Cooldown.
         lastStartFinishAcceptMillis?.let { last ->
@@ -164,13 +194,6 @@ class LapEngine(
             sectors = resetSectors(),
             lastRejectReason = null,
         )
-    }
-
-    private fun handleSectors(detector: CrossingDetector, movement: MovementSegment) {
-        for (sector in course.orderedSectors) {
-            val candidate = detector.detectSector(sector, movement) ?: continue
-            handleSectorCrossing(sector, candidate, movement)
-        }
     }
 
     private fun handleSectorCrossing(
@@ -251,9 +274,48 @@ class LapEngine(
         return null
     }
 
+    /**
+     * Record the side and heading of an accepted crossing as the expected
+     * direction, but only from non-degenerate values: a crossing that starts
+     * exactly on the line (side 0) or has no computable heading must not lock
+     * the gate (WR-01).
+     */
+    private fun learnDirection(candidate: CrossingCandidate) {
+        if (expectedStartFinishSign == null) {
+            val sign = signOf(candidate.signedSide)
+            if (sign != 0.0) expectedStartFinishSign = sign
+        }
+        if (expectedStartFinishHeading == null) {
+            candidate.headingDegrees?.let { expectedStartFinishHeading = it }
+        }
+    }
+
+    /**
+     * A crossing matches the learned direction when it approaches from the same
+     * side AND its heading is within [LapEngineConfig.directionToleranceDegrees]
+     * of the expected heading. Each check is skipped while its reference is
+     * unlearned or the candidate value is degenerate, so the gate is permissive
+     * until it has something concrete to compare against.
+     */
     private fun directionMatches(candidate: CrossingCandidate): Boolean {
-        val expected = expectedStartFinishSign ?: return true
-        return signOf(candidate.signedSide) == expected
+        expectedStartFinishSign?.let { expected ->
+            val sign = signOf(candidate.signedSide)
+            if (sign != 0.0 && sign != expected) return false
+        }
+        val expectedHeading = expectedStartFinishHeading
+        val candidateHeading = candidate.headingDegrees
+        if (expectedHeading != null && candidateHeading != null) {
+            if (angularDifferenceDegrees(expectedHeading, candidateHeading) > config.directionToleranceDegrees) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /** Smallest absolute difference between two headings, in [0, 180]. */
+    private fun angularDifferenceDegrees(a: Double, b: Double): Double {
+        val d = kotlin.math.abs(a - b) % 360.0
+        return if (d > 180.0) 360.0 - d else d
     }
 
     private fun liveElapsed(nowMillis: Long): Long? {
@@ -276,4 +338,13 @@ class LapEngine(
         value < 0.0 -> -1.0
         else -> 0.0
     }
+
+    /**
+     * A crossing detected on the current movement segment, tagged with the
+     * sector it belongs to ([sector] == null means the start/finish line).
+     */
+    private data class PendingCrossing(
+        val candidate: CrossingCandidate,
+        val sector: SectorLine?,
+    )
 }

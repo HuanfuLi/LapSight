@@ -18,9 +18,25 @@ data class ReplayResult(
     val finalState: LapTimingState
         get() = steps.lastOrNull()?.state ?: error("Replay had no samples")
 
-    /** Sector events observed in order across the whole replay. */
+    /**
+     * Sector events observed in order across the whole replay. Captured by
+     * detecting when `latestSector` changes between consecutive steps rather
+     * than de-duplicating the sticky field, so repeated identical-looking steps
+     * are not collapsed and distinct crossings are not lost (WR-05).
+     */
     val sectorEvents: List<SectorEvent>
-        get() = steps.mapNotNull { it.state.latestSector }.distinct()
+        get() {
+            val events = mutableListOf<SectorEvent>()
+            var previous: SectorEvent? = null
+            for (step in steps) {
+                val latest = step.state.latestSector
+                if (latest != null && latest != previous) {
+                    events += latest
+                }
+                previous = latest
+            }
+            return events
+        }
 }
 
 /**
