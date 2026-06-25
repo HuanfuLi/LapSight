@@ -165,7 +165,31 @@ not a stub; real GPS providers are explicitly deferred to a later phase.
 - Session persistence, review, and export (Phase 3).
 - Ghost lap / delta-to-best (Phase 4).
 - iOS runtime UAT requires macOS/Xcode; deferred.
-- On-device Android UAT (build verified; smoke test deferred to human).
+
+## Post-Plan Follow-ups (UAT-driven, 2026-06-25)
+
+On-device Android UAT was run (HyperOS, model 25053RT47C): portrait launch,
+Start advancing the current lap, 3-lap completion (last 00:35.786 / best
+00:32.428), a sector split (SECTOR 1 = 00:07.999), Stop/Reset clearing, and
+landscape readability — all passed, no logcat crash. Two follow-ups were made
+beyond the original plan:
+
+- **User-controlled orientation (commit `6e3077a`).** The dash used
+  `screenOrientation="fullSensor"`, which on a mounted racing phone would flip
+  the screen from cornering G-forces. Replaced with a portrait lock + an in-app
+  "Rotate" toggle backed by a sensor-independent `OrientationController`
+  (Android sets fixed `SCREEN_ORIENTATION_PORTRAIT/LANDSCAPE`; iOS/preview get a
+  no-op). Portrait dash made scrollable so the full control stack stays
+  reachable. New file: `shared/.../OrientationController.kt`; modified `App.kt`,
+  `MainActivity.kt`, `AndroidManifest.xml`. Re-verified on-device.
+- **Lap-engine hardening (commits `4341e68`, `622e777`).** Closed all
+  `02-REVIEW.md` warnings with +3 regression tests: sign-0 direction lockout
+  guard (WR-01), sector split no longer dropped on a shared low-frequency
+  segment (WR-03/WR-06), near-pole `toGeo` guard (WR-04), robust
+  change-detection `sectorEvents` (WR-05). The direction gate is the
+  noise-robust sign-based half-plane check (a fragile heading-tolerance gate was
+  trialed then removed; dead `directionToleranceDegrees` deleted — WR-02). Final
+  review status: resolved. Shared host tests: 56 passing.
 
 ## Self-Check: PASSED
 
