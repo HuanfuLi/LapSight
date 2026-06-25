@@ -16,7 +16,7 @@ stopped_at: Phase 02 complete (1/1) — ready to discuss Phase 3
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 2 implemented. Clean-room shared lap engine, geometry, crossing detector, filters, replay runner/fixtures, and replay-backed dash are complete. `:shared:check` passed (Android host tests; iOS sim skipped on Windows) and the Android debug APK builds. Android on-device UAT and iOS runtime UAT remain pending human verification.
+**Current Status:** Phase 2 complete and verified. Clean-room shared lap engine, geometry, crossing detector, filters, replay runner/fixtures, and replay-backed dash are done. `:shared:check` passes (56 host tests; iOS sim skipped on Windows) and the Android debug APK builds. Android on-device UAT passed (3 laps, sector split, Stop/Reset, landscape, no crash). Code-review warnings hardened (all resolved). UAT also drove a user-controlled, sensor-independent orientation toggle (mounted-phone safety). Only iOS runtime UAT remains pending (needs macOS/Xcode).
 
 ## Project Reference
 
@@ -42,7 +42,6 @@ Phase 2 delivered the clean-room shared Kotlin lap engine: domain models, local 
 
 ## Next Command Candidates
 
-- Run Android on-device UAT for the Phase 2 lap timing dash (see `02-VERIFICATION.md`).
 - Complete iOS Xcode runtime checks (Phase 1 and Phase 2 dash) on macOS.
 - Plan Phase 3: Local Sessions, Review, and Export.
 
@@ -52,7 +51,7 @@ Phase 2 delivered the clean-room shared Kotlin lap engine: domain models, local 
 - [x] Confirm stack direction: KMP + Compose Multiplatform.
 - [ ] Confirm app license policy.
 - [x] Complete Android runtime UAT (Phase 1).
-- [ ] Complete Android on-device UAT (Phase 2 lap timing).
+- [x] Complete Android on-device UAT (Phase 2 lap timing).
 - [ ] Complete iOS Xcode runtime UAT.
 - [x] Review Phase 2 plan.
 
