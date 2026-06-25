@@ -143,6 +143,10 @@ None - no external service configuration required. (Worktree build needed the gi
 - SESS-04 foundation (versioned canonical JSON shared by saved + exported payloads) is established; the actual `JsonExportService` user-facing export is delivered in Plan 03-08.
 - `StoragePaths.initialize(context)` must be wired from the Android entrypoint when the store is first used (Android actual requires an application Context).
 
+## Self-Check: PASSED
+
+All 10 created files verified on disk; commits `30668f8` (test/RED), `34bc8f5` (feat/GREEN), and `f9e5d31` (docs) verified in git log.
+
 ---
 *Phase: 03-local-sessions-review-and-export*
 *Completed: 2026-06-25*
