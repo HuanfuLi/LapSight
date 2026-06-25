@@ -1,6 +1,8 @@
 package com.huanfuli.lapsight.shared
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -34,7 +36,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 @Preview
-fun App() {
+fun App(orientationController: OrientationController = NoOpOrientationController) {
     MaterialTheme(
         colorScheme = darkColorScheme(
             background = Color(0xFF05070A),
@@ -43,17 +45,26 @@ fun App() {
             secondary = Color(0xFFFFD166),
         )
     ) {
-        LapSightApp()
+        LapSightApp(orientationController)
     }
 }
 
 @Composable
-fun LapSightApp() {
+fun LapSightApp(orientationController: OrientationController = NoOpOrientationController) {
     // The demo session owns the lap engine; the UI only renders dash state and
     // advances the replay on a timer. Real GPS providers will later replace the
     // replay sample source without changing this UI.
     val session = remember { DemoLapSession() }
     var dash by remember { mutableStateOf(session.dashState) }
+
+    // Orientation is an explicit user choice, never sensor-driven (mounted-phone
+    // racing G-forces make accelerometer rotation unsafe). This drives a hard
+    // window lock via the platform controller; the layout follows the locked
+    // window, not the device tilt.
+    var orientation by remember { mutableStateOf(DashOrientation.Portrait) }
+    LaunchedEffect(orientation) {
+        orientationController.apply(orientation)
+    }
 
     LaunchedEffect(dash.isRunning) {
         while (dash.isRunning && !session.isFinished) {
@@ -64,6 +75,14 @@ fun LapSightApp() {
 
     LapDashboard(
         dash = dash,
+        orientation = orientation,
+        onToggleOrientation = {
+            orientation = if (orientation == DashOrientation.Portrait) {
+                DashOrientation.Landscape
+            } else {
+                DashOrientation.Portrait
+            }
+        },
         onStart = {
             session.start()
             dash = session.dashState
@@ -82,6 +101,8 @@ fun LapSightApp() {
 @Composable
 private fun LapDashboard(
     dash: LapDashState,
+    orientation: DashOrientation,
+    onToggleOrientation: () -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onReset: () -> Unit,
@@ -92,6 +113,9 @@ private fun LapDashboard(
             .background(MaterialTheme.colorScheme.background)
             .safeContentPadding()
     ) {
+        // Layout follows the actual (deliberately locked) window dimensions. The
+        // window is only ever rotated by the explicit user toggle, never by the
+        // accelerometer, so this reflects the user's choice — not device tilt.
         val isLandscape = maxWidth > maxHeight
         val isCompactLandscape = isLandscape && maxHeight < 520.dp
         val dashboardPadding = if (isCompactLandscape) 12.dp else 20.dp
@@ -105,20 +129,23 @@ private fun LapDashboard(
             ) {
                 HeaderPanel(dash, Modifier.weight(0.9f), compact = isCompactLandscape)
                 LapMetricsPanel(dash, Modifier.weight(1.3f), compact = isCompactLandscape)
-                ControlPanel(dash, onStart, onStop, onReset, Modifier.weight(0.9f), compact = isCompactLandscape)
+                ControlPanel(dash, orientation, onToggleOrientation, onStart, onStop, onReset, Modifier.weight(0.9f), compact = isCompactLandscape)
             }
         } else {
+            // Scrollable so the full control stack (Start/Stop, Reset, orientation
+            // toggle) is always reachable even on shorter screens — the controls
+            // must never clip off the bottom.
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(dashboardPadding),
+                    .padding(dashboardPadding)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 HeaderPanel(dash, Modifier.fillMaxWidth())
                 LapMetricsPanel(dash, Modifier.fillMaxWidth())
-                Spacer(Modifier.weight(1f))
-                ControlPanel(dash, onStart, onStop, onReset, Modifier.fillMaxWidth())
+                ControlPanel(dash, orientation, onToggleOrientation, onStart, onStop, onReset, Modifier.fillMaxWidth())
             }
         }
     }
@@ -316,6 +343,8 @@ private fun MetricCard(
 @Composable
 private fun ControlPanel(
     dash: LapDashState,
+    orientation: DashOrientation,
+    onToggleOrientation: () -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onReset: () -> Unit,
@@ -338,6 +367,20 @@ private fun ControlPanel(
             enabled = dash.lapCount > 0 || dash.currentLapMillis != null || dash.isRunning,
         ) {
             Text("Reset")
+        }
+        // Manual orientation toggle. Deliberately not sensor-driven: the mounted
+        // phone must not rotate on its own under cornering G-forces.
+        Button(
+            onClick = onToggleOrientation,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                if (orientation == DashOrientation.Portrait) {
+                    "Rotate to Landscape"
+                } else {
+                    "Rotate to Portrait"
+                }
+            )
         }
         Text(
             text = "Phase 2 runs the clean-room lap engine on deterministic replay samples. Real Android/iOS GPS providers plug into the same engine next.",
