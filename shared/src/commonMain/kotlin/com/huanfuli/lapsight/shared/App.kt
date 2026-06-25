@@ -82,22 +82,27 @@ private fun ProbeDashboard(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .safeContentPadding()
-            .padding(20.dp)
     ) {
         val isLandscape = maxWidth > maxHeight
+        val isCompactLandscape = isLandscape && maxHeight < 520.dp
+        val dashboardPadding = if (isCompactLandscape) 12.dp else 20.dp
         if (isLandscape) {
             Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(dashboardPadding),
+                horizontalArrangement = Arrangement.spacedBy(if (isCompactLandscape) 12.dp else 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                HeaderPanel(state, Modifier.weight(0.8f))
-                MetricsPanel(state, Modifier.weight(1.2f))
-                ControlPanel(state, onStart, onStop, onReset, Modifier.weight(0.8f))
+                HeaderPanel(state, Modifier.weight(0.8f), compact = isCompactLandscape)
+                MetricsPanel(state, Modifier.weight(1.2f), compact = isCompactLandscape)
+                ControlPanel(state, onStart, onStop, onReset, Modifier.weight(0.8f), compact = isCompactLandscape)
             }
         } else {
             Column(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(dashboardPadding),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -111,51 +116,59 @@ private fun ProbeDashboard(
 }
 
 @Composable
-private fun HeaderPanel(state: GpsProbeState, modifier: Modifier = Modifier) {
+private fun HeaderPanel(
+    state: GpsProbeState,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
     Column(modifier = modifier) {
         Text(
             text = "LapSight",
             color = MaterialTheme.colorScheme.primary,
-            fontSize = 34.sp,
+            fontSize = if (compact) 28.sp else 34.sp,
             fontWeight = FontWeight.Black,
         )
         Text(
             text = "GPS Probe",
             color = Color(0xFF9AA8B8),
-            fontSize = 16.sp,
+            fontSize = if (compact) 14.sp else 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
         Text(
             text = "Closed-course timing aid. Phone GPS accuracy varies; verify before trusting lap data.",
             color = Color(0xFFCED7E2),
-            fontSize = 13.sp,
-            lineHeight = 17.sp,
+            fontSize = if (compact) 11.sp else 13.sp,
+            lineHeight = if (compact) 15.sp else 17.sp,
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(if (compact) 12.dp else 16.dp))
         Text(
             text = state.fixStatus.label,
             color = state.fixStatus.color,
-            fontSize = 18.sp,
+            fontSize = if (compact) 16.sp else 18.sp,
             fontWeight = FontWeight.Bold,
         )
     }
 }
 
 @Composable
-private fun MetricsPanel(state: GpsProbeState, modifier: Modifier = Modifier) {
+private fun MetricsPanel(
+    state: GpsProbeState,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
     ) {
-        MetricCard("Speed", state.speedKmhLabel, "km/h", emphasized = true)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricCard("Accuracy", state.accuracyLabel, "m", Modifier.weight(1f))
-            MetricCard("Rate", state.updateRateLabel, "Hz", Modifier.weight(1f))
+        MetricCard("Speed", state.speedKmhLabel, "km/h", emphasized = true, compact = compact)
+        Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)) {
+            MetricCard("Accuracy", state.accuracyLabel, "m", Modifier.weight(1f), compact = compact)
+            MetricCard("Rate", state.updateRateLabel, "Hz", Modifier.weight(1f), compact = compact)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricCard("Elapsed", state.elapsedLabel, "", Modifier.weight(1f))
-            MetricCard("Samples", state.sampleCount.toString(), "", Modifier.weight(1f))
+        Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)) {
+            MetricCard("Elapsed", state.elapsedLabel, "", Modifier.weight(1f), compact = compact)
+            MetricCard("Samples", state.sampleCount.toString(), "", Modifier.weight(1f), compact = compact)
         }
     }
 }
@@ -167,23 +180,29 @@ private fun MetricCard(
     unit: String,
     modifier: Modifier = Modifier,
     emphasized: Boolean = false,
+    compact: Boolean = false,
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(if (compact) 12.dp else 16.dp)) {
             Text(
                 text = label.uppercase(),
                 color = Color(0xFF7E8DA0),
-                fontSize = 11.sp,
+                fontSize = if (compact) 10.sp else 11.sp,
                 fontWeight = FontWeight.Bold,
             )
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = value,
                     color = Color.White,
-                    fontSize = if (emphasized) 54.sp else 28.sp,
+                    fontSize = when {
+                        emphasized && compact -> 42.sp
+                        emphasized -> 54.sp
+                        compact -> 22.sp
+                        else -> 28.sp
+                    },
                     fontWeight = FontWeight.Black,
                 )
                 if (unit.isNotBlank()) {
@@ -191,8 +210,20 @@ private fun MetricCard(
                     Text(
                         text = unit,
                         color = Color(0xFF9AA8B8),
-                        fontSize = if (emphasized) 18.sp else 13.sp,
-                        modifier = Modifier.padding(bottom = if (emphasized) 10.dp else 5.dp),
+                        fontSize = when {
+                            emphasized && compact -> 16.sp
+                            emphasized -> 18.sp
+                            compact -> 12.sp
+                            else -> 13.sp
+                        },
+                        modifier = Modifier.padding(
+                            bottom = when {
+                                emphasized && compact -> 8.dp
+                                emphasized -> 10.dp
+                                compact -> 4.dp
+                                else -> 5.dp
+                            }
+                        ),
                     )
                 }
             }
@@ -207,10 +238,11 @@ private fun ControlPanel(
     onStop: () -> Unit,
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
     ) {
         Button(
             onClick = if (state.isRunning) onStop else onStart,
@@ -228,8 +260,8 @@ private fun ControlPanel(
         Text(
             text = "Phase 1 uses simulator-backed samples. Real Android/iOS GPS providers plug into this same state model next.",
             color = Color(0xFF7E8DA0),
-            fontSize = 12.sp,
-            lineHeight = 16.sp,
+            fontSize = if (compact) 10.sp else 12.sp,
+            lineHeight = if (compact) 14.sp else 16.sp,
         )
     }
 }

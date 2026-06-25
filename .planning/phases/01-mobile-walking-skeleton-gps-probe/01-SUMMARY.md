@@ -2,7 +2,7 @@
 phase: 01
 plan: mobile-walking-skeleton-gps-probe
 subsystem: mobile-skeleton
-status: implemented_pending_human_uat
+status: implemented_android_uat_passed_ios_pending
 key-files:
   - settings.gradle.kts
   - androidApp/src/main/kotlin/com/huanfuli/lapsight/MainActivity.kt
@@ -22,6 +22,7 @@ key-files:
 - Added Android location permissions for later real GPS provider work.
 - Added iOS location usage description for later Core Location provider work.
 - Replaced sample greeting UI with a LapSight GPS probe dash.
+- Tightened compact landscape sizing after Pixel 10 Pro testing exposed bottom-card clipping.
 - Added simulator-backed GPS probe state and sample model.
 - Added common, Android host, and iOS test coverage around probe state behavior.
 - Updated README with current scope, run commands, and environment notes.
@@ -37,6 +38,10 @@ Passed:
 - `.\gradlew.bat --version`
 - `.\gradlew.bat :shared:check --stacktrace`
 - `.\gradlew.bat :androidApp:assembleDebug --stacktrace`
+- `.\gradlew.bat :shared:check :androidApp:assembleDebug`
+- Android Pixel 10 Pro install/launch via ADB.
+- Android portrait and landscape visual UAT.
+- Android Start/Stop/Reset control UAT in portrait and landscape.
 
 Generated artifact:
 
@@ -45,6 +50,7 @@ Generated artifact:
 Environment-specific note:
 
 - iOS simulator test was skipped because the current host is Windows. iOS runtime verification requires macOS + Xcode.
+- ADB command-based forced rotation was unreliable on the Pixel 10 Pro; final landscape verification used manual physical device rotation and UI dump `rotation="1"`.
 
 ## Deviations
 
@@ -53,9 +59,8 @@ Environment-specific note:
 
 ## Self-Check
 
-PASSED for implemented code and Android build. Human UAT remains required for:
+PASSED for implemented code, Android build, and Android device UAT. Human UAT remains required for:
 
-- Android device/emulator visual check.
 - iOS Xcode build/run check.
 
 ---

@@ -1,7 +1,7 @@
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 1 implemented and automated Android/shared checks passed; human Android/iOS runtime UAT remains pending.
+**Current Status:** Phase 1 implemented; automated Android/shared checks passed; Android Pixel 10 Pro runtime UAT passed; iOS runtime UAT remains pending.
 
 ## Project Reference
 
@@ -13,7 +13,7 @@ See: `.planning/PROJECT.md`
 
 **Phase 1: Mobile Walking Skeleton + GPS Probe**
 
-The repository now contains a KMP/CMP mobile skeleton with a simulator-backed GPS probe dash. Do not implement ghost/delta before Phase 1 runtime UAT and the Phase 2 lap engine replay tests exist.
+The repository now contains a KMP/CMP mobile skeleton with a simulator-backed GPS probe dash. Android runtime UAT passed on Pixel 10 Pro, including portrait, landscape, and Start/Stop/Reset flows. Do not implement ghost/delta before Phase 1 iOS runtime UAT and the Phase 2 lap engine replay tests exist.
 
 ## Working Assumptions
 
@@ -27,7 +27,7 @@ The repository now contains a KMP/CMP mobile skeleton with a simulator-backed GP
 
 ## Next Command Candidates
 
-- Complete `01-HUMAN-UAT.md` device/Xcode checks.
+- Complete iOS Xcode runtime checks in `01-HUMAN-UAT.md`.
 - After UAT approval, mark Phase 1 complete and start Phase 2 lap engine planning.
 
 ## Review Checklist
@@ -37,8 +37,8 @@ The repository now contains a KMP/CMP mobile skeleton with a simulator-backed GP
 - [ ] Confirm whether Phase 1 must support iOS immediately or may spike Android first.
 - [ ] Confirm whether planning docs should be committed.
 - [ ] Confirm app license policy.
-- [ ] Complete Android runtime UAT.
+- [x] Complete Android runtime UAT.
 - [ ] Complete iOS Xcode runtime UAT.
 
 ---
-*Last updated: 2026-06-25 after Phase 1 implementation*
+*Last updated: 2026-06-25 after Android Pixel 10 Pro UAT*
