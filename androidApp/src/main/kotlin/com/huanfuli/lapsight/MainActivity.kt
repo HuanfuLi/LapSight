@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.huanfuli.lapsight.shared.App
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.OrientationController
+import com.huanfuli.lapsight.shared.export.AndroidExportShareTarget
 import com.huanfuli.lapsight.shared.storage.StoragePaths
 
 class MainActivity : ComponentActivity() {
@@ -32,10 +33,13 @@ class MainActivity : ComponentActivity() {
         // Wire the app-private storage root before any save/load access (D-21).
         StoragePaths.initialize(this)
 
+        val shareTarget = AndroidExportShareTarget(this)
+
         setContent {
             App(
                 orientationController = orientationController,
                 sessionStore = StoragePaths.fileSessionStore(),
+                exportShareTarget = shareTarget,
             )
         }
     }

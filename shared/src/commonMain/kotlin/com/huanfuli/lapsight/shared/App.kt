@@ -5,6 +5,8 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
+import com.huanfuli.lapsight.shared.export.ExportShareTarget
+import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.ui.AppShell
@@ -29,6 +31,7 @@ import com.huanfuli.lapsight.shared.ui.AppShell
 fun App(
     orientationController: OrientationController = NoOpOrientationController,
     sessionStore: LocalSessionStore = InMemorySessionStore(),
+    exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -41,6 +44,7 @@ fun App(
         AppShell(
             orientationController = orientationController,
             sessionStore = sessionStore,
+            exportShareTarget = exportShareTarget,
         )
     }
 }

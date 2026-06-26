@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +35,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.huanfuli.lapsight.shared.lap.formatLapTime
+import com.huanfuli.lapsight.shared.export.ExportArtifact
+import com.huanfuli.lapsight.shared.export.ExportFailedException
+import com.huanfuli.lapsight.shared.export.ExportFileNames
+import com.huanfuli.lapsight.shared.export.ExportNotFoundException
+import com.huanfuli.lapsight.shared.export.ExportShareResult
+import com.huanfuli.lapsight.shared.export.ExportShareTarget
+import com.huanfuli.lapsight.shared.export.GpxExportService
+import com.huanfuli.lapsight.shared.export.JsonExportService
+import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
 import com.huanfuli.lapsight.shared.review.ReviewSummaries
 import com.huanfuli.lapsight.shared.review.TimingSessionReviewSummary
 import com.huanfuli.lapsight.shared.review.buildTimingTraceLayers
@@ -57,6 +67,7 @@ import com.huanfuli.lapsight.shared.track.TrackPayloadV1
 fun ReviewScreen(
     sessionStore: LocalSessionStore,
     savedVersion: Long,
+    exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
     var rows by remember { mutableStateOf(ReviewListState.from(sessionStore.readIndex())) }
     var selectedId by remember { mutableStateOf<String?>(null) }
@@ -86,6 +97,7 @@ fun ReviewScreen(
                     selectedId = if (selectedId == row.id) null else row.id
                 },
                 sessionStore = sessionStore,
+                exportShareTarget = exportShareTarget,
             )
         }
     }
@@ -126,6 +138,7 @@ private fun ReviewRow(
     expanded: Boolean,
     onClick: () -> Unit,
     sessionStore: LocalSessionStore,
+    exportShareTarget: ExportShareTarget,
 ) {
     Card(
         modifier = Modifier
@@ -156,9 +169,9 @@ private fun ReviewRow(
             )
             if (expanded) {
                 if (row.type == ReviewEntryType.TimingSession) {
-                    TimingSessionReviewDetail(row.id, sessionStore)
+                    TimingSessionReviewDetail(row.id, sessionStore, exportShareTarget)
                 } else {
-                    RowDetail(row, sessionStore)
+                    RowDetail(row, sessionStore, exportShareTarget)
                 }
             }
         }
@@ -174,6 +187,7 @@ private fun ReviewRow(
 private fun TimingSessionReviewDetail(
     sessionId: String,
     sessionStore: LocalSessionStore,
+    exportShareTarget: ExportShareTarget,
 ) {
     val summary = remember(sessionId) { ReviewSummaries.fromTimingSession(sessionStore, sessionId) }
         ?: run {
@@ -253,6 +267,58 @@ private fun TimingSessionReviewDetail(
             bestLapMillis = summary.bestLapMillis,
             sessionStore = sessionStore,
         )
+
+        // Export actions (D-40): explicit button taps on Timing Session detail.
+        Spacer(Modifier.height(8.dp))
+        var exportMessage by remember { mutableStateOf<String?>(null) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = {
+                exportMessage = try {
+                    val bytes = JsonExportService(sessionStore).exportTimingSession(sessionId)
+                    val fileName = ExportFileNames.forTimingSession(
+                        summary.trackName, summary.createdAtEpochMillis, "json"
+                    )
+                    val artifact = ExportArtifact(fileName, "application/json", bytes)
+                    when (exportShareTarget.share(artifact)) {
+                        is ExportShareResult.Shared, is ExportShareResult.Saved ->
+                            "Exported $fileName"
+                        is ExportShareResult.Cancelled -> null
+                        is ExportShareResult.Failed -> "Export failed. Check device storage and try again."
+                    }
+                } catch (e: ExportNotFoundException) {
+                    "Export failed. Check device storage and try again."
+                } catch (e: ExportFailedException) {
+                    "Export failed. Check device storage and try again."
+                }
+            }) { Text("Export JSON") }
+            OutlinedButton(onClick = {
+                exportMessage = try {
+                    val bytes = GpxExportService(sessionStore).exportTimingSession(sessionId)
+                    val fileName = ExportFileNames.forTimingSession(
+                        summary.trackName, summary.createdAtEpochMillis, "gpx"
+                    )
+                    val artifact = ExportArtifact(fileName, "application/gpx+xml", bytes)
+                    when (exportShareTarget.share(artifact)) {
+                        is ExportShareResult.Shared, is ExportShareResult.Saved ->
+                            "Exported $fileName"
+                        is ExportShareResult.Cancelled -> null
+                        is ExportShareResult.Failed -> "Export failed. Check device storage and try again."
+                    }
+                } catch (e: ExportNotFoundException) {
+                    "Export failed. Check device storage and try again."
+                } catch (e: ExportFailedException) {
+                    "Export failed. Check device storage and try again."
+                }
+            }) { Text("Export GPX") }
+        }
+        exportMessage?.let { msg ->
+            Text(
+                text = msg,
+                color = if (msg.startsWith("Exported")) Color(0xFF8CFF9B) else Color(0xFFFF6B6B),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
@@ -321,7 +387,8 @@ private fun TimingTraceSection(
 }
 
 @Composable
-private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore) {
+private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore, exportShareTarget: ExportShareTarget) {
+    var exportMessage by remember { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         DetailLine("ID", row.id)
         DetailLine("Type", row.typeLabel)
@@ -342,6 +409,39 @@ private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore) 
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
             )
+        }
+
+        // Export actions (D-40): explicit button tap on Track Review detail only.
+        if (row.type == ReviewEntryType.Track) {
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(onClick = {
+                exportMessage = try {
+                    val store = sessionStore
+                    val bytes = JsonExportService(store).exportTrack(row.id)
+                    val name = ExportFileNames.forTrack(
+                        row.name, row.createdAtEpochMillis ?: 0L
+                    )
+                    val artifact = ExportArtifact(name, "application/json", bytes)
+                    when (exportShareTarget.share(artifact)) {
+                        is ExportShareResult.Shared, is ExportShareResult.Saved ->
+                            "Exported $name"
+                        is ExportShareResult.Cancelled -> null
+                        is ExportShareResult.Failed -> "Export failed. Check device storage and try again."
+                    }
+                } catch (e: ExportNotFoundException) {
+                    "Export failed. Check device storage and try again."
+                } catch (e: ExportFailedException) {
+                    "Export failed. Check device storage and try again."
+                }
+            }) { Text("Export JSON") }
+            exportMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    color = if (msg.startsWith("Exported")) Color(0xFF8CFF9B) else Color(0xFFFF6B6B),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }

@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.OrientationController
+import com.huanfuli.lapsight.shared.export.ExportShareTarget
+import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
 import com.huanfuli.lapsight.shared.session.DraftRecoveryAction
 import com.huanfuli.lapsight.shared.session.DraftRecoveryPrompt
 import com.huanfuli.lapsight.shared.session.SessionController
@@ -63,6 +65,7 @@ enum class AppTab { Drive, Review, Settings }
 fun AppShell(
     orientationController: OrientationController,
     sessionStore: LocalSessionStore = InMemorySessionStore(),
+    exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
     var tab by remember { mutableStateOf(AppTab.Drive) }
     var orientation by remember { mutableStateOf(DashOrientation.Portrait) }
@@ -184,6 +187,7 @@ fun AppShell(
                 AppTab.Review -> ReviewScreen(
                     sessionStore = sessionStore,
                     savedVersion = savedVersion,
+                    exportShareTarget = exportShareTarget,
                 )
                 AppTab.Settings -> SettingsScreen()
             }

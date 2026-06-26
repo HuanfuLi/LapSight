@@ -15,3 +15,11 @@ package com.huanfuli.lapsight.shared.export
 interface ExportShareTarget {
     fun share(artifact: ExportArtifact): ExportShareResult
 }
+
+/**
+ * No-op [ExportShareTarget] used as the default in Compose previews and tests
+ * where no platform share surface is available.
+ */
+object NoOpExportShareTarget : ExportShareTarget {
+    override fun share(artifact: ExportArtifact): ExportShareResult = ExportShareResult.Cancelled
+}
