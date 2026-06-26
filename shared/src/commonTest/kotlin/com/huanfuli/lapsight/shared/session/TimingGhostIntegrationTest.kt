@@ -1,6 +1,8 @@
 package com.huanfuli.lapsight.shared.session
 
 import com.huanfuli.lapsight.shared.LocationSource
+import com.huanfuli.lapsight.shared.SimulatedGpsProvider
+import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
 import com.huanfuli.lapsight.shared.ghost.DeltaUnavailableReason
 import com.huanfuli.lapsight.shared.ghost.LiveDeltaSnapshot
 import com.huanfuli.lapsight.shared.ghost.ReferenceLapSelector
@@ -10,7 +12,9 @@ import com.huanfuli.lapsight.shared.lap.ReplayFixtures
 import com.huanfuli.lapsight.shared.session.SessionControllerTest.TestTrackFactory
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.LoadResult
+import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.Track
+import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -37,11 +41,15 @@ class TimingGhostIntegrationTest {
     private val store = InMemorySessionStore()
     private val app = AppMetadata(appVersion = "0.4.0", platform = "test")
 
-    private fun controller(source: LocationSource): SessionController = SessionController(
+    private fun controller(
+        source: LocationSource,
+        engineConfig: LapEngineConfig = LapEngineConfig.lenientForTests(),
+        nowMillis: Long = 1_700_000_000_000L,
+    ): SessionController = SessionController(
         store = store,
         appMetadata = app,
-        engineConfig = LapEngineConfig.lenientForTests(),
-        now = { 1_700_000_000_000L },
+        engineConfig = engineConfig,
+        now = { nowMillis },
         sourceForTrack = { _ ->
             SourceMetadata(
                 source = source,
@@ -54,6 +62,43 @@ class TimingGhostIntegrationTest {
     private fun saveTrack(source: LocationSource): Track {
         val track = TestTrackFactory.savedTrackWithStartFinish(source)
         store.saveTrackBundle(track, TestTrackFactory.markingFor(track, source), app)
+        return track
+    }
+
+    private fun saveVariablePaceOvalTrack(source: LocationSource = LocationSource.Simulated): Track {
+        val samples = GpsFixtureLibrary.scenario(GpsFixtureLibrary.VARIABLE_PACE_GHOST_UAT).samples
+        val anchor = samples.maxByOrNull { it.latitude } ?: error("variable-pace fixture must not be empty")
+        val halfLineDegrees = 35.0 / 111_320.0
+        val track = Track(
+            id = "track-variable-pace-ghost-uat-${source.name.lowercase()}",
+            name = "Variable Pace Ghost UAT ${source.name}",
+            createdAtEpochMillis = 1_700_000_004_000L,
+            sourceMarkingSessionId = "mark-variable-pace-ghost-uat-${source.name.lowercase()}",
+            source = SourceMetadata(
+                source = source,
+                isSimulated = source == LocationSource.Simulated,
+                label = if (source == LocationSource.Simulated) "Demo" else null,
+            ),
+            referenceLine = null,
+            startFinish = StartFinishLineDto(
+                pointA = GeoPointDto(
+                    latitude = anchor.latitude - halfLineDegrees,
+                    longitude = anchor.longitude,
+                ),
+                pointB = GeoPointDto(
+                    latitude = anchor.latitude + halfLineDegrees,
+                    longitude = anchor.longitude,
+                ),
+            ),
+            sectors = emptyList(),
+        )
+        val marking = TrackMarkingSession(
+            id = track.sourceMarkingSessionId ?: "mark-${track.id}",
+            createdAtEpochMillis = track.createdAtEpochMillis,
+            source = track.source,
+            samples = samples.map { it.toDto() },
+        )
+        store.saveTrackBundle(track, marking, app)
         return track
     }
 
@@ -215,5 +260,101 @@ class TimingGhostIntegrationTest {
         assertIs<LoadResult.NotFound>(store.loadReferenceLap(track.id, isSimulated = false))
         // ...but a simulated reference is allowed for UAT.
         assertIs<LoadResult.Loaded<GhostReferencePayloadV1>>(store.loadReferenceLap(track.id, isSimulated = true))
+    }
+
+    // --- D-20..D-24: provider-layer UAT trace through normal timing path --------
+
+    @Test
+    fun variablePaceProviderFeedsNormalTimingFlowAndPersistsSimulatedReferenceOnlyOnSave() {
+        val track = saveVariablePaceOvalTrack(LocationSource.Simulated)
+        val provider = SimulatedGpsProvider(GpsFixtureLibrary.VARIABLE_PACE_GHOST_UAT)
+        provider.start()
+
+        // The feed is already physically "moving" before the user starts the
+        // timing session. Timing must consume the same provider stream from its
+        // current position, not a special session-coupled simulator path.
+        val preTimingSamples = 12
+        repeat(preTimingSamples) {
+            assertNotNull(provider.nextSample(), "provider must run before timing starts")
+        }
+        assertTrue(provider.isRunning)
+
+        val controller = controller(
+            source = LocationSource.Simulated,
+            engineConfig = LapEngineConfig(
+                minLapDurationMillis = 8_000L,
+                crossingCooldownMillis = 3_000L,
+                maxHorizontalAccuracyMeters = null,
+                minSpeedMetersPerSecond = 0.0,
+                enforceDirection = false,
+            ),
+            nowMillis = 1_700_000_004_000L,
+        )
+        assertIs<StartTimingResult.Started>(controller.startTiming(track.id))
+
+        val referenceDurationByLapCount = mutableMapOf<Int, Long>()
+        var sawPositiveDelta = false
+        var sawNegativeDelta = false
+        repeat(provider.sampleCount - preTimingSamples) {
+            val sample = assertNotNull(provider.nextSample(), "provider must keep emitting during timing")
+            controller.ingestSample(sample)
+
+            when (val delta = controller.liveDelta()) {
+                is LiveDeltaSnapshot.Available -> {
+                    if (delta.deltaMillis > 0L) sawPositiveDelta = true
+                    if (delta.deltaMillis < 0L) sawNegativeDelta = true
+                }
+                is LiveDeltaSnapshot.Unavailable -> Unit
+            }
+
+            controller.activeReference()?.let { reference ->
+                referenceDurationByLapCount[controller.timingRunSnapshot().lapCount] =
+                    reference.durationMillis
+            }
+        }
+
+        assertTrue(
+            controller.timingRunSnapshot().lapCount >= 4,
+            "starting timing after the feed has begun should still produce completed laps",
+        )
+        assertEquals(
+            27_000L,
+            referenceDurationByLapCount[1],
+            "first completed lap after timing start becomes the initial in-session reference",
+        )
+        assertEquals(
+            22_000L,
+            referenceDurationByLapCount[2],
+            "a faster second completed lap must immediately replace the active reference",
+        )
+        assertEquals(
+            20_000L,
+            referenceDurationByLapCount[3],
+            "the new-best third completed lap must immediately become the next reference",
+        )
+        assertTrue(sawNegativeDelta, "faster laps must produce negative live delta through the controller path")
+        assertTrue(sawPositiveDelta, "slower laps must produce positive live delta through the controller path")
+
+        val activeReference = assertNotNull(controller.activeReference())
+        assertEquals(20_000L, activeReference.durationMillis)
+        assertTrue(activeReference.isSimulated, "active UAT reference must remain simulated")
+        assertIs<LoadResult.NotFound>(
+            store.loadReferenceLap(track.id, isSimulated = true),
+            "in-session reference must not persist globally before explicit Save",
+        )
+
+        controller.stop()
+        val saved = controller.saveStoppedDraft()
+        assertIs<SaveDraftResult.Saved>(saved)
+
+        val simulatedReference = store.loadReferenceLap(track.id, isSimulated = true)
+        assertIs<LoadResult.Loaded<GhostReferencePayloadV1>>(simulatedReference)
+        assertEquals(20_000L, simulatedReference.value.durationMillis)
+        assertTrue(simulatedReference.value.source.isSimulated)
+        assertEquals("Demo", simulatedReference.value.source.label)
+        assertIs<LoadResult.NotFound>(
+            store.loadReferenceLap(track.id, isSimulated = false),
+            "simulated UAT reference must not pollute the real reference slot",
+        )
     }
 }
