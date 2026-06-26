@@ -117,7 +117,7 @@ Plans:
 
 **Requirements:** GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 **Wave 1**
@@ -130,7 +130,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-03-PLAN.md - Minimal mounted-phone live delta UI
+- [x] 04-03-PLAN.md - Minimal mounted-phone live delta UI
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
