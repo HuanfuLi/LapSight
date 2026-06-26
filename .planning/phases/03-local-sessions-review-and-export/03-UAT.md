@@ -1,5 +1,5 @@
 ---
-status: diagnosed
+status: complete
 phase: 03-local-sessions-review-and-export
 source:
   - .planning/phases/03-local-sessions-review-and-export/03-01-SUMMARY.md
@@ -11,12 +11,12 @@ source:
   - .planning/phases/03-local-sessions-review-and-export/03-07-SUMMARY.md
   - .planning/phases/03-local-sessions-review-and-export/03-08-SUMMARY.md
 started: 2026-06-25T22:28:52-04:00
-updated: 2026-06-25T22:28:52-04:00
+updated: 2026-06-25T22:39:02-04:00
 ---
 
 ## Current Test
 
-[testing paused — 3 items blocked by diagnosed gap]
+[testing complete]
 
 ## Tests
 
@@ -53,34 +53,54 @@ artifacts:
 
 ### 5. Saved track remains timing-ready and starts formal timing
 expected: A saved Track with confirmed start/finish remains available to Drive after tab navigation and cold restart; Drive shows Start Timing, and tapping it starts the formal Timing surface using the real saved track id.
-result: issue
-reported: "ADB UAT found that Review can still see the saved Track, and app-private storage contains tracks/track-1782440616852.json plus index.json with a confirmed startFinish, but Drive returns to Mark New Track / 'Mark a track first...' after Review navigation and cold relaunch. The implementation also starts timing with track-dummy-N instead of the saved track id, so the formal timing flow cannot reliably start even when the button is visible immediately after save."
-severity: blocker
-verified_by: ADB tab navigation, share-sheet cancel, force-stop/relaunch, app-private storage inspection, and source inspection
+result: pass
+previous_result: issue
+previous_severity: blocker
+previous_reported: "ADB UAT found that Review can still see the saved Track, and app-private storage contains tracks/track-1782440616852.json plus index.json with a confirmed startFinish, but Drive returns to Mark New Track / 'Mark a track first...' after Review navigation and cold relaunch. The implementation also starts timing with track-dummy-N instead of the saved track id, so the formal timing flow cannot reliably start even when the button is visible immediately after save."
+fixed_by: "DriveMarkingController now hydrates saved Track rows from LocalSessionStore and exposes the latest timing-ready real track id; DriveScreen now starts timing with that id."
+verified_by: ADB cold restart with existing persisted Track, UIAutomator dump showing Start Timing, ADB tap entering Timing, and source-level regression tests.
 artifacts:
   - .planning/tmp-lapsight-drive-lost-track.xml
   - .planning/tmp-lapsight-drive-after-relaunch.xml
   - .planning/tmp-lapsight-timing-started.xml
+  - .planning/phase3-debug-fix-01-drive-cold-start.png
+  - .planning/phase3-debug-fix-02-timing-started.png
+  - .planning/tmp-phase3-debug-fix-drive-cold-start.xml
+  - .planning/tmp-phase3-debug-fix-timing-started.xml
   - shared/src/commonMain/kotlin/com/huanfuli/lapsight/shared/ui/DriveMarkingController.kt
   - shared/src/commonMain/kotlin/com/huanfuli/lapsight/shared/ui/DriveScreen.kt
 
 ### 6. Timing session lifecycle
 expected: From a saved timing-ready track, the user can start timing, receive passive mounted-phone timing UI, stop, then explicitly Save Session or Discard; only saved sessions enter Review.
-result: blocked
-blocked_by: other
-reason: "Blocked by Test 5. Start Timing cannot reliably load a saved Track from Drive, so a real timing draft cannot be created through the user flow."
+result: pass
+verified_by: ADB Start Timing, Stop, Session ended dialog, Save Session
+artifacts:
+  - .planning/phase3-debug-fix-02-timing-started.png
+  - .planning/phase3-debug-fix-03-session-ended-dialog.png
+  - .planning/phase3-debug-fix-04-session-saved-drive.png
+  - .planning/tmp-phase3-debug-fix-session-ended-dialog.xml
 
 ### 7. Saved timing session review and export
 expected: A saved timing session appears in Review with lap/sample metadata, vector trace, and JSON/GPX export through platform share handoff.
-result: blocked
-blocked_by: other
-reason: "Blocked by Test 6. No timing session can be created from the current Drive user flow."
+result: pass
+verified_by: ADB saved session then Review tab shows Session · Demo row; opening the row shows duration/sample/accuracy metadata, Trace, Export JSON, and Export GPX; tapping Export JSON opens the Android share sheet.
+artifacts:
+  - .planning/phase3-debug-fix-05-review-with-session.png
+  - .planning/phase3-debug-fix-07-session-detail.png
+  - .planning/phase3-debug-fix-08-session-export-actions.png
+  - .planning/phase3-debug-fix-09-session-json-share.png
+  - .planning/tmp-phase3-debug-fix-review-with-session.xml
+  - .planning/tmp-phase3-debug-fix-session-detail.xml
+  - .planning/tmp-phase3-debug-fix-session-export-actions.xml
+  - .planning/tmp-phase3-debug-fix-session-json-share.xml
 
 ### 8. Draft recovery from app restart
 expected: If the app restarts with an unfinished timing draft, the app surfaces Resume / Save / Discard recovery and never silently promotes a draft to Review history.
-result: blocked
-blocked_by: other
-reason: "Blocked by Test 6. The current user flow cannot create a timing draft from a saved Track."
+result: pass
+verified_by: ADB Start Timing, force-stop before save, cold relaunch shows Unfinished session found with Resume / Save / Discard; discard removes active draft and relaunch returns to Drive without recovery prompt.
+artifacts:
+  - .planning/phase3-debug-fix-06-draft-recovery.png
+  - .planning/tmp-phase3-debug-fix-draft-recovery.xml
 
 ### 9. Settings safety copy
 expected: Settings tab is reachable from bottom navigation and repeats the closed-course / phone-GPS-not-pro-grade safety language.
@@ -93,25 +113,39 @@ artifacts:
 ## Summary
 
 total: 9
-passed: 5
-issues: 1
+passed: 9
+issues: 0
 pending: 0
 skipped: 0
-blocked: 3
+blocked: 0
 
 ## Gaps
 
+[none open]
+
+## Resolved Gaps
+
 - truth: "A saved Track with confirmed start/finish remains available to Drive after tab navigation and cold restart; Drive starts formal timing using the real saved track id."
-  status: failed
+  status: resolved
   reason: "ADB UAT found that Review and app-private storage retain the saved Track, but Drive loses timing readiness after navigation/relaunch and uses a placeholder track-dummy-N id for Start Timing."
   severity: blocker
   test: 5
   root_cause: "DriveMarkingController derives canStartTiming only from an in-memory savedTracks list populated by saveTrack(), never hydrates saved Track rows from LocalSessionStore.readIndex()/loadTrack(), and DriveScreen calls SessionController.startTiming(trackId = \"track-dummy-$savedTrack\") instead of the real saved Track id. Review works because it reads the persisted index directly."
+  fix: "Hydrate saved Track rows from LocalSessionStore in DriveMarkingController, expose timingReadyTrackId/timingReadyTrackName in DriveMarkingSnapshot, and start timing from DriveScreen with the real persisted track id. If the provider is stopped on cold Drive, Start Timing starts the demo provider after SessionController accepts the track."
+  verification:
+    - ":shared:check passed"
+    - ":androidApp:assembleDebug passed"
+    - "ADB cold restart preserved Start Timing for track-1782440616852"
+    - "ADB tapping Start Timing entered Timing surface and samples advanced"
+    - "ADB Stop -> Save Session produced Review row: Session · Demo"
+    - "ADB Session detail showed metadata, Trace, Export JSON, and Export GPX"
+    - "ADB Session Export JSON opened the Android share sheet"
+    - "ADB force-stop during timing produced recovery prompt with Resume / Save / Discard"
   artifacts:
     - path: "shared/src/commonMain/kotlin/com/huanfuli/lapsight/shared/ui/DriveMarkingController.kt"
-      issue: "savedTracks is a private in-memory list; snapshot() uses it for canStartTiming; no persisted-track hydration path exists."
+      issue: "savedTracks was a private in-memory list; snapshot() used it for canStartTiming; no persisted-track hydration path existed."
     - path: "shared/src/commonMain/kotlin/com/huanfuli/lapsight/shared/ui/DriveScreen.kt"
-      issue: "Start Timing calls SessionController.startTiming with track-dummy-N instead of a persisted track id."
+      issue: "Start Timing called SessionController.startTiming with track-dummy-N instead of a persisted track id."
     - path: "shared/src/commonMain/kotlin/com/huanfuli/lapsight/shared/ui/ReviewScreen.kt"
       issue: "ReviewScreen re-reads sessionStore.readIndex(), explaining why Review shows data while Drive does not."
     - path: "ADB app-private storage"

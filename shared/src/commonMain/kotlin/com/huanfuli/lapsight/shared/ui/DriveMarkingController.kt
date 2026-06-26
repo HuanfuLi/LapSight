@@ -8,9 +8,11 @@ import com.huanfuli.lapsight.shared.nowEpochMillis
 import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.session.toDto
+import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtraction
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtractor
+import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
@@ -44,6 +46,8 @@ data class DriveMarkingSnapshot(
     val feedQuality: GpsQualitySummary?,
     val reviewState: TrackReviewState?,
     val savedTrackCount: Int,
+    val timingReadyTrackId: String?,
+    val timingReadyTrackName: String?,
     val canStartTiming: Boolean,
     val startTimingBlockedReason: String,
 ) {
@@ -64,6 +68,8 @@ data class DriveMarkingSnapshot(
             feedQuality = null,
             reviewState = null,
             savedTrackCount = 0,
+            timingReadyTrackId = null,
+            timingReadyTrackName = null,
             canStartTiming = false,
             startTimingBlockedReason = START_TIMING_BLOCKED_COPY,
         )
@@ -102,9 +108,16 @@ class DriveMarkingController(
     private val savedTracks: MutableList<Track> = mutableListOf()
     private var trackNameOverride: String? = null
 
+    init {
+        refreshSavedTracks()
+    }
+
     /** Current immutable view of the Drive surface. */
     fun snapshot(): DriveMarkingSnapshot {
-        val canStart = savedTracks.any { it.startFinish != null }
+        val timingReadyTrack = savedTracks
+            .filter { it.startFinish != null }
+            .maxByOrNull { it.createdAtEpochMillis }
+        val canStart = timingReadyTrack != null
         return DriveMarkingSnapshot(
             phase = phase,
             isDemoFeedRunning = provider.isRunning,
@@ -113,9 +126,21 @@ class DriveMarkingController(
             feedQuality = if (feedSamples.isEmpty()) null else GpsQualitySummary.from(feedSamples),
             reviewState = reviewState,
             savedTrackCount = savedTracks.size,
+            timingReadyTrackId = timingReadyTrack?.id,
+            timingReadyTrackName = timingReadyTrack?.name,
             canStartTiming = canStart,
             startTimingBlockedReason = if (canStart) "" else START_TIMING_BLOCKED_COPY,
         )
+    }
+
+    /**
+     * Re-hydrate saved Tracks from the canonical local store. Review reads the
+     * same index directly, so Drive must do this on construction/tab entry and
+     * after save to keep Start Timing stable across navigation and cold start.
+     */
+    fun refreshSavedTracks() {
+        savedTracks.clear()
+        savedTracks.addAll(loadSavedTracksFromStore())
     }
 
     /** Start or stop the background demo feed (D-05, D-44). */
@@ -205,7 +230,7 @@ class DriveMarkingController(
             createdAtEpochMillis = createdAt,
         )
         store.saveTrackBundle(track, review.extraction.markingSession, appMetadata)
-        savedTracks.add(track)
+        refreshSavedTracks()
         reviewState = null
         phase = DriveMarkingPhase.Idle
         return track
@@ -248,6 +273,24 @@ class DriveMarkingController(
             isSimulated = simulated,
             label = if (simulated) "Demo" else null,
         )
+    }
+
+    private fun loadSavedTracksFromStore(): List<Track> {
+        val seen = mutableSetOf<String>()
+        return store.readIndex().rows
+            .filter { it.type == ReviewEntryType.Track }
+            .sortedBy { it.createdAtEpochMillis }
+            .mapNotNull { row ->
+                if (!seen.add(row.id)) {
+                    null
+                } else {
+                    when (val result = store.loadTrack(row.id)) {
+                        is LoadResult.Loaded -> result.value.track
+                        LoadResult.NotFound -> null
+                        is LoadResult.Corrupt -> null
+                    }
+                }
+            }
     }
 }
 

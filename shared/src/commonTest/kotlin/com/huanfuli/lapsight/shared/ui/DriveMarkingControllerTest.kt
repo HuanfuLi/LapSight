@@ -4,6 +4,7 @@ import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.SimulatedGpsProvider
 import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
 import com.huanfuli.lapsight.shared.session.AppMetadata
+import com.huanfuli.lapsight.shared.session.SessionControllerTest.TestTrackFactory
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtractor
 import com.huanfuli.lapsight.shared.track.TrackReviewDecision
@@ -90,6 +91,44 @@ class DriveMarkingControllerTest {
         assertNull(snap.reviewState, "review cleared after save")
         assertEquals(DriveMarkingPhase.Idle, snap.phase)
         assertEquals(1, snap.savedTrackCount)
+        assertEquals("track-1700000000000", snap.timingReadyTrackId)
+        assertEquals("Demo Track", snap.timingReadyTrackName)
+    }
+
+    @Test
+    fun newControllerHydratesPersistedTimingReadyTrackFromStore() {
+        val track = TestTrackFactory.savedTrackWithStartFinish()
+            .copy(id = "track-persisted-ready", name = "Persisted Ready Track", createdAtEpochMillis = 2_000L)
+        store.saveTrackBundle(track, TestTrackFactory.markingFor(track), app)
+
+        val controller = controller()
+        val snap = controller.snapshot()
+
+        assertEquals(1, snap.savedTrackCount)
+        assertTrue(snap.canStartTiming, "persisted track with start/finish should unblock timing")
+        assertEquals(track.id, snap.timingReadyTrackId)
+        assertEquals(track.name, snap.timingReadyTrackName)
+    }
+
+    @Test
+    fun timingReadyTrackSelectionIgnoresTracksWithoutStartFinishAndUsesNewestReadyTrack() {
+        val notReady = TestTrackFactory.savedTrackWithoutStartFinish()
+            .copy(id = "track-no-start-finish", createdAtEpochMillis = 3_000L)
+        val readyOld = TestTrackFactory.savedTrackWithStartFinish()
+            .copy(id = "track-ready-old", name = "Old Ready", createdAtEpochMillis = 1_000L)
+        val readyNew = TestTrackFactory.savedTrackWithStartFinish()
+            .copy(id = "track-ready-new", name = "New Ready", createdAtEpochMillis = 2_000L)
+        listOf(notReady, readyOld, readyNew).forEach { track ->
+            store.saveTrackBundle(track, TestTrackFactory.markingFor(track), app)
+        }
+
+        val controller = controller()
+        val snap = controller.snapshot()
+
+        assertEquals(3, snap.savedTrackCount)
+        assertTrue(snap.canStartTiming)
+        assertEquals(readyNew.id, snap.timingReadyTrackId)
+        assertEquals(readyNew.name, snap.timingReadyTrackName)
     }
 
     @Test

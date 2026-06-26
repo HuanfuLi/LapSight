@@ -77,10 +77,19 @@ fun DriveScreen(
     var showStopSummary by remember { mutableStateOf(false) }
     var confirmDiscardSession by remember { mutableStateOf(false) }
     var saveToast by remember { mutableStateOf<String?>(null) }
+    var startTimingBlockedMessage by remember { mutableStateOf<String?>(null) }
 
     // Apply the chosen orientation through the platform window lock (app-wide).
     LaunchedEffect(orientation) {
         orientationController.apply(orientation)
+    }
+
+    // Drive may be re-entered after Review navigation or cold start. Hydrate the
+    // persisted saved Track list so Start Timing does not depend on in-memory
+    // state left over from the Track Review save action.
+    LaunchedEffect(Unit) {
+        controller.refreshSavedTracks()
+        snapshot = controller.snapshot()
     }
 
     // Poll the provider on a timer while the demo feed runs (D-05). The feed
@@ -197,16 +206,29 @@ fun DriveScreen(
                 DriveMarkingPhase.Idle -> {
                     if (snapshot.canStartTiming && !timingActive) {
                         // Start formal timing against the saved track (D-19).
-                        val savedTrack = controller.snapshot().savedTrackCount
-                        val result = sessionController.startTiming(trackId = "track-dummy-$savedTrack")
-                        // The DriveMarkingController doesn't expose saved track ids directly;
-                        // timing is started from the latest saved track via the controller.
-                        // For the demo flow, the SessionController loads the track from the store.
-                        if (result is StartTimingResult.Started) {
-                            timingActive = true
-                            timingSnapshot = sessionController.snapshot()
+                        val trackId = snapshot.timingReadyTrackId
+                        if (trackId == null) {
+                            startTimingBlockedMessage = START_TIMING_BLOCKED_COPY
+                        } else {
+                            when (val result = sessionController.startTiming(trackId = trackId)) {
+                                is StartTimingResult.Started -> {
+                                    // If the user starts timing from a cold Drive
+                                    // screen, begin the provider without resetting
+                                    // any already-running demo feed.
+                                    if (!provider.isRunning) provider.start()
+                                    startTimingBlockedMessage = null
+                                    timingActive = true
+                                    timingSnapshot = sessionController.snapshot()
+                                    snapshot = controller.snapshot()
+                                }
+                                is StartTimingResult.Blocked -> {
+                                    startTimingBlockedMessage = result.message
+                                    snapshot = controller.snapshot()
+                                }
+                            }
                         }
                     } else {
+                        startTimingBlockedMessage = null
                         controller.beginMarking()
                         snapshot = controller.snapshot()
                     }
@@ -228,6 +250,7 @@ fun DriveScreen(
         },
         timingActive = timingActive,
         timingSnapshot = timingSnapshot,
+        startTimingBlockedMessage = startTimingBlockedMessage,
         reviewContent = {
             TrackReviewContent(
                 snapshot = snapshot,
@@ -249,6 +272,7 @@ private fun DriveSurface(
     onStopTiming: () -> Unit,
     timingActive: Boolean,
     timingSnapshot: com.huanfuli.lapsight.shared.session.SessionControllerSnapshot?,
+    startTimingBlockedMessage: String?,
     reviewContent: @Composable () -> Unit,
 ) {
     BoxWithConstraints(
@@ -309,6 +333,7 @@ private fun DriveSurface(
                     onPrimaryAction = onPrimaryAction,
                     modifier = Modifier.weight(0.9f),
                     compact = isCompactLandscape,
+                    startTimingBlockedMessage = startTimingBlockedMessage,
                 )
             }
         } else {
@@ -329,6 +354,7 @@ private fun DriveSurface(
                     onToggleDemoFeed = onToggleDemoFeed,
                     onPrimaryAction = onPrimaryAction,
                     modifier = Modifier.fillMaxWidth(),
+                    startTimingBlockedMessage = startTimingBlockedMessage,
                 )
             }
         }
@@ -560,6 +586,7 @@ private fun ControlPanel(
     onPrimaryAction: () -> Unit,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    startTimingBlockedMessage: String? = null,
 ) {
     Column(
         modifier = modifier,
@@ -593,6 +620,14 @@ private fun ControlPanel(
                     // drives the formal session lifecycle (D-19, SESS-01).
                     Button(onClick = onPrimaryAction, modifier = Modifier.fillMaxWidth()) {
                         Text("Start Timing")
+                    }
+                    startTimingBlockedMessage?.let { message ->
+                        Text(
+                            text = message,
+                            color = Color(0xFFFFD166),
+                            fontSize = if (compact) 11.sp else 13.sp,
+                            lineHeight = if (compact) 15.sp else 17.sp,
+                        )
                     }
                 } else {
                     Button(onClick = onPrimaryAction, modifier = Modifier.fillMaxWidth()) {
