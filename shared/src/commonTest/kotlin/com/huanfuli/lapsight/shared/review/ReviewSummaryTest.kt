@@ -8,14 +8,22 @@ import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
 import com.huanfuli.lapsight.shared.lap.LapEngineConfig
 import com.huanfuli.lapsight.shared.lap.ReplayFixtures
 import com.huanfuli.lapsight.shared.session.AppMetadata
+import com.huanfuli.lapsight.shared.session.GeoPointDto
 import com.huanfuli.lapsight.shared.session.GpsQualitySummary as SessionGpsQualitySummary
+import com.huanfuli.lapsight.shared.session.LocationSampleDto
 import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.session.SessionControllerTest.TestTrackFactory.savedTrackWithStartFinish
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
 import com.huanfuli.lapsight.shared.session.toDto
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
+import com.huanfuli.lapsight.shared.track.ReferenceLineExtraction
+import com.huanfuli.lapsight.shared.track.SectorLineDto
+import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.Track
+import com.huanfuli.lapsight.shared.track.TrackMarkingSession
+import com.huanfuli.lapsight.shared.track.TrackReferenceLine
+import com.huanfuli.lapsight.shared.track.TrackReviewState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -126,5 +134,190 @@ class ReviewSummaryTest {
         val ghost = store.ghostCandidateForTrack(summary.trackId)
         // Best lap is still shown in the summary; only ghost derivation excludes it.
         assertEquals(summary.bestLapMillis, summary.laps.minOf { it.durationMillis })
+    }
+
+    // ── Trace state tests: D-35 (Track Review) and D-36 (Timing Session) ────
+
+    @Test
+    fun trackTraceLayersIncludeMarkingTraceReferenceLineAndStartFinishOutliers() {
+        val markingSamples = GpsFixtureLibrary.cleanTenLoop().map { it.toDto() }
+        val refPoints = markingSamples.take(20).map {
+            GeoPointDto(latitude = it.latitude, longitude = it.longitude)
+        }
+        val referenceLine = TrackReferenceLine(points = refPoints, isClosed = true)
+        val startFinish = StartFinishLineDto(
+            pointA = refPoints.first(),
+            pointB = refPoints.last(),
+        )
+        val sectors = listOf(
+            SectorLineDto(
+                id = "s1",
+                name = "Sector 1",
+                order = 0,
+                pointA = refPoints[5],
+                pointB = refPoints[6],
+            ),
+        )
+        val outliers = markingSamples.take(3)
+
+        val layers = buildTrackTraceLayers(
+            markingSamples = markingSamples,
+            referenceLine = referenceLine,
+            startFinish = startFinish,
+            sectors = sectors,
+            outlierSamples = outliers,
+            viewWidth = 400.0,
+            viewHeight = 300.0,
+        )
+
+        // Expected layers per D-35: marking trace, reference line, outliers, start/finish, sectors.
+        assertTrue(layers.isNotEmpty(), "track trace layers must not be empty when data is available")
+        val layerNames = layers.map { it.name }.toSet()
+        assertTrue(layerNames.any { it.contains("marking", ignoreCase = true) || it.contains("trace", ignoreCase = true) },
+            "must have a layer for the full marking trace context")
+        assertTrue(layerNames.any { it.contains("reference", ignoreCase = true) },
+            "must have a layer for the reference line (D-35)")
+        assertTrue(layerNames.any { it.contains("outlier", ignoreCase = true) || it.contains("rejected", ignoreCase = true) },
+            "must have a layer for outlier/rejected sections (D-35)")
+        assertTrue(layerNames.any { it.contains("start") || it.contains("finish") },
+            "must have a layer for the start/finish line (D-35)")
+        assertTrue(layerNames.any { it.contains("sector", ignoreCase = true) },
+            "must have a layer for sector lines (D-35)")
+    }
+
+    @Test
+    fun timingTraceLayersIncludeReferenceBaselineSessionTraceStartFinishSectorsAndHighlightHook() {
+        val refPoints = GpsFixtureLibrary.cleanTenLoop().take(20).map {
+            GeoPointDto(latitude = it.latitude, longitude = it.longitude)
+        }
+        val sessionSamples = GpsFixtureLibrary.cleanTenLoop().mapNotNull { it.toDto() }
+        val startFinish = StartFinishLineDto(
+            pointA = refPoints.first(),
+            pointB = refPoints.last(),
+        )
+        val sectors = listOf(
+            SectorLineDto(
+                id = "s1",
+                name = "Sector 1",
+                order = 0,
+                pointA = refPoints[5],
+                pointB = refPoints[6],
+            ),
+        )
+
+        val layers = buildTimingTraceLayers(
+            referenceLinePoints = refPoints,
+            sessionSamples = sessionSamples,
+            startFinish = startFinish,
+            sectors = sectors,
+            selectedLapStartMillis = 1000L,
+            selectedLapEndMillis = 33000L,
+            viewWidth = 400.0,
+            viewHeight = 300.0,
+        )
+
+        // Expected layers per D-36: reference baseline, session trace, start/finish, sectors, highlight.
+        assertTrue(layers.isNotEmpty(), "timing trace layers must not be empty when data is available")
+        val layerNames = layers.map { it.name }.toSet()
+        assertTrue(layerNames.any { it.contains("reference", ignoreCase = true) },
+            "must have a layer for the reference baseline (D-36)")
+        assertTrue(layerNames.any { it.contains("session", ignoreCase = true) || it.contains("trace", ignoreCase = true) },
+            "must have a layer for the session trace (D-36)")
+        assertTrue(layerNames.any { it.contains("start") || it.contains("finish") },
+            "must have a layer for the start/finish line (D-36)")
+        assertTrue(layerNames.any { it.contains("sector", ignoreCase = true) },
+            "must have a layer for sector lines (D-36)")
+        assertTrue(layerNames.any { it.contains("highlight", ignoreCase = true) || it.contains("best") || it.contains("selected") },
+            "must have a layer for the selected/best lap highlight hook (D-36)")
+    }
+
+    @Test
+    fun timingTraceLayersDegradeGracefullyWithoutReferenceLine() {
+        val sessionSamples = GpsFixtureLibrary.cleanTenLoop().take(10).mapNotNull { it.toDto() }
+
+        val layers = buildTimingTraceLayers(
+            referenceLinePoints = emptyList(),
+            sessionSamples = sessionSamples,
+            startFinish = null,
+            sectors = emptyList(),
+            selectedLapStartMillis = null,
+            selectedLapEndMillis = null,
+            viewWidth = 400.0,
+            viewHeight = 300.0,
+        )
+
+        // When essential data is missing, the function must not crash.
+        // It may return fewer layers or empty layers — the key is no exception.
+        assertNotNull(layers, "must return a list, not throw, when data is minimal")
+    }
+
+    @Test
+    fun trackTraceLayersDegradeGracefullyWithoutReferenceLine() {
+        val markingSamples = GpsFixtureLibrary.cleanTenLoop().take(5).map { it.toDto() }
+
+        val layers = buildTrackTraceLayers(
+            markingSamples = markingSamples,
+            referenceLine = null,
+            startFinish = null,
+            sectors = emptyList(),
+            outlierSamples = emptyList(),
+            viewWidth = 400.0,
+            viewHeight = 300.0,
+        )
+
+        // With no reference line and minimal data, the function must not crash.
+        assertNotNull(layers, "must return a list, not throw, when reference line is null")
+    }
+
+    @Test
+    fun trackReviewStateBuildTraceLayersIncludesExpectedLayerNames() {
+        val markingSamples = GpsFixtureLibrary.cleanTenLoop()
+        val session = TrackMarkingSession(
+            id = "marking-1",
+            createdAtEpochMillis = 0L,
+            source = SourceMetadata(
+                source = LocationSource.Simulated,
+                isSimulated = true,
+                label = "fixture",
+            ),
+            samples = markingSamples.map { it.toDto() },
+        )
+        val extraction = ReferenceLineExtraction(
+            markingSession = session,
+            isReady = true,
+            referenceLine = TrackReferenceLine(
+                points = markingSamples.take(20).map {
+                    GeoPointDto(latitude = it.latitude, longitude = it.longitude)
+                },
+                isClosed = true,
+            ),
+            quality = GpsQualitySummary(
+                sampleCount = 10,
+                durationMillis = 5000L,
+                averageUpdateRateHz = 1.0,
+                bestAccuracyMeters = 5.0,
+                worstAccuracyMeters = 15.0,
+                degradedSampleCount = 1,
+                sources = setOf(LocationSource.Simulated),
+            ),
+            detectedLoopCount = 6,
+            acceptedLoopCount = 5,
+            rejectedLoopCount = 1,
+            diagnostics = emptyList(),
+            notReadyReasons = emptyList(),
+        )
+        val state = TrackReviewState.from(name = "Test Track", extraction = extraction)
+
+        val layers = state.buildTraceLayers(
+            viewWidth = 400.0,
+            viewHeight = 300.0,
+        )
+
+        assertTrue(layers.isNotEmpty(), "TrackReviewState must produce trace layers when extraction is ready")
+        val layerNames = layers.map { it.name }.toSet()
+        assertTrue(layerNames.any { it.contains("marking", ignoreCase = true) || it.contains("trace", ignoreCase = true) },
+            "must include the full marking trace layer")
+        assertTrue(layerNames.any { it.contains("reference", ignoreCase = true) },
+            "must include the reference line layer (D-35)")
     }
 }

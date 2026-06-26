@@ -1,6 +1,9 @@
 package com.huanfuli.lapsight.shared.track
 
 import com.huanfuli.lapsight.shared.GpsQualitySummary
+import com.huanfuli.lapsight.shared.review.TraceLayer
+import com.huanfuli.lapsight.shared.review.TraceProjection
+import com.huanfuli.lapsight.shared.session.GeoPointDto
 import com.huanfuli.lapsight.shared.session.SourceMetadata
 
 /**
@@ -84,6 +87,25 @@ data class TrackReviewState(
             startFinish = startFinish,
             sectors = sectors,
         )
+    }
+
+    /**
+     * Build the trace layers for Track Review offline vector rendering (D-35).
+     *
+     * Layers (render in this order, background first):
+     * 1. Full marking trace (context) — muted `#9AA8B8`, 2px
+     * 2. Reference line (highlighted baseline) — cyan `#62E3FF`, 3px
+     * 3. Outlier sections — orange `#FFB84D` 50% alpha, 2px dashed
+     * 4. Start/finish line — green `#8CFF9B`, 3px
+     * 5. Sector lines — amber `#FFD166`, 2px
+     */
+    fun buildTraceLayers(
+        viewWidth: Double,
+        viewHeight: Double,
+        padding: Double = 0.05,
+    ): List<TraceLayer> {
+        // Stub — real implementation in Plan 03-07 Task 2.
+        return emptyList()
     }
 
     companion object {

@@ -2,13 +2,18 @@ package com.huanfuli.lapsight.shared.review
 
 import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.GpsQualitySummary as DashGpsQualitySummary
+import com.huanfuli.lapsight.shared.session.GeoPointDto
 import com.huanfuli.lapsight.shared.session.GpsQualitySummary as SessionGpsQualitySummary
 import com.huanfuli.lapsight.shared.session.LapDto
+import com.huanfuli.lapsight.shared.session.LocationSampleDto
 import com.huanfuli.lapsight.shared.session.SectorEventDto
 import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.storage.LoadResult
+import com.huanfuli.lapsight.shared.track.SectorLineDto
+import com.huanfuli.lapsight.shared.track.StartFinishLineDto
+import com.huanfuli.lapsight.shared.track.TrackReferenceLine
 
 /**
  * Review summary types for saved TimingSessions (SESS-02, D-32).
@@ -106,4 +111,72 @@ object ReviewSummaries {
             newTrackBest = newTrackBest,
         )
     }
+}
+
+/**
+ * Build trace layers for the Track Review offline vector trace (D-35).
+ *
+ * Layers rendered in order (background first):
+ * 1. Full marking trace (context) — muted #9AA8B8, 2px
+ * 2. Reference line (highlighted baseline) — cyan #62E3FF, 3px
+ * 3. Outlier sections — orange #FFB84D 50% alpha, 2px dashed
+ * 4. Start/finish line — green #8CFF9B, 3px
+ * 5. Sector lines — amber #FFD166, 2px
+ *
+ * @param markingSamples  raw marking session samples (full context trace).
+ * @param referenceLine   extracted reference line, or null.
+ * @param startFinish     start/finish line, or null.
+ * @param sectors         sector lines.
+ * @param outlierSamples  outlier/rejected sample points.
+ * @param viewWidth       target canvas width.
+ * @param viewHeight      target canvas height.
+ * @param padding         fraction of smaller dimension reserved as padding.
+ */
+fun buildTrackTraceLayers(
+    markingSamples: List<LocationSampleDto>,
+    referenceLine: TrackReferenceLine?,
+    startFinish: StartFinishLineDto?,
+    sectors: List<SectorLineDto>,
+    outlierSamples: List<LocationSampleDto>,
+    viewWidth: Double,
+    viewHeight: Double,
+    padding: Double = 0.05,
+): List<TraceLayer> {
+    // Stub — real implementation in Plan 03-07 Task 2.
+    return emptyList()
+}
+
+/**
+ * Build trace layers for the Timing Session Review offline vector trace (D-36).
+ *
+ * Layers rendered in order (background first):
+ * 1. Reference line baseline — cyan #62E3FF, 3px
+ * 2. Session trace — muted #9AA8B8, 2px
+ * 3. Start/finish line — green #8CFF9B, 3px
+ * 4. Sector lines — amber #FFD166, 2px
+ * 5. Selected/best lap highlight — cyan #62E3FF, 4px (empty until a lap is selected)
+ *
+ * @param referenceLinePoints  track reference line points.
+ * @param sessionSamples       timing session raw samples.
+ * @param startFinish          start/finish line.
+ * @param sectors              sector lines.
+ * @param selectedLapStartMillis  start millis of the selected/best lap, or null.
+ * @param selectedLapEndMillis    end millis of the selected/best lap, or null.
+ * @param viewWidth            target canvas width.
+ * @param viewHeight           target canvas height.
+ * @param padding              fraction of smaller dimension reserved as padding.
+ */
+fun buildTimingTraceLayers(
+    referenceLinePoints: List<GeoPointDto>,
+    sessionSamples: List<LocationSampleDto>,
+    startFinish: StartFinishLineDto?,
+    sectors: List<SectorLineDto>,
+    selectedLapStartMillis: Long?,
+    selectedLapEndMillis: Long?,
+    viewWidth: Double,
+    viewHeight: Double,
+    padding: Double = 0.05,
+): List<TraceLayer> {
+    // Stub — real implementation in Plan 03-07 Task 2.
+    return emptyList()
 }
