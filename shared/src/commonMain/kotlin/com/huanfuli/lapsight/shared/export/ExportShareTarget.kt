@@ -8,7 +8,9 @@ package com.huanfuli.lapsight.shared.export
  * owns the system share sheet / save dialog. The bytes and filename cross only
  * through this contract so exports reach a user-accessible destination.
  *
- * STUB for RED phase — full expect/actual wiring in Task 2.
+ * Each platform provides its own implementation with its required constructor
+ * parameters (e.g., Android Context). The shared code receives this via constructor
+ * injection — it never constructs the platform target directly.
  */
 interface ExportShareTarget {
     fun share(artifact: ExportArtifact): ExportShareResult

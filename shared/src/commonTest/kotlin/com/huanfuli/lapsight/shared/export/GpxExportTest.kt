@@ -240,15 +240,14 @@ class GpxExportTest {
 
     @Test
     fun exportFileNamesDateIsInYyyyMmDdFormat() {
-        // 2026-06-25T00:00:00Z in epoch millis (approx)
-        val dateMillis = 1_719_273_600_000L // 2024-06-24 in some timezone
-        // We just verify the date segment is 8 digits.
+        // Use a known epoch that produces a stable date string.
+        val dateMillis = 1_719_273_600_000L
         val name = ExportFileNames.forTrack("Test", dateMillis)
         // Pattern: LapSight_Track_Test_YYYYMMDD.json
         val parts = name.removeSuffix(".json").split("_")
-        assertTrue(parts.size >= 5, "must have at least 5 underscore-separated parts: $name")
+        assertTrue(parts.size >= 4, "must have at least 4 underscore-separated parts: $name")
         val dateSegment = parts.last { it.length == 8 && it.all { c -> c.isDigit() } }
-        assertTrue(dateSegment.length == 8, "date segment must be 8 digits in $name, got '$dateSegment'")
+        assertEquals(8, dateSegment.length, "date segment must be 8 digits in $name, got '$dateSegment'")
     }
 
     @Test
