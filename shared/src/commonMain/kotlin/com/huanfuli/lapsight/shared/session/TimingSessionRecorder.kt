@@ -2,6 +2,7 @@ package com.huanfuli.lapsight.shared.session
 
 import com.huanfuli.lapsight.shared.GpsQualitySummary
 import com.huanfuli.lapsight.shared.LocationSample
+import com.huanfuli.lapsight.shared.ghost.DeltaDisplayState
 import com.huanfuli.lapsight.shared.ghost.LiveDeltaEngine
 import com.huanfuli.lapsight.shared.ghost.LiveDeltaSnapshot
 import com.huanfuli.lapsight.shared.ghost.ReferenceLap
@@ -139,6 +140,28 @@ class TimingSessionRecorder(
 
     /** True iff the session's source is simulated (D-42, D-43). */
     val isSimulated: Boolean get() = session.source.isSimulated
+
+    /**
+     * Build the read-only production timing/delta view for the Drive UI
+     * (GHOST-03). Reads the live lap engine state, latest sample, and realtime
+     * live-delta in one shot so the UI renders without touching recorder
+     * internals or [SessionController.recorderForTest].
+     */
+    fun timingRunSnapshot(): TimingRunSnapshot {
+        val timing = timingState
+        return TimingRunSnapshot(
+            isActive = true,
+            lapCount = timing.lapCount,
+            currentLapMillis = timing.currentLapElapsedMillis,
+            lastLapMillis = timing.lastLapMillis,
+            bestLapMillis = timing.bestLapMillis,
+            checkpointedSampleCount = sampleCount,
+            speedMetersPerSecond = latestSample?.speedMetersPerSecond,
+            accuracyMeters = latestSample?.horizontalAccuracyMeters,
+            source = session.source,
+            deltaDisplay = DeltaDisplayState.from(liveDelta),
+        )
+    }
 
     /**
      * Feed one sample. Persists raw samples, newly completed laps, and sector

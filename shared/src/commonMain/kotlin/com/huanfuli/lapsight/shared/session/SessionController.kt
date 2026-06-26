@@ -243,6 +243,24 @@ class SessionController(
         recorder?.liveDelta ?: LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.NoCurrentLap)
 
     /**
+     * Read-only production timing/delta snapshot for the Drive UI (GHOST-03).
+     * Returns an [TimingRunSnapshot.inactive] view when no run is active so the UI
+     * renders a neutral `--` delta and empty metrics without special-casing null.
+     * Production UI reads this instead of [recorderForTest].
+     */
+    fun timingRunSnapshot(): TimingRunSnapshot =
+        recorder?.timingRunSnapshot() ?: TimingRunSnapshot.inactive()
+
+    /**
+     * Feed one live GPS sample into the active timing recorder (production sample
+     * pump). No-op when no run is active. Lets the Drive UI drive timing without
+     * reaching through [recorderForTest].
+     */
+    fun ingestSample(sample: com.huanfuli.lapsight.shared.LocationSample) {
+        recorder?.onSample(sample)
+    }
+
+    /**
      * The reference lap the active timing run currently chases (D-01, D-12), or
      * null when no run is active / no reference is available.
      */
