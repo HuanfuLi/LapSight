@@ -74,6 +74,28 @@ class SimulatedGpsProviderTest {
     }
 
     @Test
+    fun variablePaceGhostScenarioWrapsContinuouslyThroughProviderBoundary() {
+        val provider = SimulatedGpsProvider(GpsFixtureLibrary.VARIABLE_PACE_GHOST_UAT)
+        provider.start()
+
+        val first = assertNotNull(provider.nextSample())
+        var previous = first
+        repeat(provider.sampleCount + 8) {
+            val next = assertNotNull(provider.nextSample(), "variable-pace feed must emit continuously")
+            assertTrue(
+                next.elapsedMillis > previous.elapsedMillis,
+                "wrapped variable-pace feed timestamps must keep moving forward",
+            )
+            assertEquals(LocationSource.Simulated, next.source)
+            previous = next
+        }
+        assertTrue(
+            previous.elapsedMillis > first.elapsedMillis,
+            "wrapped samples must advance beyond the first cycle without starting a timing session",
+        )
+    }
+
+    @Test
     fun isUsableThroughTheProviderBoundary() {
         // The simulator must be a normal LocationSampleProvider so later marking
         // and timing flows consume it unchanged (D-03).
