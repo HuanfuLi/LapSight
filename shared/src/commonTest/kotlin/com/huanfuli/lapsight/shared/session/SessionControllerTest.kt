@@ -97,26 +97,23 @@ class SessionControllerTest {
     fun startTimingWithSavedTrackCreatesActiveDraftFeedsLapEngineAndCheckpoints() {
         val track = saveTrackWithStartFinish()
         val controller = controller()
-        val provider = SimulatedGpsProvider(scenarioId = GpsFixtureLibrary.CLEAN_10_LOOP)
 
         val result = controller.startTiming(track.id)
 
-        assertTrue(result is StartTimingResult.Started) {
-            "expected Started but was $result"
-        }
+        assertTrue(result is StartTimingResult.Started, "expected Started but was $result")
         val snap = controller.snapshot()
         val draft = snap.activeDraft
         assertNotNull(draft, "an active draft must exist after start")
         assertEquals(TimingDraftState.ActiveDraft, draft.state)
         assertEquals(track.id, draft.trackId)
 
-        // Feed the simulated samples through the recorder; raw samples/laps/sector
-        // events must checkpoint (D-13).
+        // Feed the canonical multi-lap fixture through the recorder so laps +
+        // sectors are produced against the saved Track's start/finish + sectors
+        // (which derive from ReplayFixtures.DEMO_COURSE). Raw samples/laps/
+        // sector events must checkpoint continuously (D-13).
         val recorder = controller.recorderForTest() ?: error("recorder must be available after start")
-        repeat(480) {
-            val sample = provider.nextSample() ?: return@repeat
-            recorder.onSample(sample)
-        }
+        val samples = ReplayFixtures.multiLapLoop(listOf(40_000L, 32_000L, 36_000L))
+        samples.forEach { recorder.onSample(it) }
 
         val afterFeed = controller.snapshot().activeDraft
         assertNotNull(afterFeed)
@@ -140,7 +137,7 @@ class SessionControllerTest {
         val provider = SimulatedGpsProvider(scenarioId = GpsFixtureLibrary.CLEAN_10_LOOP)
         controller.startTiming(track.id)
         val recorder = controller.recorderForTest()!!
-        repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
+        provider.start(); repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
         controller.stop()
 
         val saved = controller.saveStoppedDraft()
@@ -162,7 +159,7 @@ class SessionControllerTest {
         val provider = SimulatedGpsProvider(scenarioId = GpsFixtureLibrary.CLEAN_10_LOOP)
         controller.startTiming(track.id)
         val recorder = controller.recorderForTest()!!
-        repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
+        provider.start(); repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
         controller.stop()
 
         controller.discardDraft()
@@ -181,10 +178,10 @@ class SessionControllerTest {
     fun ghostCandidateExcludesSimulatedSessionsFromRealPerTrackBest() {
         val track = saveTrackWithStartFinish(source = LocationSource.Simulated)
         val controller = controller(source = LocationSource.Simulated)
-        val provider = SimulatedGpsProvider(scenarioId = GpsFixtureLibrary.CLEAN_10_LOOP)
+        val samples = ReplayFixtures.multiLapLoop(listOf(40_000L, 32_000L, 36_000L))
         controller.startTiming(track.id)
         val recorder = controller.recorderForTest()!!
-        repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
+        samples.forEach { recorder.onSample(it) }
         controller.stop()
         val saved = controller.saveStoppedDraft() as SaveDraftResult.Saved
 

@@ -2,6 +2,9 @@ package com.huanfuli.lapsight.shared.storage
 
 import com.huanfuli.lapsight.shared.track.ReviewIndex
 import com.huanfuli.lapsight.shared.session.AppMetadata
+import com.huanfuli.lapsight.shared.session.GhostCandidate
+import com.huanfuli.lapsight.shared.session.TimingSession
+import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
@@ -31,6 +34,55 @@ interface LocalSessionStore {
 
     /** Reads the current Review metadata index (empty if none exists yet). */
     fun readIndex(): ReviewIndex
+
+    // --- Timing session drafts (D-13..D-20) --------------------------------
+
+    /**
+     * Checkpoints an active timing draft: raw samples, completed laps, and
+     * sector events are persisted continuously so the draft survives crash /
+     * app restart before formal Save (D-13). Overwrites any prior active draft
+     * for the same session id.
+     */
+    fun saveTimingDraft(
+        session: TimingSession,
+        samples: List<com.huanfuli.lapsight.shared.session.LocationSampleDto>,
+        laps: List<com.huanfuli.lapsight.shared.session.LapDto>,
+        sectorEvents: List<com.huanfuli.lapsight.shared.session.SectorEventDto>,
+        gpsQuality: com.huanfuli.lapsight.shared.session.GpsQualitySummary,
+        totalDurationMillis: Long,
+        app: AppMetadata,
+    )
+
+    /**
+     * Loads the unfinished timing draft if one exists (D-15). Returns null when
+     * no draft is present, or [LoadResult.Corrupt] surfaced as null so recovery
+     * never crashes the caller (T-03-11).
+     */
+    fun loadUnfinishedDraft(): TimingSessionPayloadV1?
+
+    /**
+     * Promotes a stopped draft to a canonical saved [TimingSessionPayloadV1] plus
+     * a Review index row (D-14, D-16). The active/stopped draft is cleared after
+     * the canonical payload and index are written.
+     */
+    fun saveTimingSession(payload: TimingSessionPayloadV1, app: AppMetadata): SaveResult
+
+    /**
+     * Removes the unfinished draft payload and any draft-only index entries so
+     * it never enters formal Review history (D-16, T-03-12). No-op when no
+     * draft exists.
+     */
+    fun discardTimingDraft()
+
+    /** Loads a saved timing-session payload by id. */
+    fun loadTimingSession(sessionId: String): LoadResult<TimingSessionPayloadV1>
+
+    /**
+     * Derives the per-Track fastest valid lap as a [GhostCandidate], EXCLUDING
+     * any session whose source metadata is simulated (D-20, D-43). Returns null
+     * when no real candidate exists.
+     */
+    fun ghostCandidateForTrack(trackId: String): GhostCandidate?
 }
 
 /** Outcome of a save operation. */

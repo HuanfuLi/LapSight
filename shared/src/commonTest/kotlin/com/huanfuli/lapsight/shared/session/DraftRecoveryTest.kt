@@ -61,7 +61,7 @@ class DraftRecoveryTest {
         val provider = SimulatedGpsProvider(scenarioId = GpsFixtureLibrary.CLEAN_10_LOOP)
         controllerA.startTiming(track.id)
         val recorder = controllerA.recorderForTest()!!
-        repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
+        provider.start(); repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
         controllerA.stop()
 
         // App restart: a fresh controller loads the unfinished draft from storage.
@@ -88,7 +88,7 @@ class DraftRecoveryTest {
         val provider = SimulatedGpsProvider(scenarioId = GpsFixtureLibrary.CLEAN_10_LOOP)
         controllerA.startTiming(track.id)
         val recorder = controllerA.recorderForTest()!!
-        repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
+        provider.start(); repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
         controllerA.stop()
 
         val controllerB = newController()
@@ -110,7 +110,7 @@ class DraftRecoveryTest {
         val provider = SimulatedGpsProvider(scenarioId = GpsFixtureLibrary.CLEAN_10_LOOP)
         controllerA.startTiming(track.id)
         val recorder = controllerA.recorderForTest()!!
-        repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
+        provider.start(); repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
         controllerA.stop()
 
         val controllerB = newController()

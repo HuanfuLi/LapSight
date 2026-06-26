@@ -1,6 +1,14 @@
 package com.huanfuli.lapsight.shared.storage
 
 import com.huanfuli.lapsight.shared.session.AppMetadata
+import com.huanfuli.lapsight.shared.session.GhostCandidate
+import com.huanfuli.lapsight.shared.session.GpsQualitySummary
+import com.huanfuli.lapsight.shared.session.LapDto
+import com.huanfuli.lapsight.shared.session.LocationSampleDto
+import com.huanfuli.lapsight.shared.session.SectorEventDto
+import com.huanfuli.lapsight.shared.session.SourceMetadata
+import com.huanfuli.lapsight.shared.session.TimingSession
+import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.ReviewIndex
 import com.huanfuli.lapsight.shared.track.ReviewIndexRow
@@ -37,7 +45,10 @@ class FileSessionStore(
 
     private val tracksDir: Path get() = root / TRACKS_DIR
     private val markingsDir: Path get() = root / MARKINGS_DIR
+    private val sessionsDir: Path get() = root / SESSIONS_DIR
+    private val draftsDir: Path get() = root / DRAFTS_DIR
     private val indexPath: Path get() = root / INDEX_FILE
+    private val activeDraftPath: Path get() = draftsDir / ACTIVE_DRAFT_FILE
 
     override fun saveTrackBundle(track: Track, marking: TrackMarkingSession, app: AppMetadata): SaveResult {
         val markingPayload = TrackMarkingPayloadV1(marking = marking, app = app)
@@ -117,6 +128,126 @@ class FileSessionStore(
         }
     }
 
+    // --- Timing session drafts (D-13..D-20) --------------------------------
+
+    override fun saveTimingDraft(
+        session: TimingSession,
+        samples: List<LocationSampleDto>,
+        laps: List<LapDto>,
+        sectorEvents: List<SectorEventDto>,
+        gpsQuality: GpsQualitySummary,
+        totalDurationMillis: Long,
+        app: AppMetadata,
+    ) {
+        val payload = TimingSessionPayloadV1(
+            session = session,
+            app = app,
+            samples = samples,
+            laps = laps,
+            sectorEvents = sectorEvents,
+            gpsQuality = gpsQuality,
+            totalDurationMillis = totalDurationMillis,
+        )
+        // Drafts persist continuously (D-13). Atomic temp-write + move avoids
+        // partial-write corruption on crash (Pitfall 2).
+        writeAtomically(activeDraftPath, json.encodeToString(payload))
+    }
+
+    override fun loadUnfinishedDraft(): TimingSessionPayloadV1? {
+        if (!fileSystem.exists(activeDraftPath)) return null
+        return try {
+            val text = fileSystem.read(activeDraftPath) { readUtf8() }
+            json.decodeFromString<TimingSessionPayloadV1>(text)
+        } catch (e: SerializationException) {
+            // Corrupt/missing draft must not crash recovery (T-03-11).
+            null
+        } catch (e: IllegalArgumentException) {
+            null
+        }
+    }
+
+    override fun saveTimingSession(payload: TimingSessionPayloadV1, app: AppMetadata): SaveResult {
+        val sessionPath = sessionsDir / "${payload.session.id}.json"
+        // Canonical payload first (D-22, D-23), then the index row.
+        writeAtomically(sessionPath, json.encodeToString(payload))
+        val updated = upsertRows(
+            readIndex(),
+            listOf(
+                ReviewIndexRow(
+                    id = payload.session.id,
+                    type = ReviewEntryType.TimingSession,
+                    name = payload.session.trackName,
+                    createdAtEpochMillis = payload.session.createdAtEpochMillis,
+                    source = payload.session.source,
+                    payloadPath = "$SESSIONS_DIR/${payload.session.id}.json",
+                    sampleCount = payload.samples.size,
+                    bestLapMillis = payload.laps.minByOrNull { it.durationMillis }?.durationMillis,
+                ),
+            ),
+        )
+        writeAtomically(indexPath, json.encodeToString(updated))
+        // Clear the draft now that the canonical session is saved (D-14).
+        if (fileSystem.exists(activeDraftPath)) {
+            fileSystem.delete(activeDraftPath)
+        }
+        return SaveResult.Saved(
+            trackPath = sessionPath.toString(),
+            markingPath = activeDraftPath.toString(),
+        )
+    }
+
+    override fun discardTimingDraft() {
+        if (fileSystem.exists(activeDraftPath)) {
+            fileSystem.delete(activeDraftPath)
+        }
+    }
+
+    override fun loadTimingSession(sessionId: String): LoadResult<TimingSessionPayloadV1> =
+        load(sessionsDir / "$sessionId.json") { payload ->
+            when {
+                payload.schemaVersion != CURRENT_SESSION_SCHEMA_VERSION ->
+                    "unsupported schemaVersion ${payload.schemaVersion}"
+                payload.session.id.isBlank() -> "missing session id"
+                payload.session.trackId.isBlank() -> "missing track id"
+                else -> null
+            }
+        }
+
+    override fun ghostCandidateForTrack(trackId: String): GhostCandidate? {
+        val index = readIndex()
+        val sessionIds = index.rows
+            .filter {
+                it.type == ReviewEntryType.TimingSession &&
+                    it.name.isNotBlank() &&
+                    // The index row does not carry trackId directly; we resolve
+                    // candidates by scanning saved payloads and filtering on
+                    // trackId + source. isSimulated lives on SourceMetadata.
+                    true
+            }
+            .map { it.id }
+
+        var best: GhostCandidate? = null
+        for (id in sessionIds) {
+            val payload = loadTimingSession(id)
+            if (payload !is LoadResult.Loaded) continue
+            val value = payload.value
+            if (value.session.trackId != trackId) continue
+            // Real candidates EXCLUDE simulated sessions (D-20, D-43).
+            if (value.session.source.isSimulated) continue
+            val bestLap = value.laps.minByOrNull { it.durationMillis } ?: continue
+            val candidate = GhostCandidate(
+                trackId = trackId,
+                sessionId = value.session.id,
+                lapNumber = bestLap.lapNumber,
+                lapDurationMillis = bestLap.durationMillis,
+            )
+            if (best == null || candidate.lapDurationMillis < best!!.lapDurationMillis) {
+                best = candidate
+            }
+        }
+        return best
+    }
+
     private inline fun <reified T> load(path: Path, validate: (T) -> String?): LoadResult<T> {
         if (!fileSystem.exists(path)) return LoadResult.NotFound
         return try {
@@ -147,6 +278,9 @@ class FileSessionStore(
     companion object {
         private const val TRACKS_DIR = "tracks"
         private const val MARKINGS_DIR = "markings"
+        private const val SESSIONS_DIR = "sessions"
+        private const val DRAFTS_DIR = "drafts"
+        private const val ACTIVE_DRAFT_FILE = "timing.json"
         private const val INDEX_FILE = "index.json"
         private const val TMP_SUFFIX = ".tmp"
 
