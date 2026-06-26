@@ -61,7 +61,7 @@ Build the phone-first product that proves live GPS capture, lap timing, local se
 
 **Requirements:** SESS-01, SESS-02, SESS-03, SESS-04, SESS-05
 
-**Plans:** 7/8 plans executed
+**Plans:** 8/8 plans executed
 
 Plans:
 **Wave 1**
@@ -94,7 +94,7 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 03-08-PLAN.md - Explicit JSON and GPX export with platform share handoff
+- [x] 03-08-PLAN.md - Explicit JSON and GPX export with platform share handoff
 
 **Success Criteria:**
 
