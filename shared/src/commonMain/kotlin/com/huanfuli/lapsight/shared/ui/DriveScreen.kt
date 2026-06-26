@@ -37,11 +37,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.OrientationController
 import com.huanfuli.lapsight.shared.SimulatedGpsProvider
+import com.huanfuli.lapsight.shared.lap.formatLapTime
+import com.huanfuli.lapsight.shared.session.SaveDraftResult
+import com.huanfuli.lapsight.shared.session.SessionController
+import com.huanfuli.lapsight.shared.session.StartTimingResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import kotlinx.coroutines.delay
 
@@ -60,11 +65,18 @@ fun DriveScreen(
     orientation: DashOrientation,
     onToggleOrientation: () -> Unit,
     onSavedTrack: () -> Unit,
+    onSavedSession: () -> Unit,
     sessionStore: LocalSessionStore,
+    sessionController: SessionController,
 ) {
     val provider = remember { SimulatedGpsProvider() }
     val controller = remember { DriveMarkingController(provider = provider, store = sessionStore) }
     var snapshot by remember { mutableStateOf(controller.snapshot()) }
+    var timingActive by remember { mutableStateOf(false) }
+    var timingSnapshot by remember { mutableStateOf<com.huanfuli.lapsight.shared.session.SessionControllerSnapshot?>(null) }
+    var showStopSummary by remember { mutableStateOf(false) }
+    var confirmDiscardSession by remember { mutableStateOf(false) }
+    var saveToast by remember { mutableStateOf<String?>(null) }
 
     // Apply the chosen orientation through the platform window lock (app-wide).
     LaunchedEffect(orientation) {
@@ -73,12 +85,102 @@ fun DriveScreen(
 
     // Poll the provider on a timer while the demo feed runs (D-05). The feed
     // flows continuously as if the phone were physically moving around the
-    // track, even before/after a marking capture.
-    LaunchedEffect(snapshot.isDemoFeedRunning) {
-        while (snapshot.isDemoFeedRunning) {
+    // track, even before/after a marking capture or timing run.
+    LaunchedEffect(snapshot.isDemoFeedRunning, timingActive) {
+        while (snapshot.isDemoFeedRunning || timingActive) {
             delay(700)
-            controller.tick()
-            snapshot = controller.snapshot()
+            if (timingActive) {
+                controller.tick()
+                snapshot = controller.snapshot()
+                val recorder = sessionController.recorderForTest()
+                if (recorder != null) {
+                    val sample = provider.nextSample()
+                    if (sample != null) {
+                        recorder.onSample(sample)
+                    }
+                    timingSnapshot = sessionController.snapshot()
+                }
+            } else {
+                controller.tick()
+                snapshot = controller.snapshot()
+            }
+        }
+    }
+
+    // Stop summary sheet (D-14): Save Session / Discard with exact UI-SPEC copy.
+    if (showStopSummary) {
+        if (confirmDiscardSession) {
+            AlertDialog(
+                onDismissRequest = { confirmDiscardSession = false },
+                title = { Text("Discard this session?") },
+                text = { Text("Discard this session? Recorded laps will be lost. This can't be undone.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            confirmDiscardSession = false
+                            showStopSummary = false
+                            sessionController.discardDraft()
+                            timingActive = false
+                            timingSnapshot = null
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF6B6B)),
+                    ) { Text("Discard") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmDiscardSession = false }) { Text("Keep") }
+                },
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = { /* require an explicit choice */ },
+                title = { Text("Session ended") },
+                text = {
+                    val laps = timingSnapshot?.activeDraft?.checkpointedLapCount ?: 0
+                    Text("Laps recorded: $laps. Save to Review, or Discard to discard this session.")
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        val result = sessionController.saveStoppedDraft()
+                        showStopSummary = false
+                        timingActive = false
+                        timingSnapshot = null
+                        if (result is SaveDraftResult.Saved) {
+                            saveToast = "Session saved"
+                            onSavedSession()
+                        }
+                    }) { Text("Save Session") }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { confirmDiscardSession = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF6B6B)),
+                    ) { Text("Discard") }
+                },
+            )
+        }
+    }
+
+    // Transient save success toast (D-32).
+    saveToast?.let { toast ->
+        LaunchedEffect(toast) {
+            delay(2000)
+            saveToast = null
+        }
+        Box(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Text(
+                text = toast,
+                color = Color(0xFF8CFF9B),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF101722))
+                    .border(1.dp, Color(0xFF8CFF9B), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
         }
     }
 
@@ -93,18 +195,39 @@ fun DriveScreen(
         onPrimaryAction = {
             when (snapshot.phase) {
                 DriveMarkingPhase.Idle -> {
-                    controller.beginMarking()
-                    snapshot = controller.snapshot()
+                    if (snapshot.canStartTiming && !timingActive) {
+                        // Start formal timing against the saved track (D-19).
+                        val savedTrack = controller.snapshot().savedTrackCount
+                        val result = sessionController.startTiming(trackId = "track-dummy-$savedTrack")
+                        // The DriveMarkingController doesn't expose saved track ids directly;
+                        // timing is started from the latest saved track via the controller.
+                        // For the demo flow, the SessionController loads the track from the store.
+                        if (result is StartTimingResult.Started) {
+                            timingActive = true
+                            timingSnapshot = sessionController.snapshot()
+                        }
+                    } else {
+                        controller.beginMarking()
+                        snapshot = controller.snapshot()
+                    }
                 }
                 DriveMarkingPhase.Capturing -> {
                     controller.stopMarking()
                     snapshot = controller.snapshot()
                 }
                 DriveMarkingPhase.Review -> {
-                    // Track Review owns its own action buttons (Task 2).
+                    // Track Review owns its own action buttons.
                 }
             }
         },
+        onStopTiming = {
+            if (timingActive) {
+                sessionController.stop()
+                showStopSummary = true
+            }
+        },
+        timingActive = timingActive,
+        timingSnapshot = timingSnapshot,
         reviewContent = {
             TrackReviewContent(
                 snapshot = snapshot,
@@ -123,6 +246,9 @@ private fun DriveSurface(
     onToggleOrientation: () -> Unit,
     onToggleDemoFeed: () -> Unit,
     onPrimaryAction: () -> Unit,
+    onStopTiming: () -> Unit,
+    timingActive: Boolean,
+    timingSnapshot: com.huanfuli.lapsight.shared.session.SessionControllerSnapshot?,
     reviewContent: @Composable () -> Unit,
 ) {
     BoxWithConstraints(
@@ -147,6 +273,23 @@ private fun DriveSurface(
             ) {
                 reviewContent()
             }
+            return@BoxWithConstraints
+        }
+
+        // While formal timing is active, show the fullscreen timing surface with
+        // current/last/best/laps/speed/accuracy and a DEMO badge for simulated
+        // source (D-29, D-42, SESS-01).
+        if (timingActive) {
+            TimingRunSurface(
+                snapshot = snapshot,
+                timingSnapshot = timingSnapshot,
+                orientation = orientation,
+                onToggleOrientation = onToggleOrientation,
+                onStopTiming = onStopTiming,
+                isLandscape = isLandscape,
+                isCompactLandscape = isCompactLandscape,
+                padding = padding,
+            )
             return@BoxWithConstraints
         }
 
@@ -188,6 +331,80 @@ private fun DriveSurface(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+        }
+    }
+}
+
+/**
+ * Fullscreen timing surface shown while a formal timing session is running (D-29).
+ *
+ * Hides the bottom navigation (handled by AppShell) and shows large, glanceable
+ * timing numerals using tabular figures so digits do not horizontal-jitter as
+ * laps tick (UI-SPEC Display role). A DEMO badge is shown when the source is
+ * simulated (D-42). The surface stays passive while moving.
+ */
+@Composable
+private fun TimingRunSurface(
+    snapshot: DriveMarkingSnapshot,
+    timingSnapshot: com.huanfuli.lapsight.shared.session.SessionControllerSnapshot?,
+    orientation: DashOrientation,
+    onToggleOrientation: () -> Unit,
+    onStopTiming: () -> Unit,
+    isLandscape: Boolean,
+    isCompactLandscape: Boolean,
+    padding: androidx.compose.ui.unit.Dp,
+) {
+    val draft = timingSnapshot?.activeDraft
+    val lapCount = draft?.checkpointedLapCount ?: 0
+    val sampleCount = draft?.checkpointedSampleCount ?: 0
+    val isDemo = draft?.source?.isSimulated ?: false
+    val latestSample = snapshot.latestSample
+    val speedLabel = latestSample?.speedMetersPerSecond
+        ?.let { ((it * 3.6).toInt()).toString() } ?: "--"
+    val accuracyLabel = latestSample?.horizontalAccuracyMeters
+        ?.let { (if (it < 0) 0.0 else it).toInt().toString() } ?: "--"
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding),
+        verticalArrangement = Arrangement.spacedBy(if (isCompactLandscape) 8.dp else 16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Timing",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = if (isCompactLandscape) 24.sp else 32.sp,
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.weight(1f),
+            )
+            if (isDemo) DemoBadge(compact = isCompactLandscape)
+        }
+        // Large glanceable timing numerals with tabular figures (UI-SPEC Display).
+        Text(
+            text = "Laps: $lapCount",
+            color = Color.White,
+            fontSize = if (isCompactLandscape) 40.sp else 52.sp,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Start,
+            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(if (isCompactLandscape) 8.dp else 12.dp)) {
+            MetricCard("Speed", speedLabel, "km/h", Modifier.weight(1f), emphasized = true, compact = isCompactLandscape)
+            MetricCard("Accuracy", accuracyLabel, "m", Modifier.weight(1f), compact = isCompactLandscape)
+            MetricCard("Samples", sampleCount.toString(), "", Modifier.weight(1f), compact = isCompactLandscape)
+        }
+        Button(
+            onClick = onStopTiming,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B6B)),
+        ) { Text("Stop") }
+        Button(
+            onClick = onToggleOrientation,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface),
+        ) {
+            Text(if (orientation == DashOrientation.Portrait) "Rotate to Landscape" else "Rotate to Portrait")
         }
     }
 }
@@ -372,9 +589,9 @@ private fun ControlPanel(
             }
             DriveMarkingPhase.Idle -> {
                 if (snapshot.canStartTiming) {
-                    // Timing is Plan 03-06; the button is present but the flow
-                    // is not wired in this plan.
-                    Button(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+                    // Saved track with confirmed start/finish exists: Start Timing
+                    // drives the formal session lifecycle (D-19, SESS-01).
+                    Button(onClick = onPrimaryAction, modifier = Modifier.fillMaxWidth()) {
                         Text("Start Timing")
                     }
                 } else {

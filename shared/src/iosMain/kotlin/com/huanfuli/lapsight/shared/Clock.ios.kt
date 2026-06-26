@@ -1,8 +1,9 @@
 package com.huanfuli.lapsight.shared
 
+import kotlin.time.Clock
+
 /**
- * iOS (Kotlin/Native) actual for [nowEpochMillis] using the stdlib monotonic-ish
- * clock. Wall-clock equivalence is not required; saved payloads only need a
- * stable, strictly-increasing created timestamp per save.
+ * iOS (Kotlin/Native) actual for [nowEpochMillis] using the Kotlin 2.4 stdlib
+ * [Clock]. Wall-clock epoch millis for saved-payload created timestamps/ids.
  */
-actual fun nowEpochMillis(): Long = kotlin.system.getTimeMillis()
+actual fun nowEpochMillis(): Long = Clock.System.now().toEpochMilliseconds()

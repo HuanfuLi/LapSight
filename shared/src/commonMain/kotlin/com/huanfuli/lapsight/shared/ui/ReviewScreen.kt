@@ -33,6 +33,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.huanfuli.lapsight.shared.lap.formatLapTime
+import com.huanfuli.lapsight.shared.review.ReviewSummaries
+import com.huanfuli.lapsight.shared.review.TimingSessionReviewSummary
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 
@@ -77,6 +80,7 @@ fun ReviewScreen(
                 onClick = {
                     selectedId = if (selectedId == row.id) null else row.id
                 },
+                sessionStore = sessionStore,
             )
         }
     }
@@ -116,6 +120,7 @@ private fun ReviewRow(
     row: ReviewRowViewModel,
     expanded: Boolean,
     onClick: () -> Unit,
+    sessionStore: LocalSessionStore,
 ) {
     Card(
         modifier = Modifier
@@ -145,8 +150,95 @@ private fun ReviewRow(
                 fontWeight = FontWeight.Bold,
             )
             if (expanded) {
-                RowDetail(row)
+                if (row.type == ReviewEntryType.TimingSession) {
+                    TimingSessionReviewDetail(row.id, sessionStore)
+                } else {
+                    RowDetail(row)
+                }
             }
+        }
+    }
+}
+
+/**
+ * Timing Session Review detail (SESS-02, D-32): track name, date, total
+ * duration, best lap, lap list, sector splits, GPS quality, source/Demo badge,
+ * and "New track best" when applicable.
+ */
+@Composable
+private fun TimingSessionReviewDetail(
+    sessionId: String,
+    sessionStore: LocalSessionStore,
+) {
+    val summary = remember(sessionId) { ReviewSummaries.fromTimingSession(sessionStore, sessionId) }
+        ?: run {
+            Text(
+                text = "Session payload unavailable.",
+                color = Color(0xFFFFD166),
+                fontSize = 13.sp,
+            )
+            return
+        }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (summary.isDemo) ReviewDemoBadge()
+        DetailLine("Track", summary.trackName)
+        DetailLine("Date", formatEpochMillis(summary.createdAtEpochMillis))
+        DetailLine("Duration", summary.totalDurationMillis.formatLapTime())
+        DetailLine("Best lap", summary.bestLapMillis?.formatLapTime() ?: "--")
+        DetailLine("Samples", summary.sampleCount.toString())
+        if (summary.newTrackBest) {
+            Text(
+                text = "New track best",
+                color = Color(0xFF8CFF9B),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        if (summary.laps.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Laps",
+                color = Color(0xFF7E8DA0),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            summary.laps.forEach { lap ->
+                Text(
+                    text = "Lap ${lap.lapNumber}: ${lap.durationMillis.formatLapTime()}",
+                    color = Color(0xFFCED7E2),
+                    fontSize = 14.sp,
+                )
+            }
+        }
+        if (summary.sectorSplits.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Sector splits",
+                color = Color(0xFF7E8DA0),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            summary.sectorSplits.forEach { sector ->
+                Text(
+                    text = "${sector.sectorName} (L${sector.lapNumber}): ${sector.splitMillis.formatLapTime()}",
+                    color = Color(0xFFCED7E2),
+                    fontSize = 14.sp,
+                )
+            }
+        }
+        DetailLine("GPS samples", summary.gpsQuality.sampleCount.toString())
+        DetailLine(
+            "Avg accuracy",
+            summary.gpsQuality.averageAccuracyMeters?.let { "${it.toInt()} m" } ?: "--",
+        )
+        if (summary.isDemo) {
+            Text(
+                text = "Simulated data — not live history.",
+                color = Color(0xFFFFD166),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
@@ -160,7 +252,7 @@ private fun RowDetail(row: ReviewRowViewModel) {
         if (row.sampleCount != null) DetailLine("Samples", row.sampleCount.toString())
         DetailLine("Payload", row.payloadPath)
         Text(
-            text = "Full detail arrives in Plan 03-06/03-07.",
+            text = "Full Timing Session Review arrives in Plan 03-07 trace UI.",
             color = Color(0xFF7E8DA0),
             fontSize = 13.sp,
         )
@@ -210,4 +302,37 @@ private fun ReviewDemoBadge() {
             fontWeight = FontWeight.Bold,
         )
     }
+}
+
+/**
+ * Formats epoch millis as a simple `YYYY-MM-DD HH:MM` UTC label without
+ * platform date dependencies (Kotlin Multiplatform common code).
+ */
+private fun formatEpochMillis(epochMillis: Long): String {
+    val secondsTotal = epochMillis / 1000
+    val year = 1970
+    // Minimal UTC breakdown; sufficient for review display without java.time.
+    val daysTotal = secondsTotal / 86_400
+    val (y, m, d) = gregorianFromEpochDays(daysTotal)
+    val secsOfDay = secondsTotal % 86_400
+    val hh = (secsOfDay / 3600).toString().padStart(2, '0')
+    val mm = ((secsOfDay % 3600) / 60).toString().padStart(2, '0')
+    val dd = d.toString().padStart(2, '0')
+    val mm2 = m.toString().padStart(2, '0')
+    return "$y-$mm2-$dd $hh:$mm"
+}
+
+private fun gregorianFromEpochDays(daysSinceEpoch: Long): Triple<Int, Int, Int> {
+    // Howard Hinnant's civil-from-days algorithm (public domain).
+    var z = daysSinceEpoch + 719468
+    val era = if (z >= 0) z / 146097 else (z - 146096) / 146097
+    val doe = (z - era * 146097).toInt()
+    val yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    var y = yoe + (era * 400).toInt()
+    val doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    val mp = (5 * doy + 2) / 153
+    val d = doy - (153 * mp + 2) / 5 + 1
+    val m = if (mp < 10) mp + 3 else mp - 9
+    if (m <= 2) y += 1
+    return Triple(y, m, d)
 }
