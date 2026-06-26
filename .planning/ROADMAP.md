@@ -117,6 +117,25 @@ Plans:
 
 **Requirements:** GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
+**Plans:** 4/4 plans planned
+
+Plans:
+**Wave 1**
+
+- [ ] 04-01-PLAN.md - Ghost progress-curve and live-delta domain
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 04-02-PLAN.md - Reference-lap storage and timing-session integration
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 04-03-PLAN.md - Minimal mounted-phone live delta UI
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 04-04-PLAN.md - Variable-pace simulator, UAT, and roadmap reminder
+
 **Success Criteria:**
 
 1. User can save/select a reference lap.
@@ -130,6 +149,14 @@ Plans:
 - Use distance-normalized matching before attempting coordinate-nearest matching.
 - Keep ghost visualization simple in v1: delta number and ahead/behind state are more important than a map animation.
 - Later map ghost can reuse the same reference-lap model.
+- Keep ghost math in shared Kotlin and independent from Compose/platform APIs.
+- Preserve simulated-vs-real reference isolation.
+
+## Post-MVP Backlog / Reminders
+
+- Build telemetry charts and analysis from Phase 4 progress curves after the MVP is complete: speed trace, delta-over-distance graph, braking/acceleration zones, sector delta chart, lap comparison overlays, and exportable telemetry data.
+- Add map ghost animation only after the phone app produces reliable timing/reference state.
+- Revisit coordinate-nearest or map-matched ghost comparison after distance-normalized matching is validated on real tracks.
 
 ## Milestone 2: Track Usability and Accuracy Expansion
 

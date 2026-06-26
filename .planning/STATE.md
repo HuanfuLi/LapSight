@@ -3,19 +3,19 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_execute
-last_updated: "2026-06-26T02:15:00.000Z"
+last_updated: "2026-06-26T02:59:00.386Z"
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 10
+  total_plans: 14
   completed_plans: 10
-  percent: 100
+  percent: 43
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 3 COMPLETE (8/8 plans). Phase 4 not yet started.
+**Current Status:** Phase 4 PLANNED (4/4 plans). Ready to execute Ghost Lap + Live Delta.
 
 ## Project Reference
 
@@ -25,14 +25,22 @@ See: `.planning/PROJECT.md`
 
 ## Current Focus
 
-**Phase 3 COMPLETE — Local Sessions, Review, and Export**
+**Phase 4 PLANNED — Ghost Lap + Live Delta**
 
-All 8 plans executed end-to-end: simulated GPS feed, dependency gate, versioned local storage, reference-line extraction, three-tab shell with Mark New Track + Track Review, formal timing session lifecycle (drafts, save/discard, recovery, ghost-candidate boundary, Timing Session Review), offline vector trace rendering (TraceProjection + Compose Canvas TraceView), and explicit JSON/GPX export with platform share handoff (ExportShareTarget, Android ACTION_SEND via FileProvider). `:shared:check` and `:androidApp:assembleDebug` pass.
+Phase 4 is planned as 4 sequential MVP waves: pure ghost/progress curve domain, full reference-lap storage and timing-session integration, minimal live delta UI, and deterministic variable-pace simulator/UAT. The plan keeps ghost math in shared Kotlin, preserves explicit Save/Discard semantics, isolates simulated references from real Track references, and defers maps/charts/glasses work.
 
-**GATE OVERRIDE (decision-coverage 13a):** User chose "Proceed anyway." The mechanical decision-coverage gate reports 0/44 because the planner cited decision IDs in plan *prose* rather than in the `must_haves.truths` field the gate scans (41/44 IDs are present in the plans; the semantic plan-checker independently verified full coverage). verify-phase should re-surface this; if it matters, relocate D-NN citations into `must_haves.truths`.
+Phase 4 planning artifacts:
 
-**Phase 2 complete -> next: Phase 3 Local Sessions, Review, and Export**
-Phase 2 delivered the clean-room shared Kotlin lap engine.
+- `.planning/phases/04-ghost-lap-live-delta/04-UI-SPEC.md`
+- `.planning/phases/04-ghost-lap-live-delta/04-RESEARCH.md`
+- `.planning/phases/04-ghost-lap-live-delta/04-VALIDATION.md`
+- `.planning/phases/04-ghost-lap-live-delta/04-PATTERNS.md`
+- `.planning/phases/04-ghost-lap-live-delta/04-01-PLAN.md`
+- `.planning/phases/04-ghost-lap-live-delta/04-02-PLAN.md`
+- `.planning/phases/04-ghost-lap-live-delta/04-03-PLAN.md`
+- `.planning/phases/04-ghost-lap-live-delta/04-04-PLAN.md`
+
+Decision coverage gate passed: 24/24 Phase 4 decisions covered in `must_haves.truths`.
 
 ## Working Assumptions
 
@@ -46,8 +54,8 @@ Phase 2 delivered the clean-room shared Kotlin lap engine.
 
 ## Next Command Candidates
 
-- Run `/gsd-verify-work` to verify Phase 3 end-to-end.
-- Run `/gsd-plan-phase` for Phase 4: Ghost Lap + Live Delta.
+- Run `/gsd-execute-phase 4` to implement Ghost Lap + Live Delta.
+- After execution, run `/gsd-verify-work 4` for conversational/device UAT.
 - Complete iOS Xcode runtime checks (Phase 1-3) on macOS.
 
 ## Review Checklist
@@ -60,6 +68,7 @@ Phase 2 delivered the clean-room shared Kotlin lap engine.
 - [ ] Complete iOS Xcode runtime UAT.
 - [x] Review Phase 2 plan.
 - [x] Phase 3 complete (8/8 plans, all tests pass, androidApp:assembleDebug succeeds).
+- [x] Phase 4 planned (4/4 plans, decision coverage 24/24).
 
 ## Phase 3 Completion Summary
 
@@ -78,6 +87,17 @@ All 8 plans executed with atomic TDD commits:
 
 Requirements satisfied: SESS-01, SESS-02, SESS-03, SESS-04, SESS-05
 
+## Phase 4 Plan Summary
+
+| Plan | Name | Wave |
+|------|------|------|
+| 04-01 | Ghost progress-curve and live-delta domain | 1 |
+| 04-02 | Reference-lap storage and timing-session integration | 2 |
+| 04-03 | Minimal mounted-phone live delta UI | 3 |
+| 04-04 | Variable-pace simulator, UAT, and roadmap reminder | 4 |
+
+Requirements targeted: GHOST-01, GHOST-02, GHOST-03, GHOST-04
+
 ---
 
-*Last updated: 2026-06-25 after Phase 3 execution*
+*Last updated: 2026-06-25 after Phase 4 planning*
