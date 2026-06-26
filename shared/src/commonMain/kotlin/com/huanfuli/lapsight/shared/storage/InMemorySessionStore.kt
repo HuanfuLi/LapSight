@@ -2,6 +2,7 @@ package com.huanfuli.lapsight.shared.storage
 
 import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.session.GhostCandidate
+import com.huanfuli.lapsight.shared.session.GhostReferencePayloadV1
 import com.huanfuli.lapsight.shared.session.GpsQualitySummary
 import com.huanfuli.lapsight.shared.session.LapDto
 import com.huanfuli.lapsight.shared.session.LocationSampleDto
@@ -33,6 +34,9 @@ class InMemorySessionStore : LocalSessionStore {
     private val sessions = LinkedHashMap<String, TimingSessionPayloadV1>()
     private var activeDraft: TimingSessionPayloadV1? = null
     private val rows = mutableListOf<ReviewIndexRow>()
+
+    /** Reference laps keyed by "<trackId>__real|sim" so source slots stay apart (D-04). */
+    private val references = LinkedHashMap<String, GhostReferencePayloadV1>()
 
     override fun saveTrackBundle(track: Track, marking: TrackMarkingSession, app: AppMetadata): SaveResult {
         // Payloads first (mirrors FileSessionStore), then the index row.
@@ -166,6 +170,29 @@ class InMemorySessionStore : LocalSessionStore {
         }
         return best
     }
+
+    override fun loadReferenceLap(trackId: String, isSimulated: Boolean): LoadResult<GhostReferencePayloadV1> {
+        val payload = references[referenceKey(trackId, isSimulated)] ?: return LoadResult.NotFound
+        val problem = when {
+            payload.schemaVersion != CURRENT_GHOST_REFERENCE_SCHEMA_VERSION ->
+                "unsupported schemaVersion ${payload.schemaVersion}"
+            payload.trackId.isBlank() -> "missing track id"
+            payload.trackId != trackId -> "track id mismatch"
+            payload.source.isSimulated != isSimulated -> "source boundary mismatch"
+            payload.progressPoints.size < 2 -> "reference progress curve too short"
+            else -> null
+        }
+        return if (problem != null) LoadResult.Corrupt(problem) else LoadResult.Loaded(payload)
+    }
+
+    override fun saveReferenceLap(payload: GhostReferencePayloadV1, app: AppMetadata): SaveResult {
+        val key = referenceKey(payload.trackId, payload.source.isSimulated)
+        references[key] = payload
+        return SaveResult.Saved(trackPath = "references/$key.json", markingPath = "references/$key.json")
+    }
+
+    private fun referenceKey(trackId: String, isSimulated: Boolean): String =
+        "${trackId}__${if (isSimulated) "sim" else "real"}"
 
     private fun upsertRows(newRows: List<ReviewIndexRow>) {
         val keys = newRows.map { it.id to it.type }.toSet()

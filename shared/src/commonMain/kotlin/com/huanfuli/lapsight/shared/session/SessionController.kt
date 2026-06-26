@@ -1,8 +1,14 @@
 package com.huanfuli.lapsight.shared.session
 
 import com.huanfuli.lapsight.shared.LocationSource
+import com.huanfuli.lapsight.shared.ghost.DeltaUnavailableReason
+import com.huanfuli.lapsight.shared.ghost.LiveDeltaSnapshot
+import com.huanfuli.lapsight.shared.ghost.ReferenceLap
+import com.huanfuli.lapsight.shared.ghost.ReferenceLapSelector
 import com.huanfuli.lapsight.shared.lap.LapEngineConfig
+import com.huanfuli.lapsight.shared.lap.LapEvent
 import com.huanfuli.lapsight.shared.nowEpochMillis
+import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.Track
@@ -105,6 +111,7 @@ class SessionController(
             config = engineConfig,
             store = store,
             app = appMetadata,
+            initialReference = loadReferenceFor(session),
         )
         this.session = session
         this.recorder = rec
@@ -144,6 +151,10 @@ class SessionController(
         val payload = store.loadUnfinishedDraft()
             ?: return SaveDraftResult.NothingToSave
         store.saveTimingSession(payload, appMetadata)
+        // D-01/D-12, T-04-06: commit the best eligible reference to global storage
+        // ONLY on explicit Save. Discard never reaches here, so a discarded faster
+        // lap never becomes the persisted reference.
+        promoteReferenceFromPayload(payload)
         recorder = null
         session = null
         stopped = false
@@ -201,9 +212,12 @@ class SessionController(
                         config = engineConfig,
                         store = store,
                         app = appMetadata,
+                        initialReference = loadReferenceFor(payload.session),
                     )
                     // Replay the already-captured samples so the in-memory engine
-                    // state catches up to the persisted draft.
+                    // state catches up to the persisted draft. Replaying through
+                    // onSample also rebuilds the session-local active reference
+                    // from the draft's completed laps (D-12 on resume).
                     payload.samples.forEach { rec.onSample(it.toModel()) }
                     this.recorder = rec
                     this.session = payload.session
@@ -220,6 +234,21 @@ class SessionController(
     }
 
     /**
+     * Read-only live-delta snapshot for the Drive UI (GHOST-02, GHOST-03). Reads
+     * through the controller so production UI never touches [recorderForTest].
+     * Returns a [DeltaUnavailableReason.NoCurrentLap] snapshot when no timing run
+     * is active.
+     */
+    fun liveDelta(): LiveDeltaSnapshot =
+        recorder?.liveDelta ?: LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.NoCurrentLap)
+
+    /**
+     * The reference lap the active timing run currently chases (D-01, D-12), or
+     * null when no run is active / no reference is available.
+     */
+    fun activeReference(): ReferenceLap? = recorder?.activeReference
+
+    /**
      * Test-only accessor for the live recorder so tests can feed samples after
      * [startTiming] returns. Not for production use.
      */
@@ -227,7 +256,59 @@ class SessionController(
 
     private fun loadTrackForTiming(trackId: String): Track? {
         val result = store.loadTrack(trackId)
-        return (result as? com.huanfuli.lapsight.shared.storage.LoadResult.Loaded)?.value?.track
+        return (result as? LoadResult.Loaded)?.value?.track
+    }
+
+    /**
+     * Loads the persisted fastest reference for a session's Track within its
+     * source boundary (D-01, D-04). A real session loads only the real reference;
+     * a simulated session loads only the simulated reference.
+     */
+    private fun loadReferenceFor(session: TimingSession): ReferenceLap? {
+        val result = store.loadReferenceLap(session.trackId, session.source.isSimulated)
+        return (result as? LoadResult.Loaded)?.value?.toReferenceLap()
+    }
+
+    /**
+     * Promote the fastest valid lap of a just-saved session into the global
+     * reference store when it is strictly faster than the existing reference
+     * (D-01, D-12). The source boundary is taken from the session, so a simulated
+     * session can only update the simulated slot and never the real reference
+     * (D-04, D-24).
+     */
+    private fun promoteReferenceFromPayload(payload: TimingSessionPayloadV1) {
+        val candidate = referenceFromPayload(payload) ?: return
+        val existing = (
+            store.loadReferenceLap(payload.session.trackId, payload.session.source.isSimulated)
+                as? LoadResult.Loaded
+            )?.value?.toReferenceLap()
+        val best = ReferenceLapSelector.fasterOf(existing, candidate)
+        // Only persist when the new lap is the strict winner (fasterOf prefers the
+        // existing reference on ties), avoiding needless rewrites.
+        if (best === candidate) {
+            store.saveReferenceLap(candidate.toReferencePayload(payload.session.source, appMetadata), appMetadata)
+        }
+    }
+
+    /**
+     * Rebuild the fastest [ReferenceLap] from a saved/draft payload's laps and
+     * samples (used for Save promotion and resume). Returns null when no valid
+     * reference can be built.
+     */
+    private fun referenceFromPayload(payload: TimingSessionPayloadV1): ReferenceLap? {
+        val fastest = payload.laps.minByOrNull { it.durationMillis } ?: return null
+        val samples = payload.samples.map { it.toModel() }
+        return ReferenceLapSelector.referenceFromLap(
+            trackId = payload.session.trackId,
+            sessionId = payload.session.id,
+            lap = LapEvent(
+                lapNumber = fastest.lapNumber,
+                startMillis = fastest.startMillis,
+                endMillis = fastest.endMillis,
+            ),
+            allSamples = samples,
+            isSimulated = payload.session.source.isSimulated,
+        )
     }
 }
 

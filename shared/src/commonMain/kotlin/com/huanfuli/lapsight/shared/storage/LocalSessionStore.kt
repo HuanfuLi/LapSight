@@ -3,6 +3,7 @@ package com.huanfuli.lapsight.shared.storage
 import com.huanfuli.lapsight.shared.track.ReviewIndex
 import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.session.GhostCandidate
+import com.huanfuli.lapsight.shared.session.GhostReferencePayloadV1
 import com.huanfuli.lapsight.shared.session.TimingSession
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
 import com.huanfuli.lapsight.shared.track.Track
@@ -83,6 +84,26 @@ interface LocalSessionStore {
      * when no real candidate exists.
      */
     fun ghostCandidateForTrack(trackId: String): GhostCandidate?
+
+    // --- Ghost reference laps (D-01..D-05, D-12, D-24) ---------------------
+
+    /**
+     * Loads the persisted full ghost reference lap for [trackId] within the
+     * requested source boundary (D-03, D-04). [isSimulated] selects the real
+     * (`false`) or simulated (`true`) reference slot; a real lookup NEVER returns
+     * a simulated payload and vice versa (D-24). Returns a typed
+     * [LoadResult.NotFound]/[LoadResult.Corrupt] so a missing or malformed
+     * reference never blocks timing (T-04-05).
+     */
+    fun loadReferenceLap(trackId: String, isSimulated: Boolean): LoadResult<GhostReferencePayloadV1>
+
+    /**
+     * Persists [payload] as the full ghost reference lap for its Track. The
+     * real/simulated slot is chosen by [GhostReferencePayloadV1.source]'s
+     * `isSimulated`, so a simulated reference never overwrites a real one
+     * (D-04, D-24).
+     */
+    fun saveReferenceLap(payload: GhostReferencePayloadV1, app: AppMetadata): SaveResult
 }
 
 /** Outcome of a save operation. */

@@ -2,6 +2,10 @@ package com.huanfuli.lapsight.shared.session
 
 import com.huanfuli.lapsight.shared.GpsQualitySummary
 import com.huanfuli.lapsight.shared.LocationSample
+import com.huanfuli.lapsight.shared.ghost.LiveDeltaEngine
+import com.huanfuli.lapsight.shared.ghost.LiveDeltaSnapshot
+import com.huanfuli.lapsight.shared.ghost.ReferenceLap
+import com.huanfuli.lapsight.shared.ghost.ReferenceLapSelector
 import com.huanfuli.lapsight.shared.lap.CourseDefinition
 import com.huanfuli.lapsight.shared.lap.LapEngine
 import com.huanfuli.lapsight.shared.lap.LapEngineConfig
@@ -70,6 +74,8 @@ fun courseFromTrack(
  * @param config lap-engine tuning; tests pass [LapEngineConfig.lenientForTests].
  * @param store local-first persistence that checkpoints the active draft.
  * @param app app/build metadata captured on every checkpoint.
+ * @param initialReference the saved Track's persisted fastest reference loaded at
+ *   timing start (D-01), or null when none exists yet.
  * @param onCheckpoint optional callback invoked after each checkpoint (for the
  *   controller snapshot / UI).
  */
@@ -79,6 +85,7 @@ class TimingSessionRecorder(
     private val config: LapEngineConfig,
     private val store: com.huanfuli.lapsight.shared.storage.LocalSessionStore,
     private val app: AppMetadata,
+    initialReference: ReferenceLap? = null,
     private val onCheckpoint: () -> Unit = {},
 ) {
     private val engine = LapEngine(course, config)
@@ -87,6 +94,33 @@ class TimingSessionRecorder(
     private val sectorEvents: MutableList<SectorEvent> = mutableListOf()
     private var lastTimingState = engine.state
     private var totalDurationMillis: Long = 0L
+
+    private val deltaEngine = LiveDeltaEngine(
+        maxHorizontalAccuracyMeters = config.maxHorizontalAccuracyMeters
+            ?: com.huanfuli.lapsight.shared.ghost.ProgressCurveBuilder.DEFAULT_MAX_HORIZONTAL_ACCURACY_METERS,
+    )
+
+    /**
+     * The reference lap the live delta currently chases (D-01, D-12). Starts at
+     * [initialReference] and is replaced in-session whenever a faster valid lap
+     * completes. Read-only to consumers.
+     */
+    var activeReference: ReferenceLap? = initialReference
+        private set
+
+    /** Last current-lap number seen, used to reset live delta at each lap boundary. */
+    private var lastLapNumberSeen: Int? = null
+
+    init {
+        deltaEngine.setReference(initialReference)
+    }
+
+    /**
+     * Latest live-delta snapshot from the realtime engine (D-08..D-11). Read this
+     * through [SessionController] rather than [SessionController.recorderForTest].
+     */
+    val liveDelta: LiveDeltaSnapshot
+        get() = deltaEngine.snapshot
 
     /** Current [LapTimingState][com.huanfuli.lapsight.shared.lap.LapTimingState] snapshot. */
     val timingState get() = engine.state
@@ -119,7 +153,27 @@ class TimingSessionRecorder(
         val previousLapCount = completedLaps.size
         if (state.completedLaps.size > previousLapCount) {
             for (i in previousLapCount until state.completedLaps.size) {
-                completedLaps.add(state.completedLaps[i])
+                val lap = state.completedLaps[i]
+                completedLaps.add(lap)
+                // D-02/D-12: a newly completed faster valid lap immediately
+                // becomes the active reference for the following lap. Build it
+                // from the session's raw samples within the lap window.
+                val candidate = ReferenceLapSelector.referenceFromLap(
+                    trackId = session.trackId,
+                    sessionId = session.id,
+                    lap = lap,
+                    allSamples = samples,
+                    isSimulated = session.source.isSimulated,
+                    maxHorizontalAccuracyMeters = config.maxHorizontalAccuracyMeters
+                        ?: com.huanfuli.lapsight.shared.ghost.ProgressCurveBuilder.DEFAULT_MAX_HORIZONTAL_ACCURACY_METERS,
+                )
+                if (candidate != null) {
+                    val updated = ReferenceLapSelector.fasterOf(activeReference, candidate)
+                    if (updated !== activeReference) {
+                        activeReference = updated
+                        deltaEngine.setReference(updated)
+                    }
+                }
             }
         }
         // Capture any newly emitted sector event.
@@ -133,6 +187,17 @@ class TimingSessionRecorder(
             samples.last().elapsedMillis - samples.first().elapsedMillis
         } else {
             0L
+        }
+
+        // Drive the realtime live-delta engine. Reset it at each lap boundary so
+        // the new current lap chases the reference from scratch (D-08).
+        val currentLapNumber = state.currentLapNumber
+        if (currentLapNumber != null && currentLapNumber != lastLapNumberSeen) {
+            deltaEngine.startLap()
+            lastLapNumberSeen = currentLapNumber
+        }
+        if (currentLapNumber != null) {
+            deltaEngine.update(sample)
         }
 
         checkpoint()

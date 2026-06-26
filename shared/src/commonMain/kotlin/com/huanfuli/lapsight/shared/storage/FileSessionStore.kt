@@ -2,6 +2,7 @@ package com.huanfuli.lapsight.shared.storage
 
 import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.session.GhostCandidate
+import com.huanfuli.lapsight.shared.session.GhostReferencePayloadV1
 import com.huanfuli.lapsight.shared.session.GpsQualitySummary
 import com.huanfuli.lapsight.shared.session.LapDto
 import com.huanfuli.lapsight.shared.session.LocationSampleDto
@@ -47,8 +48,13 @@ class FileSessionStore(
     private val markingsDir: Path get() = root / MARKINGS_DIR
     private val sessionsDir: Path get() = root / SESSIONS_DIR
     private val draftsDir: Path get() = root / DRAFTS_DIR
+    private val referencesDir: Path get() = root / REFERENCES_DIR
     private val indexPath: Path get() = root / INDEX_FILE
     private val activeDraftPath: Path get() = draftsDir / ACTIVE_DRAFT_FILE
+
+    /** Per-Track reference file, separated by source boundary (D-03, D-04). */
+    private fun referencePath(trackId: String, isSimulated: Boolean): Path =
+        referencesDir / "${trackId}__${if (isSimulated) SIM_SLOT else REAL_SLOT}.json"
 
     override fun saveTrackBundle(track: Track, marking: TrackMarkingSession, app: AppMetadata): SaveResult {
         val markingPayload = TrackMarkingPayloadV1(marking = marking, app = app)
@@ -248,6 +254,28 @@ class FileSessionStore(
         return best
     }
 
+    override fun loadReferenceLap(trackId: String, isSimulated: Boolean): LoadResult<GhostReferencePayloadV1> =
+        load(referencePath(trackId, isSimulated)) { payload ->
+            when {
+                payload.schemaVersion != CURRENT_GHOST_REFERENCE_SCHEMA_VERSION ->
+                    "unsupported schemaVersion ${payload.schemaVersion}"
+                payload.trackId.isBlank() -> "missing track id"
+                payload.trackId != trackId -> "track id mismatch"
+                // Defense in depth: the stored source must match the requested
+                // real/simulated boundary so a real lookup never returns a
+                // simulated reference even if a file was misplaced (D-04, D-24).
+                payload.source.isSimulated != isSimulated -> "source boundary mismatch"
+                payload.progressPoints.size < 2 -> "reference progress curve too short"
+                else -> null
+            }
+        }
+
+    override fun saveReferenceLap(payload: GhostReferencePayloadV1, app: AppMetadata): SaveResult {
+        val path = referencePath(payload.trackId, payload.source.isSimulated)
+        writeAtomically(path, json.encodeToString(payload))
+        return SaveResult.Saved(trackPath = path.toString(), markingPath = path.toString())
+    }
+
     private inline fun <reified T> load(path: Path, validate: (T) -> String?): LoadResult<T> {
         if (!fileSystem.exists(path)) return LoadResult.NotFound
         return try {
@@ -280,9 +308,14 @@ class FileSessionStore(
         private const val MARKINGS_DIR = "markings"
         private const val SESSIONS_DIR = "sessions"
         private const val DRAFTS_DIR = "drafts"
+        private const val REFERENCES_DIR = "references"
         private const val ACTIVE_DRAFT_FILE = "timing.json"
         private const val INDEX_FILE = "index.json"
         private const val TMP_SUFFIX = ".tmp"
+
+        /** Filename slot suffixes keeping real and simulated references apart (D-04). */
+        private const val REAL_SLOT = "real"
+        private const val SIM_SLOT = "sim"
 
         /** Canonical JSON used for both saved and exported payloads (D-24). */
         val canonicalJson: Json = Json {

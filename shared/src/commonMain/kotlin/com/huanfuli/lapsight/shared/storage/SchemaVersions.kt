@@ -12,3 +12,12 @@ const val CURRENT_TRACK_SCHEMA_VERSION: Int = 1
 
 /** Schema version for timing-session payloads and their index rows (D-25). */
 const val CURRENT_SESSION_SCHEMA_VERSION: Int = 1
+
+/**
+ * Schema version for persisted ghost reference-lap payloads (D-05, D-25).
+ *
+ * A reference payload embeds the raw best-lap samples and a precomputed progress
+ * curve so future loads can detect/migrate older formats instead of misreading
+ * them.
+ */
+const val CURRENT_GHOST_REFERENCE_SCHEMA_VERSION: Int = 1
