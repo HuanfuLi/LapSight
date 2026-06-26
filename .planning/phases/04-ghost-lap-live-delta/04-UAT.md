@@ -1,75 +1,53 @@
 ---
+status: testing
 phase: 04-ghost-lap-live-delta
-plan: 04
-status: ready-for-uat
-created: 2026-06-26
-updated: 2026-06-26
-source: 04-04-PLAN.md
+source: [04-01-SUMMARY.md, 04-02-SUMMARY.md, 04-03-SUMMARY.md, 04-04-SUMMARY.md]
+started: 2026-06-26T01:10:00Z
+updated: 2026-06-26T01:10:00Z
 ---
 
-# Phase 4 UAT — Ghost Lap + Live Delta
+## Current Test
+<!-- OVERWRITE each test - shows where we are -->
 
-## Scope
+number: 1
+name: Pre-timing Demo Feed
+expected: |
+  Tap 'Start Demo Feed' on Drive screen. Wait several seconds. Verify the GPS feed continues and updates position before any timing session starts.
+awaiting: user response
 
-Validate the Phase 4 product flow with provider-layer simulated GPS:
+## Tests
 
-- Demo GPS feed runs continuously before timing starts.
-- Normal Start Timing consumes whatever provider samples arrive after the user starts timing.
-- Delta initially shows `--`, then shows value-only positive/negative seconds.
-- A same-session new best silently becomes the next reference.
-- Stop/Save persists the simulated reference only in the simulated slot.
-- Review remains visibly Demo/Simulated for simulated artifacts.
+### 1. Pre-timing Demo Feed
+expected: Tap 'Start Demo Feed' on Drive screen. Wait several seconds. Verify the GPS feed continues and updates position before any timing session starts.
+result: pending
 
-No map ghost animation, telemetry chart, or special ghost-test workflow is required in Phase 4.
+### 2. Value-Only Live Delta
+expected: Tap 'Start Timing'. (If no saved track exists, complete 1 lap to set it). Observe live delta: initially it may show `--`, then later slower/faster laps show only signed seconds (e.g., `+0.421s` or `-0.218s`). No directional words like "ahead/behind/faster/slower" appear beside it.
+result: pending
 
-## Automated Coverage
+### 3. Independent Metrics
+expected: Confirm that Last, Best, Laps, Speed, and Accuracy metrics continue to render normally and are not erased when the live delta temporarily shows `--`.
+result: pending
 
-Covered by shared tests:
+### 4. Same-Session New Best
+expected: Keep timing running long enough to record a new best lap. Verify the reference update is silent, and the following lap compares against this new best without needing to start a new session.
+result: pending
 
-- `GhostVariablePaceFixtureTest` verifies deterministic variable-pace GPS data.
-- `SimulatedGpsProviderTest` verifies continuous provider wrapping with increasing timestamps.
-- `TimingGhostIntegrationTest.variablePaceProviderFeedsNormalTimingFlowAndPersistsSimulatedReferenceOnlyOnSave` verifies:
-  - provider starts before timing;
-  - timing reads the normal provider stream through `SessionController.ingestSample`;
-  - positive and negative live delta occur;
-  - in-session new best updates immediately;
-  - reference persists only after explicit Save;
-  - simulated reference does not pollute the real reference slot.
+### 5. UI Hierarchy & Demo Labeling
+expected: Confirm current lap remains the largest readout, live delta is the second core readout, and the `DEMO — simulated GPS` badge remains clearly visible during the session.
+result: pending
 
-Required final checks:
+### 6. Simulated Storage Isolation
+expected: Tap Stop, then Save Session. Open Review tab. Verify the saved simulated artifacts remain visibly labeled as Demo/Simulated, and do not overwrite your real reference lap.
+result: pending
 
-```powershell
-.\gradlew.bat :shared:check
-.\gradlew.bat :androidApp:assembleDebug
-```
+## Summary
 
-## Android ADB UAT
+total: 6
+passed: 0
+issues: 0
+pending: 6
+skipped: 0
 
-ADB can automate install/launch/navigation taps and collect screenshots/UI XML. Visual confirmation is still required for delta value changes because the simulated feed advances over time and Compose UI timing is best checked from screenshots or the physical device.
+## Gaps
 
-Recommended flow:
-
-1. Install and launch the debug APK.
-2. On Drive, tap `Start Demo Feed`.
-3. Wait several seconds and verify the feed continues before any timing session starts.
-4. If no saved demo track exists, use the normal Mark New Track flow, save the track, and set/confirm start-finish.
-5. Return to Drive and tap `Start Timing`.
-6. Observe timing surface:
-   - first state may show delta `--`;
-   - later slower/faster laps should show only signed seconds, e.g. `+0.421s` or `-0.218s`;
-   - no words like ahead/behind/faster/slower should appear beside the moving delta.
-7. Keep timing running long enough for a new best lap. The reference update is silent; the following lap should compare against the new best without starting a new session.
-8. Tap `Stop`, then `Save Session`.
-9. Open Review and verify saved simulated artifacts remain visibly Demo/Simulated.
-
-## Manual Checks
-
-- Confirm current lap remains the largest readout.
-- Confirm delta is the second core readout and value-only.
-- Confirm Last/Best/Laps/Speed/Accuracy continue to render when delta is `--`.
-- Confirm `DEMO — simulated GPS` remains visible during simulated timing.
-- Confirm safety posture remains closed-course/private-track and passive while moving.
-
-## Safety Boundary
-
-Do not perform Phase 4 UAT on public roads. The deterministic provider-layer simulation exists so positive/negative delta and same-session reference update can be validated without driving/riding real laps.

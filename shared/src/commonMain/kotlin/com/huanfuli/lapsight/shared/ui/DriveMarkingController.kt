@@ -222,6 +222,9 @@ class DriveMarkingController(
      * save-ready.
      */
     fun saveTrack(): Track? {
+        if (reviewState?.startFinish == null) {
+            confirmStartFinish()
+        }
         val review = reviewState ?: return null
         if (!review.canSave) return null
         val createdAt = now()

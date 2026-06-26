@@ -71,7 +71,7 @@ fun DriveScreen(
     sessionStore: LocalSessionStore,
     sessionController: SessionController,
 ) {
-    val provider = remember { SimulatedGpsProvider() }
+    val provider = remember { SimulatedGpsProvider(scenarioId = com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary.VARIABLE_PACE_GHOST_UAT) }
     val controller = remember { DriveMarkingController(provider = provider, store = sessionStore) }
     var snapshot by remember { mutableStateOf(controller.snapshot()) }
     var timingActive by remember { mutableStateOf(false) }
@@ -385,6 +385,34 @@ private fun TimingRunSurface(
     isCompactLandscape: Boolean,
     padding: androidx.compose.ui.unit.Dp,
 ) {
+    var displayMillis by remember(timingRun.isActive) { mutableStateOf(0L) }
+    var lastLapMillisSeen by remember(timingRun.isActive) { mutableStateOf<Long?>(null) }
+    var lastUpdateEpoch by remember(timingRun.isActive) { mutableStateOf(com.huanfuli.lapsight.shared.nowEpochMillis()) }
+
+    LaunchedEffect(timingRun.currentLapMillis) {
+        if (timingRun.isActive) {
+            val base = timingRun.currentLapMillis ?: 0L
+            displayMillis = base
+            lastLapMillisSeen = base
+            lastUpdateEpoch = com.huanfuli.lapsight.shared.nowEpochMillis()
+        } else {
+            displayMillis = 0L
+            lastLapMillisSeen = null
+        }
+    }
+
+    LaunchedEffect(timingRun.isActive) {
+        while (timingRun.isActive) {
+            kotlinx.coroutines.delay(16)
+            if (lastLapMillisSeen != null) {
+                val now = com.huanfuli.lapsight.shared.nowEpochMillis()
+                val delta = now - lastUpdateEpoch
+                if (delta in 0..2000) {
+                    displayMillis = lastLapMillisSeen!! + delta
+                }
+            }
+        }
+    }
     val isDemo = timingRun.source?.isSimulated ?: false
     val speedLabel = timingRun.speedMetersPerSecond
         ?.let { ((it * 3.6).toInt()).toString() } ?: "--"
@@ -418,7 +446,7 @@ private fun TimingRunSurface(
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = timingRun.currentLapMillis.formatLapTime(),
+            text = displayMillis.formatLapTime(),
             color = MaterialTheme.colorScheme.primary,
             fontSize = if (isCompactLandscape) 40.sp else 52.sp,
             fontWeight = FontWeight.Black,
