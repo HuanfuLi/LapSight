@@ -36,8 +36,13 @@ import androidx.compose.ui.unit.sp
 import com.huanfuli.lapsight.shared.lap.formatLapTime
 import com.huanfuli.lapsight.shared.review.ReviewSummaries
 import com.huanfuli.lapsight.shared.review.TimingSessionReviewSummary
+import com.huanfuli.lapsight.shared.review.buildTimingTraceLayers
+import com.huanfuli.lapsight.shared.review.buildTrackTraceLayers
+import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
+import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
+import com.huanfuli.lapsight.shared.track.TrackPayloadV1
 
 /**
  * Review tab (D-27, D-28): lists saved Tracks and marking entries from the
@@ -153,7 +158,7 @@ private fun ReviewRow(
                 if (row.type == ReviewEntryType.TimingSession) {
                     TimingSessionReviewDetail(row.id, sessionStore)
                 } else {
-                    RowDetail(row)
+                    RowDetail(row, sessionStore)
                 }
             }
         }
@@ -240,22 +245,95 @@ private fun TimingSessionReviewDetail(
                 fontWeight = FontWeight.Bold,
             )
         }
+
+        // Trace section (D-36): render timing session trace.
+        TimingTraceSection(
+            trackId = summary.trackId,
+            sessionId = summary.sessionId,
+            bestLapMillis = summary.bestLapMillis,
+            sessionStore = sessionStore,
+        )
+    }
+}
+
+/**
+ * Renders the offline vector trace for a Timing Session entry (D-36).
+ * Loads the track reference line and session samples, builds trace layers,
+ * and renders them via [TraceView].
+ */
+@Composable
+private fun TimingTraceSection(
+    trackId: String,
+    sessionId: String,
+    bestLapMillis: Long?,
+    sessionStore: LocalSessionStore,
+) {
+    val trackResult = remember(trackId) { sessionStore.loadTrack(trackId) }
+    val track = (trackResult as? LoadResult.Loaded<TrackPayloadV1>)?.value?.track
+
+    val sessionResult = remember(sessionId) { sessionStore.loadTimingSession(sessionId) }
+    val sessionPayload = (sessionResult as? LoadResult.Loaded<com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1>)?.value
+
+    val samples = sessionPayload?.samples ?: emptyList()
+    val refPoints = track?.referenceLine?.points ?: emptyList()
+    val startFinish = track?.startFinish ?: sessionPayload?.session?.startFinish
+    val sectors = track?.sectors ?: sessionPayload?.session?.sectors ?: emptyList()
+
+    if (samples.isEmpty() && refPoints.isEmpty()) {
+        Text(
+            text = "Trace data unavailable.",
+            color = Color(0xFF7E8DA0),
+            fontSize = 13.sp,
+        )
+        return
+    }
+
+    // Determine best lap time range for highlight.
+    val bestLapStart: Long? = null
+    val bestLapEnd: Long? = null
+    // For now, highlight is derived from bestLapMillis by finding the matching
+    // lap in the payload. We use null to avoid complex time-range calculations.
+    val selectedStart: Long? = bestLapStart
+    val selectedEnd: Long? = bestLapEnd
+
+    val layers = buildTimingTraceLayers(
+        referenceLinePoints = refPoints,
+        sessionSamples = samples,
+        startFinish = startFinish,
+        sectors = sectors,
+        selectedLapStartMillis = selectedStart,
+        selectedLapEndMillis = selectedEnd,
+        viewWidth = 400.0,
+        viewHeight = 300.0,
+    )
+
+    if (layers.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Trace",
+            color = Color(0xFF7E8DA0),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(4.dp))
+        TraceView(layers = layers, minHeight = 180.dp, maxHeight = 260.dp)
     }
 }
 
 @Composable
-private fun RowDetail(row: ReviewRowViewModel) {
+private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         DetailLine("ID", row.id)
         DetailLine("Type", row.typeLabel)
         DetailLine("Source", row.sourceLabel)
         if (row.sampleCount != null) DetailLine("Samples", row.sampleCount.toString())
         DetailLine("Payload", row.payloadPath)
-        Text(
-            text = "Full Timing Session Review arrives in Plan 03-07 trace UI.",
-            color = Color(0xFF7E8DA0),
-            fontSize = 13.sp,
-        )
+
+        // Trace section for Track and TrackMarking entries (D-35).
+        if (row.type == ReviewEntryType.Track || row.type == ReviewEntryType.TrackMarking) {
+            TrackTraceSection(rowId = row.id, type = row.type, sessionStore = sessionStore)
+        }
+
         // DEMO provenance stays visible in the expanded detail too (T-03-10).
         if (row.isDemo) {
             Text(
@@ -265,6 +343,68 @@ private fun RowDetail(row: ReviewRowViewModel) {
                 fontWeight = FontWeight.Bold,
             )
         }
+    }
+}
+
+/**
+ * Renders the offline vector trace for a Track or TrackMarking entry (D-35).
+ * Loads the canonical payload (and marking session if available) from the store,
+ * builds trace layers, and renders them via [TraceView].
+ */
+@Composable
+private fun TrackTraceSection(
+    rowId: String,
+    type: ReviewEntryType,
+    sessionStore: LocalSessionStore,
+) {
+    val trackResult = remember(rowId) { sessionStore.loadTrack(rowId) }
+    val track = (trackResult as? LoadResult.Loaded<TrackPayloadV1>)?.value?.track
+
+    val markingId = track?.sourceMarkingSessionId
+    val markingResult = remember(markingId) {
+        markingId?.let { sessionStore.loadTrackMarking(it) }
+    }
+    val marking = (markingResult as? LoadResult.Loaded<TrackMarkingPayloadV1>)?.value?.marking
+
+    val samples = when {
+        marking != null -> marking.samples
+        type == ReviewEntryType.TrackMarking -> {
+            // Fallback: load marking directly by row id.
+            val directMarking = (sessionStore.loadTrackMarking(rowId) as? LoadResult.Loaded<TrackMarkingPayloadV1>)?.value?.marking
+            directMarking?.samples ?: emptyList()
+        }
+        else -> emptyList()
+    }
+
+    if (samples.isEmpty()) {
+        Text(
+            text = "Trace data unavailable.",
+            color = Color(0xFF7E8DA0),
+            fontSize = 13.sp,
+        )
+        return
+    }
+
+    val layers = buildTrackTraceLayers(
+        markingSamples = samples,
+        referenceLine = track?.referenceLine,
+        startFinish = track?.startFinish,
+        sectors = track?.sectors ?: emptyList(),
+        outlierSamples = emptyList(),
+        viewWidth = 400.0,
+        viewHeight = 300.0,
+    )
+
+    if (layers.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Trace",
+            color = Color(0xFF7E8DA0),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(4.dp))
+        TraceView(layers = layers, minHeight = 180.dp, maxHeight = 260.dp)
     }
 }
 
