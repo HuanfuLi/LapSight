@@ -117,12 +117,12 @@ Plans:
 
 **Requirements:** GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
-**Plans:** 4/4 plans planned
+**Plans:** 1/4 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md - Ghost progress-curve and live-delta domain
+- [x] 04-01-PLAN.md - Ghost progress-curve and live-delta domain
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
