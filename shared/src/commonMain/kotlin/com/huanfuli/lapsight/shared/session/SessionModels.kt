@@ -2,6 +2,9 @@ package com.huanfuli.lapsight.shared.session
 
 import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.LocationSource
+import com.huanfuli.lapsight.shared.ghost.DeltaDisplayState
+import com.huanfuli.lapsight.shared.ghost.DeltaUnavailableReason
+import com.huanfuli.lapsight.shared.ghost.LiveDeltaSnapshot
 import com.huanfuli.lapsight.shared.ghost.ProgressCurve
 import com.huanfuli.lapsight.shared.ghost.ProgressPoint
 import com.huanfuli.lapsight.shared.ghost.ReferenceLap
@@ -228,6 +231,52 @@ data class TimingDraftSnapshot(
     val checkpointedLapCount: Int,
     val checkpointedSectorEventCount: Int,
 )
+
+/**
+ * Read-only production timing/delta view rendered by the mounted-phone Drive
+ * surface (GHOST-03, D-13..D-19).
+ *
+ * Carries everything the active timing UI needs WITHOUT peeking into recorder
+ * internals or [SessionController.recorderForTest]: the primary current-lap time,
+ * last/best lap, lap count, latest speed/accuracy, source provenance, and the
+ * value-only [deltaDisplay]. The delta and the non-delta metrics are independent,
+ * so an unavailable delta (`--`) never erases the other readouts (D-19, T-04-11).
+ *
+ * @property isActive true while a timing run is live (recorder present).
+ * @property deltaDisplay value-only `--` / `+x.xxxs` / `-x.xxxs` readout (D-14).
+ * @property source provenance so the DEMO badge stays visible for simulated runs
+ *   (D-42); null when no run is active.
+ */
+data class TimingRunSnapshot(
+    val isActive: Boolean,
+    val lapCount: Int,
+    val currentLapMillis: Long?,
+    val lastLapMillis: Long?,
+    val bestLapMillis: Long?,
+    val checkpointedSampleCount: Int,
+    val speedMetersPerSecond: Double?,
+    val accuracyMeters: Double?,
+    val source: SourceMetadata?,
+    val deltaDisplay: DeltaDisplayState,
+) {
+    companion object {
+        /** Inactive snapshot: no run, neutral `--` delta, other metrics empty. */
+        fun inactive(): TimingRunSnapshot = TimingRunSnapshot(
+            isActive = false,
+            lapCount = 0,
+            currentLapMillis = null,
+            lastLapMillis = null,
+            bestLapMillis = null,
+            checkpointedSampleCount = 0,
+            speedMetersPerSecond = null,
+            accuracyMeters = null,
+            source = null,
+            deltaDisplay = DeltaDisplayState.from(
+                LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.NoCurrentLap),
+            ),
+        )
+    }
+}
 
 /**
  * Recovery prompt state returned by [SessionController.loadUnfinishedDraft] on
