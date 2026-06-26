@@ -17,12 +17,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -408,9 +411,13 @@ private fun ControlPanel(
 }
 
 /**
- * Track Review surface rendered when a marking capture stops (Task 2 expands
- * this with Save/Re-record/Discard and confirmations). Task 1 shows the
- * readiness + quality summary so the capture → review transition is visible.
+ * Track Review surface rendered when a marking capture stops (D-31).
+ *
+ * Shows reference readiness, GPS/capture quality summary, start/finish status,
+ * and Save / Re-record / Discard actions using the exact 03-UI-SPEC copy.
+ * Re-record and Discard require explicit confirmation. Track Review never shows
+ * lap times for marking samples (D-08). Save writes the Track + source marking
+ * through the store; Discard keeps the marking out of Review history (D-16).
  */
 @Composable
 internal fun TrackReviewContent(
@@ -420,6 +427,47 @@ internal fun TrackReviewContent(
     onSavedTrack: () -> Unit,
 ) {
     val review = snapshot.reviewState ?: return
+    var confirmReRecord by remember { mutableStateOf(false) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+
+    if (confirmReRecord) {
+        AlertDialog(
+            onDismissRequest = { confirmReRecord = false },
+            title = { Text("Re-record track?") },
+            text = { Text("Re-record track? The current marking trace and reference line will be replaced.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReRecord = false
+                    controller.reRecord()
+                    onChanged()
+                }) { Text("Re-record") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReRecord = false }) { Text("Cancel") }
+            },
+        )
+    }
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Discard track?") },
+            text = { Text("Discard this track? You'll lose the marking trace and reference line.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDiscard = false
+                        controller.discard()
+                        onChanged()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF6B6B)),
+                ) { Text("Discard") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) { Text("Cancel") }
+            },
+        )
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -456,12 +504,59 @@ internal fun TrackReviewContent(
                 color = Color(0xFF9AA8B8),
                 fontSize = 13.sp,
             )
+            // Start/finish editing state (D-11, D-19). A confirmed start/finish
+            // is required before formal timing (Plan 03-06).
+            val startFinishSet = review.startFinish != null
+            Text(
+                text = if (startFinishSet) {
+                    "Start/finish: set"
+                } else {
+                    "Start/finish: not set — required before timing"
+                },
+                color = if (startFinishSet) Color(0xFF8CFF9B) else Color(0xFFFFD166),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            )
             // Marking is continuous capture, NOT lap timing — no lap times shown (D-08).
             Text(
                 text = "Marking capture does not produce lap times.",
                 color = Color(0xFF7E8DA0),
                 fontSize = 13.sp,
             )
+
+            Spacer(Modifier.height(4.dp))
+            // Save Track — primary CTA; accent-styled, enabled only when ready.
+            Button(
+                onClick = {
+                    controller.saveTrack()
+                    onChanged()
+                    onSavedTrack()
+                },
+                enabled = review.canSave,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Save Track") }
+            // Confirm start/finish from the reference line (convenience; D-11).
+            OutlinedButton(
+                onClick = {
+                    controller.confirmStartFinish()
+                    onChanged()
+                },
+                enabled = review.canSave && review.startFinish == null,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+            ) { Text("Set start/finish from reference") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { confirmReRecord = true },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFCED7E2)),
+                ) { Text("Re-record") }
+                OutlinedButton(
+                    onClick = { confirmDiscard = true },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF6B6B)),
+                ) { Text("Discard") }
+            }
         }
     }
 }
