@@ -142,8 +142,82 @@ fun buildTrackTraceLayers(
     viewHeight: Double,
     padding: Double = 0.05,
 ): List<TraceLayer> {
-    // Stub — real implementation in Plan 03-07 Task 2.
-    return emptyList()
+    // Collect all geo-point layers needed for projection.
+    val markingDtos = markingSamples.map { GeoPointDto(it.latitude, it.longitude) }
+    val refDtos = referenceLine?.points ?: emptyList()
+    val outlierDtos = outlierSamples.map { GeoPointDto(it.latitude, it.longitude) }
+    val lineDtos: List<GeoPointDto> = buildList {
+        if (startFinish != null) {
+            add(startFinish.pointA)
+            add(startFinish.pointB)
+        }
+        for (s in sectors) {
+            add(s.pointA)
+            add(s.pointB)
+        }
+    }
+
+    val allLayerDtos = listOfNotNull(
+        markingDtos.ifEmpty { null },
+        refDtos.ifEmpty { null },
+        outlierDtos.ifEmpty { null },
+        lineDtos.ifEmpty { null },
+    )
+
+    if (allLayerDtos.isEmpty()) return emptyList()
+
+    val projected = TraceProjection.project(allLayerDtos, viewWidth, viewHeight, padding)
+
+    fun layer(
+        name: String,
+        color: Long,
+        strokeWidth: Float,
+        dashed: Boolean,
+        points: List<TracePoint>,
+    ): TraceLayer = TraceLayer(name = name, points = points, color = color, strokeWidth = strokeWidth, dashed = dashed)
+
+    val layers = mutableListOf<TraceLayer>()
+    var idx = 0
+
+    // Layer 1: Full marking trace (context)
+    if (markingDtos.isNotEmpty()) {
+        layers += layer("Marking trace", 0xFF9AA8B8, 2f, false, projected[idx])
+        idx++
+    }
+
+    // Layer 2: Reference line (highlighted baseline)
+    if (refDtos.isNotEmpty()) {
+        layers += layer("Reference line", 0xFF62E3FF, 3f, false, projected[idx])
+        idx++
+    }
+
+    // Layer 3: Outlier sections
+    if (outlierDtos.isNotEmpty()) {
+        layers += layer("Outlier sections", 0x80FFB84D, 2f, true, projected[idx])
+        idx++
+    }
+
+    // Layer 4-5: Start/finish and sector lines (share one projected layer)
+    if (lineDtos.isNotEmpty()) {
+        val linePoints = projected[idx]
+        if (startFinish != null) {
+            // First 2 points are start/finish
+            val sf = linePoints.take(2)
+            if (sf.size == 2) {
+                layers += layer("Start/finish", 0xFF8CFF9B, 3f, false, sf)
+            }
+        }
+        val sectorStarts = if (startFinish != null) 2 else 0
+        if (sectors.isNotEmpty() && linePoints.size > sectorStarts) {
+            val sectorPoints = linePoints.drop(sectorStarts)
+            if (sectorPoints.size >= 2) {
+                layers += layer("Sector lines", 0xFFFFD166, 2f, false, sectorPoints)
+            }
+        }
+        idx++
+    }
+
+    return layers
 }
 
 /**
@@ -177,6 +251,83 @@ fun buildTimingTraceLayers(
     viewHeight: Double,
     padding: Double = 0.05,
 ): List<TraceLayer> {
-    // Stub — real implementation in Plan 03-07 Task 2.
-    return emptyList()
+    val sessionDtos = sessionSamples.map { GeoPointDto(it.latitude, it.longitude) }
+    val lineDtos: List<GeoPointDto> = buildList {
+        if (startFinish != null) {
+            add(startFinish.pointA)
+            add(startFinish.pointB)
+        }
+        for (s in sectors) {
+            add(s.pointA)
+            add(s.pointB)
+        }
+    }
+    val highlightDtos = if (selectedLapStartMillis != null && selectedLapEndMillis != null) {
+        sessionSamples
+            .filter { it.elapsedMillis in selectedLapStartMillis..selectedLapEndMillis }
+            .map { GeoPointDto(it.latitude, it.longitude) }
+    } else {
+        emptyList()
+    }
+
+    val allLayerDtos = listOfNotNull(
+        referenceLinePoints.ifEmpty { null },
+        sessionDtos.ifEmpty { null },
+        lineDtos.ifEmpty { null },
+        highlightDtos.ifEmpty { null },
+    )
+
+    if (allLayerDtos.isEmpty()) return emptyList()
+
+    val projected = TraceProjection.project(allLayerDtos, viewWidth, viewHeight, padding)
+
+    fun layer(
+        name: String,
+        color: Long,
+        strokeWidth: Float,
+        dashed: Boolean,
+        points: List<TracePoint>,
+    ): TraceLayer = TraceLayer(name = name, points = points, color = color, strokeWidth = strokeWidth, dashed = dashed)
+
+    val layers = mutableListOf<TraceLayer>()
+    var idx = 0
+
+    // Layer 1: Reference line baseline
+    if (referenceLinePoints.isNotEmpty()) {
+        layers += layer("Reference baseline", 0xFF62E3FF, 3f, false, projected[idx])
+        idx++
+    }
+
+    // Layer 2: Session trace
+    if (sessionDtos.isNotEmpty()) {
+        layers += layer("Session trace", 0xFF9AA8B8, 2f, false, projected[idx])
+        idx++
+    }
+
+    // Layer 3-4: Start/finish and sector lines (share one projected layer)
+    if (lineDtos.isNotEmpty()) {
+        val linePoints = projected[idx]
+        if (startFinish != null) {
+            val sf = linePoints.take(2)
+            if (sf.size == 2) {
+                layers += layer("Start/finish", 0xFF8CFF9B, 3f, false, sf)
+            }
+        }
+        val sectorStarts = if (startFinish != null) 2 else 0
+        if (sectors.isNotEmpty() && linePoints.size > sectorStarts) {
+            val sectorPoints = linePoints.drop(sectorStarts)
+            if (sectorPoints.size >= 2) {
+                layers += layer("Sector lines", 0xFFFFD166, 2f, false, sectorPoints)
+            }
+        }
+        idx++
+    }
+
+    // Layer 5: Selected/best lap highlight
+    if (highlightDtos.isNotEmpty()) {
+        layers += layer("Best lap highlight", 0xFF62E3FF, 4f, false, projected[idx])
+        idx++
+    }
+
+    return layers
 }

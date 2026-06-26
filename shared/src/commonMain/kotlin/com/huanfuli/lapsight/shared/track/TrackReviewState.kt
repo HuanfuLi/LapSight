@@ -104,8 +104,38 @@ data class TrackReviewState(
         viewHeight: Double,
         padding: Double = 0.05,
     ): List<TraceLayer> {
-        // Stub — real implementation in Plan 03-07 Task 2.
-        return emptyList()
+        val markingSamples = extraction.markingSession.samples
+        val refLine = extraction.referenceLine
+
+        // Derive outlier samples from diagnostics: collect samples from loops
+        // flagged as Outlier or Dropped.
+        val outlierLoopIndices = extraction.diagnostics
+            .filter { it.kind == DiagnosticKind.Outlier || it.kind == DiagnosticKind.Dropped }
+            .map { it.loopIndex }
+            .toSet()
+
+        val outlierSamples: List<com.huanfuli.lapsight.shared.session.LocationSampleDto> =
+            if (outlierLoopIndices.isNotEmpty() && extraction.detectedLoopCount > 0) {
+                val samplesPerLoop = markingSamples.size / extraction.detectedLoopCount.coerceAtLeast(1)
+                outlierLoopIndices.flatMap { loopIdx ->
+                    val start = loopIdx * samplesPerLoop
+                    val end = minOf((loopIdx + 1) * samplesPerLoop, markingSamples.size)
+                    if (start < end) markingSamples.subList(start, end) else emptyList()
+                }
+            } else {
+                emptyList()
+            }
+
+        return com.huanfuli.lapsight.shared.review.buildTrackTraceLayers(
+            markingSamples = markingSamples,
+            referenceLine = refLine,
+            startFinish = startFinish,
+            sectors = sectors,
+            outlierSamples = outlierSamples,
+            viewWidth = viewWidth,
+            viewHeight = viewHeight,
+            padding = padding,
+        )
     }
 
     companion object {
