@@ -2,8 +2,12 @@ package com.huanfuli.lapsight.shared.session
 
 import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.LocationSource
+import com.huanfuli.lapsight.shared.ghost.ProgressCurve
+import com.huanfuli.lapsight.shared.ghost.ProgressPoint
+import com.huanfuli.lapsight.shared.ghost.ReferenceLap
 import com.huanfuli.lapsight.shared.lap.LapEvent
 import com.huanfuli.lapsight.shared.lap.SectorEvent
+import com.huanfuli.lapsight.shared.storage.CURRENT_GHOST_REFERENCE_SCHEMA_VERSION
 import com.huanfuli.lapsight.shared.storage.CURRENT_SESSION_SCHEMA_VERSION
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
@@ -261,3 +265,111 @@ sealed interface SaveDraftResult {
     /** No stopped draft was available to save. */
     data object NothingToSave : SaveDraftResult
 }
+
+// --- Ghost reference-lap persistence (D-01..D-05, D-12, D-24) ------------------
+
+/**
+ * Serializable mirror of [ProgressPoint] persisted inside a
+ * [GhostReferencePayloadV1] (D-05/D-06).
+ *
+ * Kept separate from the pure ghost domain model so the algorithm layer stays
+ * free of serialization concerns while saved payloads remain canonical and
+ * versioned.
+ */
+@Serializable
+data class ProgressPointDto(
+    val elapsedMillis: Long,
+    val progressMeters: Double,
+    val normalizedProgress: Double,
+    val latitude: Double,
+    val longitude: Double,
+    val localX: Double,
+    val localY: Double,
+    val speedMetersPerSecond: Double? = null,
+    val headingDegrees: Double? = null,
+    val horizontalAccuracyMeters: Double? = null,
+)
+
+/**
+ * Canonical, versioned payload for one persisted ghost reference lap (D-05, D-25).
+ *
+ * Stores BOTH the raw best-lap samples (for replay/export/future algorithm work)
+ * and the precomputed progress curve (so live delta does not rescan raw GPS).
+ * Real and simulated references are isolated by [SourceMetadata.isSimulated] so a
+ * demo lap never becomes a real Track's ghost target (D-04, D-24). References are
+ * scoped per [trackId] (D-03).
+ */
+@Serializable
+data class GhostReferencePayloadV1(
+    val schemaVersion: Int = CURRENT_GHOST_REFERENCE_SCHEMA_VERSION,
+    val trackId: String,
+    val sessionId: String,
+    val lapNumber: Int,
+    val durationMillis: Long,
+    val source: SourceMetadata,
+    val totalDistanceMeters: Double,
+    val samples: List<LocationSampleDto>,
+    val progressPoints: List<ProgressPointDto>,
+    val app: AppMetadata,
+)
+
+/** Maps a domain [ProgressPoint] to its serializable DTO. */
+fun ProgressPoint.toDto(): ProgressPointDto = ProgressPointDto(
+    elapsedMillis = elapsedMillis,
+    progressMeters = progressMeters,
+    normalizedProgress = normalizedProgress,
+    latitude = latitude,
+    longitude = longitude,
+    localX = localX,
+    localY = localY,
+    speedMetersPerSecond = speedMetersPerSecond,
+    headingDegrees = headingDegrees,
+    horizontalAccuracyMeters = horizontalAccuracyMeters,
+)
+
+/** Maps a [ProgressPointDto] back to the domain [ProgressPoint]. */
+fun ProgressPointDto.toModel(): ProgressPoint = ProgressPoint(
+    elapsedMillis = elapsedMillis,
+    progressMeters = progressMeters,
+    normalizedProgress = normalizedProgress,
+    latitude = latitude,
+    longitude = longitude,
+    localX = localX,
+    localY = localY,
+    speedMetersPerSecond = speedMetersPerSecond,
+    headingDegrees = headingDegrees,
+    horizontalAccuracyMeters = horizontalAccuracyMeters,
+)
+
+/**
+ * Maps a domain [ReferenceLap] to a serializable [GhostReferencePayloadV1].
+ *
+ * The [source] carries the real/simulated boundary used for storage isolation;
+ * its [SourceMetadata.isSimulated] must match the reference lap's own flag.
+ */
+fun ReferenceLap.toReferencePayload(source: SourceMetadata, app: AppMetadata): GhostReferencePayloadV1 =
+    GhostReferencePayloadV1(
+        trackId = trackId,
+        sessionId = sessionId,
+        lapNumber = lapNumber,
+        durationMillis = durationMillis,
+        source = source,
+        totalDistanceMeters = progressCurve.totalDistanceMeters,
+        samples = rawSamples.map { it.toDto() },
+        progressPoints = progressCurve.points.map { it.toDto() },
+        app = app,
+    )
+
+/** Maps a persisted [GhostReferencePayloadV1] back to the domain [ReferenceLap]. */
+fun GhostReferencePayloadV1.toReferenceLap(): ReferenceLap = ReferenceLap(
+    trackId = trackId,
+    sessionId = sessionId,
+    lapNumber = lapNumber,
+    durationMillis = durationMillis,
+    isSimulated = source.isSimulated,
+    rawSamples = samples.map { it.toModel() },
+    progressCurve = ProgressCurve(
+        totalDistanceMeters = totalDistanceMeters,
+        points = progressPoints.map { it.toModel() },
+    ),
+)
