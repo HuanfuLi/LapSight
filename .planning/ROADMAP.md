@@ -117,7 +117,7 @@ Plans:
 
 **Requirements:** GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 Plans:
 **Wave 1**
@@ -126,7 +126,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-02-PLAN.md - Reference-lap storage and timing-session integration
+- [x] 04-02-PLAN.md - Reference-lap storage and timing-session integration
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
