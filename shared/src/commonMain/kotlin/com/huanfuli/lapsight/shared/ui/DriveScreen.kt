@@ -43,10 +43,12 @@ import androidx.compose.ui.unit.sp
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.OrientationController
 import com.huanfuli.lapsight.shared.SimulatedGpsProvider
+import com.huanfuli.lapsight.shared.ghost.DeltaTone
 import com.huanfuli.lapsight.shared.lap.formatLapTime
 import com.huanfuli.lapsight.shared.session.SaveDraftResult
 import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.session.StartTimingResult
+import com.huanfuli.lapsight.shared.session.TimingRunSnapshot
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import kotlinx.coroutines.delay
 
@@ -74,6 +76,7 @@ fun DriveScreen(
     var snapshot by remember { mutableStateOf(controller.snapshot()) }
     var timingActive by remember { mutableStateOf(false) }
     var timingSnapshot by remember { mutableStateOf<com.huanfuli.lapsight.shared.session.SessionControllerSnapshot?>(null) }
+    var timingRun by remember { mutableStateOf(TimingRunSnapshot.inactive()) }
     var showStopSummary by remember { mutableStateOf(false) }
     var confirmDiscardSession by remember { mutableStateOf(false) }
     var saveToast by remember { mutableStateOf<String?>(null) }
@@ -98,20 +101,18 @@ fun DriveScreen(
     LaunchedEffect(snapshot.isDemoFeedRunning, timingActive) {
         while (snapshot.isDemoFeedRunning || timingActive) {
             delay(700)
+            controller.tick()
+            snapshot = controller.snapshot()
             if (timingActive) {
-                controller.tick()
-                snapshot = controller.snapshot()
-                val recorder = sessionController.recorderForTest()
-                if (recorder != null) {
-                    val sample = provider.nextSample()
-                    if (sample != null) {
-                        recorder.onSample(sample)
-                    }
-                    timingSnapshot = sessionController.snapshot()
+                // Production sample pump: feed the active recorder through the
+                // controller (never recorderForTest) and read the timing/delta
+                // view back for the UI.
+                val sample = provider.nextSample()
+                if (sample != null) {
+                    sessionController.ingestSample(sample)
                 }
-            } else {
-                controller.tick()
-                snapshot = controller.snapshot()
+                timingSnapshot = sessionController.snapshot()
+                timingRun = sessionController.timingRunSnapshot()
             }
         }
     }
@@ -131,6 +132,7 @@ fun DriveScreen(
                             sessionController.discardDraft()
                             timingActive = false
                             timingSnapshot = null
+                            timingRun = TimingRunSnapshot.inactive()
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF6B6B)),
                     ) { Text("Discard") }
@@ -153,6 +155,7 @@ fun DriveScreen(
                         showStopSummary = false
                         timingActive = false
                         timingSnapshot = null
+                        timingRun = TimingRunSnapshot.inactive()
                         if (result is SaveDraftResult.Saved) {
                             saveToast = "Session saved"
                             onSavedSession()
@@ -219,6 +222,7 @@ fun DriveScreen(
                                     startTimingBlockedMessage = null
                                     timingActive = true
                                     timingSnapshot = sessionController.snapshot()
+                                    timingRun = sessionController.timingRunSnapshot()
                                     snapshot = controller.snapshot()
                                 }
                                 is StartTimingResult.Blocked -> {
@@ -250,6 +254,7 @@ fun DriveScreen(
         },
         timingActive = timingActive,
         timingSnapshot = timingSnapshot,
+        timingRun = timingRun,
         startTimingBlockedMessage = startTimingBlockedMessage,
         reviewContent = {
             TrackReviewContent(
@@ -272,6 +277,7 @@ private fun DriveSurface(
     onStopTiming: () -> Unit,
     timingActive: Boolean,
     timingSnapshot: com.huanfuli.lapsight.shared.session.SessionControllerSnapshot?,
+    timingRun: TimingRunSnapshot,
     startTimingBlockedMessage: String?,
     reviewContent: @Composable () -> Unit,
 ) {
@@ -305,12 +311,10 @@ private fun DriveSurface(
         // source (D-29, D-42, SESS-01).
         if (timingActive) {
             TimingRunSurface(
-                snapshot = snapshot,
-                timingSnapshot = timingSnapshot,
+                timingRun = timingRun,
                 orientation = orientation,
                 onToggleOrientation = onToggleOrientation,
                 onStopTiming = onStopTiming,
-                isLandscape = isLandscape,
                 isCompactLandscape = isCompactLandscape,
                 padding = padding,
             )
@@ -364,35 +368,34 @@ private fun DriveSurface(
 /**
  * Fullscreen timing surface shown while a formal timing session is running (D-29).
  *
- * Hides the bottom navigation (handled by AppShell) and shows large, glanceable
- * timing numerals using tabular figures so digits do not horizontal-jitter as
- * laps tick (UI-SPEC Display role). A DEMO badge is shown when the source is
- * simulated (D-42). The surface stays passive while moving.
+ * Priority order while moving (UI-SPEC Timing Surface Layout): current lap time is
+ * the primary display, the live delta is the second core readout and value-only
+ * (`--` / `+0.421s` / `-0.218s`, D-13/D-14), and last/best/laps/speed/accuracy are
+ * compact secondary metrics that keep working even when the delta is `--`
+ * (D-19/T-04-11). Numerals use tabular figures so digits do not horizontal-jitter
+ * as values tick (UI-SPEC Display role). A DEMO badge is shown when the source is
+ * simulated (D-42). The surface stays passive while moving (no charts/maps, D-16).
  */
 @Composable
 private fun TimingRunSurface(
-    snapshot: DriveMarkingSnapshot,
-    timingSnapshot: com.huanfuli.lapsight.shared.session.SessionControllerSnapshot?,
+    timingRun: TimingRunSnapshot,
     orientation: DashOrientation,
     onToggleOrientation: () -> Unit,
     onStopTiming: () -> Unit,
-    isLandscape: Boolean,
     isCompactLandscape: Boolean,
     padding: androidx.compose.ui.unit.Dp,
 ) {
-    val draft = timingSnapshot?.activeDraft
-    val lapCount = draft?.checkpointedLapCount ?: 0
-    val sampleCount = draft?.checkpointedSampleCount ?: 0
-    val isDemo = draft?.source?.isSimulated ?: false
-    val latestSample = snapshot.latestSample
-    val speedLabel = latestSample?.speedMetersPerSecond
+    val isDemo = timingRun.source?.isSimulated ?: false
+    val speedLabel = timingRun.speedMetersPerSecond
         ?.let { ((it * 3.6).toInt()).toString() } ?: "--"
-    val accuracyLabel = latestSample?.horizontalAccuracyMeters
+    val accuracyLabel = timingRun.accuracyMeters
         ?.let { (if (it < 0) 0.0 else it).toInt().toString() } ?: "--"
+    val tnum = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(padding),
         verticalArrangement = Arrangement.spacedBy(if (isCompactLandscape) 8.dp else 16.dp),
     ) {
@@ -400,26 +403,49 @@ private fun TimingRunSurface(
             Text(
                 text = "Timing",
                 color = MaterialTheme.colorScheme.primary,
-                fontSize = if (isCompactLandscape) 24.sp else 32.sp,
+                fontSize = if (isCompactLandscape) 20.sp else 26.sp,
                 fontWeight = FontWeight.Black,
                 modifier = Modifier.weight(1f),
             )
             if (isDemo) DemoBadge(compact = isCompactLandscape)
         }
-        // Large glanceable timing numerals with tabular figures (UI-SPEC Display).
+
+        // 1. Current lap time — primary display (UI-SPEC: largest timing value).
         Text(
-            text = "Laps: $lapCount",
-            color = Color.White,
+            text = "CURRENT LAP",
+            color = Color(0xFF7E8DA0),
+            fontSize = if (isCompactLandscape) 10.sp else 11.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = timingRun.currentLapMillis.formatLapTime(),
+            color = MaterialTheme.colorScheme.primary,
             fontSize = if (isCompactLandscape) 40.sp else 52.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Start,
-            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+            style = tnum,
         )
+
+        // 2. Live delta — second core readout, value-only and semantically colored
+        //    but never larger than the current lap time (UI-SPEC Typography).
+        DeltaReadout(
+            display = timingRun.deltaDisplay,
+            compact = isCompactLandscape,
+            tnum = tnum,
+        )
+
+        // 3. Secondary metrics — compact, keep working when delta is `--` (D-19).
         Row(horizontalArrangement = Arrangement.spacedBy(if (isCompactLandscape) 8.dp else 12.dp)) {
-            MetricCard("Speed", speedLabel, "km/h", Modifier.weight(1f), emphasized = true, compact = isCompactLandscape)
-            MetricCard("Accuracy", accuracyLabel, "m", Modifier.weight(1f), compact = isCompactLandscape)
-            MetricCard("Samples", sampleCount.toString(), "", Modifier.weight(1f), compact = isCompactLandscape)
+            MetricCard("Last", timingRun.lastLapMillis.formatLapTime(), "", Modifier.weight(1f), compact = isCompactLandscape)
+            MetricCard("Best", timingRun.bestLapMillis.formatLapTime(), "", Modifier.weight(1f), compact = isCompactLandscape)
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(if (isCompactLandscape) 8.dp else 12.dp)) {
+            MetricCard("Laps", timingRun.lapCount.toString(), "", Modifier.weight(1f), compact = isCompactLandscape)
+            MetricCard("Speed", speedLabel, "km/h", Modifier.weight(1f), compact = isCompactLandscape)
+            MetricCard("Accuracy", accuracyLabel, "m", Modifier.weight(1f), compact = isCompactLandscape)
+        }
+
+        // 4. Existing safe controls.
         Button(
             onClick = onStopTiming,
             modifier = Modifier.fillMaxWidth(),
@@ -433,6 +459,42 @@ private fun TimingRunSurface(
             Text(if (orientation == DashOrientation.Portrait) "Rotate to Landscape" else "Rotate to Portrait")
         }
     }
+}
+
+/**
+ * Value-only live-delta readout (D-13, D-14, D-15, D-18).
+ *
+ * Renders exactly the display text (`--`, `+0.421s`, `-0.218s`) in the semantic
+ * tone color. No words, no explanatory copy, no stale value — the
+ * [DeltaDisplayState] already collapsed unavailable states to `--`/neutral.
+ */
+@Composable
+private fun DeltaReadout(
+    display: com.huanfuli.lapsight.shared.ghost.DeltaDisplayState,
+    compact: Boolean,
+    tnum: androidx.compose.ui.text.TextStyle,
+) {
+    Text(
+        text = "DELTA",
+        color = Color(0xFF7E8DA0),
+        fontSize = if (compact) 10.sp else 11.sp,
+        fontWeight = FontWeight.Bold,
+    )
+    Text(
+        text = display.text,
+        color = display.tone.toDeltaColor(),
+        fontSize = if (compact) 32.sp else 44.sp,
+        fontWeight = FontWeight.Black,
+        textAlign = TextAlign.Start,
+        style = tnum,
+    )
+}
+
+/** Maps the platform-free [DeltaTone] to UI-SPEC semantic colors. */
+private fun DeltaTone.toDeltaColor(): Color = when (this) {
+    DeltaTone.Faster -> Color(0xFF8CFF9B)
+    DeltaTone.Slower -> Color(0xFFFF9F43)
+    DeltaTone.Neutral -> Color(0xFF9AA8B8)
 }
 
 @Composable
