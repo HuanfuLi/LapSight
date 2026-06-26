@@ -40,8 +40,8 @@
 
 ### Session Review and Export
 
-- [ ] **SESS-01**: User can start, stop, save, and discard a timing session.
-- [ ] **SESS-02**: User can review a saved session with lap list, best lap, total duration, and GPS quality summary.
+- [x] **SESS-01**: User can start, stop, save, and discard a timing session.
+- [x] **SESS-02**: User can review a saved session with lap list, best lap, total duration, and GPS quality summary.
 - [ ] **SESS-03**: User can view a simple track trace for a saved session.
 - [ ] **SESS-04**: User can export a session as JSON.
 - [ ] **SESS-05**: User can export a session as GPX or another common GPS interchange format.
@@ -112,8 +112,8 @@
 | LAP-05 | Phase 2 | Complete |
 | LAP-06 | Phase 2 | Complete |
 | LAP-07 | Phase 2 | Complete |
-| SESS-01 | Phase 3 | Pending |
-| SESS-02 | Phase 3 | Pending |
+| SESS-01 | Phase 3 | Complete |
+| SESS-02 | Phase 3 | Complete |
 | SESS-03 | Phase 3 | Pending |
 | SESS-04 | Phase 3 | Pending |
 | SESS-05 | Phase 3 | Pending |

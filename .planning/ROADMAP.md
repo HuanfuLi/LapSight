@@ -61,7 +61,7 @@ Build the phone-first product that proves live GPS capture, lap timing, local se
 
 **Requirements:** SESS-01, SESS-02, SESS-03, SESS-04, SESS-05
 
-**Plans:** 5/8 plans executed
+**Plans:** 6/8 plans executed
 
 Plans:
 **Wave 1**
@@ -86,7 +86,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 03-06-PLAN.md - Timing session drafts, save/discard, and review summaries
+- [x] 03-06-PLAN.md - Timing session drafts, save/discard, and review summaries
 
 **Wave 7** *(blocked on Wave 6 completion)*
 

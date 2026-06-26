@@ -3,19 +3,19 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_execute
-last_updated: "2026-06-25T23:05:00.000Z"
+last_updated: "2026-06-25T23:45:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 10
-  completed_plans: 7
-  percent: 33
+  completed_plans: 8
+  percent: 40
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 3 in progress (5/8 plans executed). Three-tab Drive/Review/Settings shell, Mark New Track capture flow, Track Review Save/Re-record/Discard, and Review list with DEMO badges are done. `:shared:check` and `:androidApp:assembleDebug` pass. Timing session lifecycle (03-06), offline trace review (03-07), and JSON/GPX export with platform share handoff (03-08) remain.
+**Current Status:** Phase 3 in progress (6/8 plans executed). Formal timing session lifecycle (start/stop/save/discard/recover), draft recovery on launch, per-Track ghost-candidate derivation (simulated excluded), Timing Session Review detail, and Drive timing controls are done. `:shared:check` and `:androidApp:assembleDebug` pass. Offline trace review (03-07) and JSON/GPX export with platform share handoff (03-08) remain.
 
 ## Project Reference
 
@@ -25,11 +25,11 @@ See: `.planning/PROJECT.md`
 
 ## Current Focus
 
-**Phase 3 IN PROGRESS (5/8 plans done) — Local Sessions, Review, and Export**
+**Phase 3 IN PROGRESS (6/8 plans done) — Local Sessions, Review, and Export**
 
 Phase 3 planning complete: 8 sequential plans (waves 1-8), verified by gsd-plan-checker (iteration 2, 0 blockers). Plan-checker confirmed all 5 requirements (SESS-01..05) and all 44 CONTEXT decisions (D-01..D-44) trace to implementing tasks. The riskiest algorithm (`ReferenceLineExtractor`) is isolated in its own plan (03-04); export gains a platform share handoff (`ExportShareTarget`, Android ACTION_SEND / iOS UIActivityViewController) so SESS-04/05 are reachable by external tools.
 
-Plans 03-01..03-05 executed: simulated GPS feed, dependency gate, versioned local storage, reference-line extraction, and three-tab shell with Mark New Track + Track Review Save/Re-record/Discard + Review list. Timing session lifecycle (03-06), offline trace review (03-07), and JSON/GPX export (03-08) remain.
+Plans 03-01..03-06 executed: simulated GPS feed, dependency gate, versioned local storage, reference-line extraction, three-tab shell with Mark New Track + Track Review Save/Re-record/Discard + Review list, and formal timing session lifecycle (drafts, save/discard, recovery, ghost-candidate boundary, Timing Session Review). Offline trace review (03-07) and JSON/GPX export (03-08) remain.
 
 **GATE OVERRIDE (decision-coverage 13a):** User chose "Proceed anyway." The mechanical decision-coverage gate reports 0/44 because the planner cited decision IDs in plan *prose* rather than in the `must_haves.truths` field the gate scans (41/44 IDs are present in the plans; the semantic plan-checker independently verified full coverage). verify-phase should re-surface this; if it matters, relocate D-NN citations into `must_haves.truths`.
 
@@ -49,7 +49,7 @@ Phase 2 delivered the clean-room shared Kotlin lap engine: domain models, local 
 
 ## Next Command Candidates
 
-- Execute Plan 03-06: Timing session drafts, save/discard, and review summaries.
+- Execute Plan 03-07: Offline vector trace review.
 - Complete iOS Xcode runtime checks (Phase 1 and Phase 2 dash) on macOS.
 
 ## Review Checklist
