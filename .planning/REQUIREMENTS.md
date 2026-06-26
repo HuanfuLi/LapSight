@@ -33,10 +33,10 @@
 
 ### Ghost and Delta
 
-- [ ] **GHOST-01**: User can save a completed lap as the reference/best lap.
-- [ ] **GHOST-02**: App calculates current-lap delta against the reference lap by progress distance along the lap.
-- [ ] **GHOST-03**: User can see ahead/behind delta live without reading a dense chart.
-- [ ] **GHOST-04**: App stores enough reference-lap data to replay ghost comparison in later sessions.
+- [x] **GHOST-01**: User can save a completed lap as the reference/best lap.
+- [x] **GHOST-02**: App calculates current-lap delta against the reference lap by progress distance along the lap.
+- [x] **GHOST-03**: User can see ahead/behind delta live without reading a dense chart.
+- [x] **GHOST-04**: App stores enough reference-lap data to replay ghost comparison in later sessions.
 
 ### Session Review and Export
 
@@ -117,10 +117,10 @@
 | SESS-03 | Phase 3 | Complete |
 | SESS-04 | Phase 3 | Complete |
 | SESS-05 | Phase 3 | Complete |
-| GHOST-01 | Phase 4 | Pending |
-| GHOST-02 | Phase 4 | Pending |
-| GHOST-03 | Phase 4 | Pending |
-| GHOST-04 | Phase 4 | Pending |
+| GHOST-01 | Phase 4 | Complete |
+| GHOST-02 | Phase 4 | Complete |
+| GHOST-03 | Phase 4 | Complete |
+| GHOST-04 | Phase 4 | Complete |
 | SAFE-01 | Phase 1 | Pending |
 | SAFE-02 | Phase 1 | Pending |
 | SAFE-03 | Phase 1 | Pending |
