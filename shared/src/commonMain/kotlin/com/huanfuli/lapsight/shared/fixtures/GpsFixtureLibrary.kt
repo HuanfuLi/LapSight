@@ -53,6 +53,7 @@ object GpsFixtureLibrary {
     const val NOISE_DRIFT = "noise-drift"
     const val DROPPED_LOW_FREQUENCY = "dropped-low-frequency"
     const val MULTI_SESSION_BEST_CANDIDATE = "multi-session-best-candidate"
+    const val VARIABLE_PACE_GHOST_UAT = "variable-pace-ghost-uat"
 
     /** The six required scenario ids from D-04, in canonical order. */
     val requiredScenarioIds: List<String> = listOf(
@@ -230,6 +231,96 @@ object GpsFixtureLibrary {
         ovalSession(loops = 6, loopMillis = 25_000L, seed = 808L),
     )
 
+    /**
+     * Provider-layer UAT trace for ghost/live-delta work (D-20..D-24).
+     *
+     * The loop geometry is the same deterministic oval used by the other
+     * fixtures, but lap durations intentionally vary:
+     *
+     * - 24s baseline reference
+     * - 27s slower lap -> positive delta
+     * - 22s faster lap -> negative delta
+     * - 20s in-session new best -> immediate reference update
+     * - 23s lap chasing the updated in-session best
+     *
+     * A final top-anchor sample closes the last loop so tests and UAT can
+     * derive exact loop durations from repeated GPS positions.
+     */
+    fun variablePaceGhostUat(): List<LocationSample> = ovalVariablePaceSession(
+        loopMillis = listOf(24_000L, 27_000L, 22_000L, 20_000L, 23_000L),
+        seed = 909L,
+    )
+
+    private fun ovalVariablePaceSession(
+        loopMillis: List<Long>,
+        accuracyBase: Double = CLEAN_ACCURACY_M,
+        accuracyJitter: Double = 0.8,
+        seed: Long = 1L,
+    ): List<LocationSample> {
+        require(loopMillis.isNotEmpty()) { "variable-pace fixture must contain at least one loop" }
+        val rng = Lcg(seed)
+        val out = ArrayList<LocationSample>(loopMillis.size * POINTS_PER_LOOP + 1)
+        var loopStartMillis = 0L
+
+        loopMillis.forEach { durationMillis ->
+            val omega = 2.0 * PI / (durationMillis / 1_000.0)
+            for (point in 0 until POINTS_PER_LOOP) {
+                val elapsedMillis = loopStartMillis + durationMillis * point / POINTS_PER_LOOP
+                val angle = 2.0 * PI * point.toDouble() / POINTS_PER_LOOP
+                out += ovalSample(
+                    elapsedMillis = elapsedMillis,
+                    angle = angle,
+                    omega = omega,
+                    accuracyMeters = accuracyBase +
+                        if (accuracyJitter > 0) {
+                            kotlin.math.abs(rng.nextNoise(accuracyJitter))
+                        } else {
+                            0.0
+                        },
+                )
+            }
+            loopStartMillis += durationMillis
+        }
+
+        val lastOmega = 2.0 * PI / (loopMillis.last() / 1_000.0)
+        out += ovalSample(
+            elapsedMillis = loopStartMillis,
+            angle = 0.0,
+            omega = lastOmega,
+            accuracyMeters = accuracyBase +
+                if (accuracyJitter > 0) {
+                    kotlin.math.abs(rng.nextNoise(accuracyJitter))
+                } else {
+                    0.0
+                },
+        )
+        return out
+    }
+
+    private fun ovalSample(
+        elapsedMillis: Long,
+        angle: Double,
+        omega: Double,
+        accuracyMeters: Double,
+    ): LocationSample {
+        val east = SEMI_MAJOR_M * sin(angle)
+        val north = SEMI_MINOR_M * cos(angle)
+        val velEast = SEMI_MAJOR_M * cos(angle) * omega
+        val velNorth = -SEMI_MINOR_M * sin(angle) * omega
+        val speed = sqrt(velEast * velEast + velNorth * velNorth)
+        val heading = (atan2(velEast, velNorth) * 180.0 / PI + 360.0) % 360.0
+        return LocationSample(
+            elapsedMillis = elapsedMillis,
+            latitude = lat(north),
+            longitude = lon(east),
+            horizontalAccuracyMeters = accuracyMeters,
+            speedMetersPerSecond = speed,
+            headingDegrees = heading,
+            altitudeMeters = ALTITUDE_M,
+            source = LocationSource.Simulated,
+        )
+    }
+
     /** Build the [GpsFixtureScenario] for a stable [id], or fail fast. */
     fun scenario(id: String): GpsFixtureScenario = when (id) {
         CLEAN_10_LOOP -> GpsFixtureScenario(
@@ -267,6 +358,12 @@ object GpsFixtureLibrary {
             name = "Multi-session best candidate",
             description = "Three sessions on one track; the middle is fastest.",
             sessions = multiSessionBestCandidate(),
+        )
+        VARIABLE_PACE_GHOST_UAT -> GpsFixtureScenario(
+            id = id,
+            name = "Variable-pace ghost UAT",
+            description = "Five simulated oval laps with slower, faster, and same-session new-best pacing for live ghost delta UAT.",
+            sessions = listOf(variablePaceGhostUat()),
         )
         else -> throw IllegalArgumentException("Unknown GPS fixture scenario id: $id")
     }
