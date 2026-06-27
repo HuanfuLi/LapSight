@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_verify
-last_updated: "2026-06-26T04:37:56.852Z"
+status: ready_to_plan
+last_updated: "2026-06-26T21:35:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 4
@@ -15,7 +15,7 @@ progress:
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 4 EXECUTED (4/4 plans). Ready to verify Ghost Lap + Live Delta.
+**Current Status:** Phase 4 COMPLETE (4/4 plans verified). Ready to discuss/plan Phase 5.
 
 ## Project Reference
 
@@ -25,24 +25,12 @@ See: `.planning/PROJECT.md`
 
 ## Current Focus
 
-**Phase 4 EXECUTED — Ghost Lap + Live Delta**
+**Phase 5 READY — Track Setup and Course Profiles**
 
-Phase 4 executed 4 sequential MVP waves: pure ghost/progress curve domain, full reference-lap storage and timing-session integration, minimal live delta UI, and deterministic variable-pace simulator/UAT. Ghost math remains in shared Kotlin, Save/Discard semantics are explicit, simulated references are isolated from real Track references, and maps/charts/glasses work remains deferred.
+Phase 4 is complete and verified on-device.
+We are ready to begin Phase 5 to support persistent course profiles.
 
-Phase 4 artifacts:
-
-- `.planning/phases/04-ghost-lap-live-delta/04-UI-SPEC.md`
-- `.planning/phases/04-ghost-lap-live-delta/04-RESEARCH.md`
-- `.planning/phases/04-ghost-lap-live-delta/04-VALIDATION.md`
-- `.planning/phases/04-ghost-lap-live-delta/04-PATTERNS.md`
-- `.planning/phases/04-ghost-lap-live-delta/04-01-PLAN.md`
-- `.planning/phases/04-ghost-lap-live-delta/04-02-PLAN.md`
-- `.planning/phases/04-ghost-lap-live-delta/04-03-PLAN.md`
-- `.planning/phases/04-ghost-lap-live-delta/04-04-PLAN.md`
-- `.planning/phases/04-ghost-lap-live-delta/04-04-SUMMARY.md`
-- `.planning/phases/04-ghost-lap-live-delta/04-UAT.md`
-
-Decision coverage gate passed: 24/24 Phase 4 decisions covered in `must_haves.truths`. Automated verification passed: `:shared:check` and `:androidApp:assembleDebug`.
+Next step: Discuss or plan Phase 5.
 
 ## Working Assumptions
 
@@ -56,9 +44,8 @@ Decision coverage gate passed: 24/24 Phase 4 decisions covered in `must_haves.tr
 
 ## Next Command Candidates
 
-- Run `/gsd-verify-work 4` for conversational/device UAT.
-- Use `.planning/phases/04-ghost-lap-live-delta/04-UAT.md` for Android ADB/manual checks.
-- Complete iOS Xcode runtime checks (Phase 1-3) on macOS.
+- Run `/gsd-discuss-phase 5` to gather context for Track Setup.
+- Or `/gsd-plan-phase 5` to directly build the plans.
 
 ## Review Checklist
 
@@ -72,6 +59,8 @@ Decision coverage gate passed: 24/24 Phase 4 decisions covered in `must_haves.tr
 - [x] Phase 3 complete (8/8 plans, all tests pass, androidApp:assembleDebug succeeds).
 - [x] Phase 4 planned (4/4 plans, decision coverage 24/24).
 - [x] Phase 4 executed (4/4 plans, shared checks and Android debug build pass).
+- [x] Phase 4 verified via UAT.
+- [ ] Phase 5 planned.
 
 ## Phase 3 Completion Summary
 
@@ -105,4 +94,4 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
 ---
 
-*Last updated: 2026-06-26 after Phase 4 execution*
+*Last updated: 2026-06-26 after Phase 4 verified*
