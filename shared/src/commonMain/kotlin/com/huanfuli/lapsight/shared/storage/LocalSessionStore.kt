@@ -10,6 +10,7 @@ import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import com.huanfuli.lapsight.shared.track.TrackProfile
 
 /**
  * Repository API for local-first, versioned, index-backed storage (D-21 through D-25).
@@ -104,7 +105,63 @@ interface LocalSessionStore {
      * (D-04, D-24).
      */
     fun saveReferenceLap(payload: GhostReferencePayloadV1, app: AppMetadata): SaveResult
+
+    // --- V2 course profiles + side-by-side migration (D-12..D-14) -----------
+
+    /**
+     * Upgrades every persisted V1 Track / TimingSession / Ghost reference into the
+     * side-by-side V2 representation (D-12, SC-01, SC-03).
+     *
+     * Migration is **non-destructive**: each source payload is decoded and validated
+     * before any V2 payload is committed, V2 payloads are written into their own
+     * locations, and every V1 original file remains readable afterwards (D-13). The
+     * profile index is written **last** (payload-first / index-last), so a write
+     * fault between the V2 payloads and the index leaves the V1 originals intact and
+     * is fully recoverable by re-running [migrate] (T-05-04). Migration is
+     * idempotent: deterministic V2 identities mean a re-run yields exactly one
+     * logical profile and one first revision per source Track. Migration NEVER writes
+     * a current selection (D-01, D-04). Source payloads with unsafe opaque ids or
+     * corrupt geometry are skipped (never path-built) and reported in
+     * [MigrationResult.skipped] (T-05-03).
+     *
+     * [app] stamps the migrating app/build onto each freshly written V2 profile
+     * payload; session and reference payloads carry their original app metadata.
+     */
+    fun migrate(app: AppMetadata): MigrationResult
+
+    /**
+     * Persists [profile] as a V2 [TrackProfilePayloadV2] aggregate (payload first),
+     * then upserts it into the profile index (index last). Rejects an unsafe
+     * [TrackProfile.profileId] before any path is built (T-05-03).
+     */
+    fun saveProfile(profile: TrackProfile, app: AppMetadata): SaveResult
+
+    /** Loads a saved V2 profile by id, returning a typed result for missing/corrupt files. */
+    fun loadProfile(profileId: String): LoadResult<TrackProfile>
+
+    /** Lists every non-archived V2 profile recorded in the profile index. */
+    fun listActiveProfiles(): List<TrackProfile>
 }
+
+/**
+ * Outcome of a [LocalSessionStore.migrate] run.
+ *
+ * Counts are of payloads actually written this run; [skipped] records every source
+ * payload that was rejected before a path was built (unsafe id / corrupt geometry /
+ * unsupported version) so callers can surface unmigrated history without crashing.
+ */
+data class MigrationResult(
+    val profilesMigrated: Int,
+    val sessionsMigrated: Int,
+    val referencesMigrated: Int,
+    val skipped: List<MigrationSkip> = emptyList(),
+)
+
+/** One source payload that migration declined to upgrade, with the reason. */
+data class MigrationSkip(
+    val sourceId: String,
+    val reason: String,
+)
 
 /** Outcome of a save operation. */
 sealed interface SaveResult {

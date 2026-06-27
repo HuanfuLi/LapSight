@@ -16,6 +16,9 @@ import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import com.huanfuli.lapsight.shared.track.GhostReferencePayloadV2
+import com.huanfuli.lapsight.shared.track.TimingSessionPayloadV2
+import com.huanfuli.lapsight.shared.track.TrackProfile
 
 /**
  * In-memory [LocalSessionStore] used as the default for Compose previews, tests,
@@ -190,6 +193,20 @@ class InMemorySessionStore : LocalSessionStore {
         references[key] = payload
         return SaveResult.Saved(trackPath = "references/$key.json", markingPath = "references/$key.json")
     }
+
+    // --- V2 course profiles + side-by-side migration (D-12..D-14) -----------
+
+    override fun migrate(app: AppMetadata): MigrationResult =
+        TODO("Plan 05-02 GREEN: mirror side-by-side V1->V2 store migration")
+
+    override fun saveProfile(profile: TrackProfile, app: AppMetadata): SaveResult =
+        TODO("Plan 05-02 GREEN: persist V2 profile aggregate")
+
+    override fun loadProfile(profileId: String): LoadResult<TrackProfile> =
+        TODO("Plan 05-02 GREEN: load V2 profile aggregate")
+
+    override fun listActiveProfiles(): List<TrackProfile> =
+        TODO("Plan 05-02 GREEN: list active V2 profiles")
 
     private fun referenceKey(trackId: String, isSimulated: Boolean): String =
         "${trackId}__${if (isSimulated) "sim" else "real"}"

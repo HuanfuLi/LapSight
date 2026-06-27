@@ -17,6 +17,8 @@ import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import com.huanfuli.lapsight.shared.track.TrackProfile
+import com.huanfuli.lapsight.shared.track.TrackProfilePayloadV2
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import okio.FileSystem
@@ -275,6 +277,20 @@ class FileSessionStore(
         writeAtomically(path, json.encodeToString(payload))
         return SaveResult.Saved(trackPath = path.toString(), markingPath = path.toString())
     }
+
+    // --- V2 course profiles + side-by-side migration (D-12..D-14) -----------
+
+    override fun migrate(app: AppMetadata): MigrationResult =
+        TODO("Plan 05-02 GREEN: wire side-by-side V1->V2 store migration")
+
+    override fun saveProfile(profile: TrackProfile, app: AppMetadata): SaveResult =
+        TODO("Plan 05-02 GREEN: persist V2 profile aggregate")
+
+    override fun loadProfile(profileId: String): LoadResult<TrackProfile> =
+        TODO("Plan 05-02 GREEN: load V2 profile aggregate")
+
+    override fun listActiveProfiles(): List<TrackProfile> =
+        TODO("Plan 05-02 GREEN: list active V2 profiles")
 
     private inline fun <reified T> load(path: Path, validate: (T) -> String?): LoadResult<T> {
         if (!fileSystem.exists(path)) return LoadResult.NotFound
