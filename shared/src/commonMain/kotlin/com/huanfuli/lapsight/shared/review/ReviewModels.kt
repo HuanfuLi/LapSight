@@ -32,7 +32,12 @@ data class ReviewLapRow(
 )
 
 /**
- * One sector split in a Timing Session Review (D-32).
+ * One LEGACY cumulative line split in a Timing Session Review (D-32).
+ *
+ * This is the V1 `LegacyCumulativeSplit`: a single cumulative [splitMillis] from
+ * the lap start to one sector-LINE crossing. It is preserved for V1 history and is
+ * NEVER inferred from or relabeled as a complete Sector interval; the complete-
+ * interval V2 shape is [ReviewCompleteSector].
  */
 data class ReviewSectorSplit(
     val sectorId: String,
@@ -40,6 +45,24 @@ data class ReviewSectorSplit(
     val sectorOrder: Int,
     val lapNumber: Int,
     val splitMillis: Long,
+)
+
+/**
+ * One complete Sector INTERVAL in a Timing Session Review (D-06, D-11).
+ *
+ * Carries BOTH the adjacent-crossing [durationMillis] and the separate
+ * [cumulativeSplitMillis] from the lap start, so V2 history renders complete
+ * Sector coverage without recomputing it from line crossings.
+ */
+data class ReviewCompleteSector(
+    val sectorId: String,
+    val sectorName: String,
+    val sectorOrder: Int,
+    val lapNumber: Int,
+    val startedAtMillis: Long,
+    val endedAtMillis: Long,
+    val durationMillis: Long,
+    val cumulativeSplitMillis: Long,
 )
 
 /**
@@ -57,7 +80,10 @@ data class TimingSessionReviewSummary(
     val totalDurationMillis: Long,
     val bestLapMillis: Long?,
     val laps: List<ReviewLapRow>,
+    /** V1 legacy cumulative line splits (`LegacyCumulativeSplit`); empty for V2-only data. */
     val sectorSplits: List<ReviewSectorSplit>,
+    /** V2 complete Sector intervals with separate duration and cumulative split; empty for V1 history. */
+    val completeSectors: List<ReviewCompleteSector>,
     val sampleCount: Int,
     val gpsQuality: SessionGpsQualitySummary,
     val source: LocationSource,
@@ -90,6 +116,20 @@ object ReviewSummaries {
                 splitMillis = it.splitMillis,
             )
         }
+        // V2 complete Sector intervals are rendered from the persisted snapshot;
+        // they are NEVER inferred from the legacy line splits above (D-06, D-11).
+        val completeSectors = payload.sectorResults.map {
+            ReviewCompleteSector(
+                sectorId = it.sectorId,
+                sectorName = it.sectorId,
+                sectorOrder = it.sectorOrder,
+                lapNumber = it.lapNumber,
+                startedAtMillis = it.startedAtMillis,
+                endedAtMillis = it.endedAtMillis,
+                durationMillis = it.durationMillis,
+                cumulativeSplitMillis = it.cumulativeSplitMillis,
+            )
+        }
         val ghost = store.ghostCandidateForTrack(payload.session.trackId)
         val newTrackBest = ghost != null &&
             bestLap != null &&
@@ -104,6 +144,7 @@ object ReviewSummaries {
             bestLapMillis = bestLap,
             laps = laps,
             sectorSplits = sectors,
+            completeSectors = completeSectors,
             sampleCount = payload.samples.size,
             gpsQuality = payload.gpsQuality,
             source = payload.session.source.source,

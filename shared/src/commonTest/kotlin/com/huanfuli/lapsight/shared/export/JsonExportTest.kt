@@ -7,6 +7,7 @@ import com.huanfuli.lapsight.shared.session.GpsQualitySummary
 import com.huanfuli.lapsight.shared.session.LapDto
 import com.huanfuli.lapsight.shared.session.LocationSampleDto
 import com.huanfuli.lapsight.shared.session.SectorEventDto
+import com.huanfuli.lapsight.shared.session.SectorResultDto
 import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.session.TimingSession
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
@@ -290,6 +291,59 @@ class JsonExportTest {
         val bytes = requireExportService(store).exportTrack("track-export-1")
         assertTrue(bytes.size > 0)
     }
+
+    // --- V2 complete Sector results (D-06/D-11): exportTimingSession serializes the
+    // immutable V2 snapshot with both adjacent durations and cumulative splits,
+    // WITHOUT any change to JsonExportService.
+    @Test
+    fun exportTimingSessionIncludesV2CompleteSectorResults() {
+        val store = InMemorySessionStore()
+        store.saveTrackBundle(track(), marking(), app)
+        store.saveTimingSession(sessionPayloadWithSectorResults(), app)
+
+        val bytes = requireExportService(store).exportTimingSession("session-export-1")
+        val text = bytes.decodeToString()
+
+        val json = com.huanfuli.lapsight.shared.storage.FileSessionStore.canonicalJson
+            .decodeFromString<JsonObject>(text)
+        assertNotNull(json["sectorResults"], "export must include the V2 sectorResults array")
+        // Distinctive V2 fields (cumulativeSplitMillis is unique to SectorResultDto).
+        assertTrue(text.contains("cumulativeSplitMillis"), "V2 sector results carry a cumulative split")
+        assertTrue(text.contains("sectorOrder"), "V2 sector results carry their order")
+    }
+
+    // --- V1 legacy preservation (D-32): a V1-origin payload still exports its
+    // legacy cumulative sector events and is never relabeled as complete sectors.
+    @Test
+    fun exportTimingSessionPreservesV1LegacyCumulativeSplits() {
+        val store = InMemorySessionStore()
+        store.saveTrackBundle(track(), marking(), app)
+        store.saveTimingSession(sessionPayload(), app) // no sectorResults -> V1 legacy
+
+        val bytes = requireExportService(store).exportTimingSession("session-export-1")
+        val text = bytes.decodeToString()
+
+        assertTrue(text.contains("sectorEvents"), "legacy cumulative sector events are preserved")
+        val json = com.huanfuli.lapsight.shared.storage.FileSessionStore.canonicalJson
+            .decodeFromString<JsonObject>(text)
+        // The field exists (canonical, encodeDefaults) but is empty for V1 history.
+        assertNotNull(json["sectorResults"], "sectorResults field is present (empty for V1)")
+    }
+
+    private fun sectorResults() = listOf(
+        SectorResultDto(
+            lapNumber = 1, sectorId = "sector-1", sectorOrder = 1,
+            startedAtMillis = 0L, endedAtMillis = 15_000L,
+            durationMillis = 15_000L, cumulativeSplitMillis = 15_000L,
+        ),
+        SectorResultDto(
+            lapNumber = 1, sectorId = "sector-2", sectorOrder = 2,
+            startedAtMillis = 15_000L, endedAtMillis = 40_000L,
+            durationMillis = 25_000L, cumulativeSplitMillis = 40_000L,
+        ),
+    )
+
+    private fun sessionPayloadWithSectorResults() = sessionPayload().copy(sectorResults = sectorResults())
 
     /** Helper until the real factory exists. */
     private fun requireExportService(store: com.huanfuli.lapsight.shared.storage.LocalSessionStore): JsonExportService =

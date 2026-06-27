@@ -10,9 +10,12 @@ import com.huanfuli.lapsight.shared.lap.ReplayFixtures
 import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.session.GeoPointDto
 import com.huanfuli.lapsight.shared.session.GpsQualitySummary as SessionGpsQualitySummary
+import com.huanfuli.lapsight.shared.session.LapDto
 import com.huanfuli.lapsight.shared.session.LocationSampleDto
+import com.huanfuli.lapsight.shared.session.SectorEventDto
 import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.session.SourceMetadata
+import com.huanfuli.lapsight.shared.session.TimingSession
 import com.huanfuli.lapsight.shared.session.SessionControllerTest.TestTrackFactory.savedTrackWithStartFinish
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
 import com.huanfuli.lapsight.shared.session.toDto
@@ -134,6 +137,95 @@ class ReviewSummaryTest {
         val ghost = store.ghostCandidateForTrack(summary.trackId)
         // Best lap is still shown in the summary; only ghost derivation excludes it.
         assertEquals(summary.bestLapMillis, summary.laps.minOf { it.durationMillis })
+    }
+
+    // ── V2 complete Sector results vs V1 legacy cumulative splits (D-06/D-11) ──
+
+    @Test
+    fun savedV2SessionReviewExposesCompleteSectorDurationsAndCumulativeSplits() {
+        // The DEMO course has 2 intermediate boundaries -> 3 complete Sectors per
+        // lap; a fully observed multi-lap run persists V2 SectorResults end-to-end.
+        val summary = saveAndTimeRealSession()
+
+        assertTrue(
+            summary.completeSectors.isNotEmpty(),
+            "a saved V2 session exposes complete Sector intervals",
+        )
+        // Duration (adjacent difference) and cumulative Split (from the lap start)
+        // are separate fields (D-11).
+        val firstSector = summary.completeSectors.first { it.sectorOrder == 1 }
+        assertEquals(
+            firstSector.cumulativeSplitMillis,
+            firstSector.durationMillis,
+            "Sector 1 duration equals its cumulative split",
+        )
+        val laterSector = summary.completeSectors.first { it.sectorOrder >= 2 }
+        assertTrue(
+            laterSector.cumulativeSplitMillis > laterSector.durationMillis,
+            "later Sectors track cumulative split separately from adjacent duration (D-11)",
+        )
+        assertEquals(
+            laterSector.endedAtMillis - laterSector.startedAtMillis,
+            laterSector.durationMillis,
+            "duration is the adjacent-crossing difference",
+        )
+    }
+
+    @Test
+    fun v1SessionReviewPreservesLegacyCumulativeSplitsWithoutInferringCompleteSectors() {
+        val payload = v1PayloadWithLegacyCumulativeSplits()
+        store.saveTimingSession(payload, app)
+
+        val summary = ReviewSummaries.fromTimingSession(store, payload.session.id)
+        assertNotNull(summary)
+        assertTrue(
+            summary.completeSectors.isEmpty(),
+            "a V1 session must NOT infer complete Sector intervals from legacy line splits",
+        )
+        assertTrue(
+            summary.sectorSplits.isNotEmpty(),
+            "legacy cumulative line splits remain available for V1 history",
+        )
+        assertEquals(
+            15_000L,
+            summary.sectorSplits.first { it.sectorOrder == 0 }.splitMillis,
+            "legacy cumulative split values are preserved unchanged",
+        )
+    }
+
+    private fun v1PayloadWithLegacyCumulativeSplits(): TimingSessionPayloadV1 {
+        val source = SourceMetadata(source = LocationSource.PhoneGps, isSimulated = false)
+        val session = TimingSession(
+            id = "v1-legacy-session",
+            trackId = "v1-legacy-track",
+            trackName = "Legacy Track",
+            createdAtEpochMillis = 1_700_000_000_000L,
+            source = source,
+            startFinish = StartFinishLineDto(
+                pointA = GeoPointDto(0.0, 0.0),
+                pointB = GeoPointDto(0.001, 0.0),
+            ),
+            sectors = emptyList(),
+        )
+        return TimingSessionPayloadV1(
+            session = session,
+            app = app,
+            samples = listOf(
+                LocationSampleDto(0L, 0.0, 0.0, 5.0, 12.0, 90.0, 200.0, LocationSource.PhoneGps),
+                LocationSampleDto(40_000L, 0.0, 0.001, 5.0, 12.0, 90.0, 200.0, LocationSource.PhoneGps),
+            ),
+            laps = listOf(LapDto(lapNumber = 1, startMillis = 0L, endMillis = 40_000L)),
+            sectorEvents = listOf(
+                SectorEventDto(lapNumber = 1, sectorId = "S1", sectorOrder = 0, crossingMillis = 15_000L, splitMillis = 15_000L),
+                SectorEventDto(lapNumber = 1, sectorId = "S2", sectorOrder = 1, crossingMillis = 30_000L, splitMillis = 30_000L),
+            ),
+            gpsQuality = SessionGpsQualitySummary(
+                sampleCount = 2,
+                averageAccuracyMeters = 5.0,
+                source = LocationSource.PhoneGps,
+            ),
+            totalDurationMillis = 40_000L,
+        )
     }
 
     // ── Trace state tests: D-35 (Track Review) and D-36 (Timing Session) ────

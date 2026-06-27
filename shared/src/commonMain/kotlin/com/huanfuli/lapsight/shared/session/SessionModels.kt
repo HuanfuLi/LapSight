@@ -10,6 +10,7 @@ import com.huanfuli.lapsight.shared.ghost.ProgressPoint
 import com.huanfuli.lapsight.shared.ghost.ReferenceLap
 import com.huanfuli.lapsight.shared.lap.LapEvent
 import com.huanfuli.lapsight.shared.lap.SectorEvent
+import com.huanfuli.lapsight.shared.lap.SectorResult
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import kotlinx.serialization.Serializable
@@ -145,7 +146,16 @@ data class LapDto(
     val durationMillis: Long get() = endMillis - startMillis
 }
 
-/** Serializable mirror of [SectorEvent] persisted inside a [TimingSessionPayloadV1]. */
+/**
+ * Serializable mirror of the LEGACY line-centric [SectorEvent] persisted inside a
+ * [TimingSessionPayloadV1] (a `LegacyCumulativeSplit`).
+ *
+ * This carries only a single cumulative [splitMillis] measured from the lap start
+ * to one sector-LINE crossing. It is preserved verbatim for V1 history and is
+ * NEVER relabeled as a complete Sector interval; the complete-interval V2 shape is
+ * [SectorResultDto] with both an adjacent duration and a separate cumulative split
+ * (D-06, D-11).
+ */
 @Serializable
 data class SectorEventDto(
     val lapNumber: Int,
@@ -153,6 +163,48 @@ data class SectorEventDto(
     val sectorOrder: Int,
     val crossingMillis: Long,
     val splitMillis: Long,
+)
+
+/**
+ * Serializable mirror of the complete-interval [SectorResult] persisted inside a
+ * [TimingSessionPayloadV1] (D-06, D-11).
+ *
+ * Unlike the legacy [SectorEventDto], this carries BOTH the adjacent-crossing
+ * [durationMillis] and the separate [cumulativeSplitMillis] from the lap start, so
+ * historical Review/export can render complete Sector coverage without recomputing
+ * it from line crossings.
+ */
+@Serializable
+data class SectorResultDto(
+    val lapNumber: Int,
+    val sectorId: String,
+    val sectorOrder: Int,
+    val startedAtMillis: Long,
+    val endedAtMillis: Long,
+    val durationMillis: Long,
+    val cumulativeSplitMillis: Long,
+)
+
+/** Maps a domain [SectorResult] to its serializable V2 DTO. */
+fun SectorResult.toDto(): SectorResultDto = SectorResultDto(
+    lapNumber = lapNumber,
+    sectorId = sectorId,
+    sectorOrder = sectorOrder,
+    startedAtMillis = startedAtMillis,
+    endedAtMillis = endedAtMillis,
+    durationMillis = durationMillis,
+    cumulativeSplitMillis = cumulativeSplitMillis,
+)
+
+/** Maps a persisted [SectorResultDto] back to the domain [SectorResult]. */
+fun SectorResultDto.toModel(): SectorResult = SectorResult(
+    lapNumber = lapNumber,
+    sectorId = sectorId,
+    sectorOrder = sectorOrder,
+    startedAtMillis = startedAtMillis,
+    endedAtMillis = endedAtMillis,
+    durationMillis = durationMillis,
+    cumulativeSplitMillis = cumulativeSplitMillis,
 )
 
 /**
@@ -190,6 +242,13 @@ data class TimingSessionPayloadV1(
     val sectorEvents: List<SectorEventDto>,
     val gpsQuality: GpsQualitySummary,
     val totalDurationMillis: Long = 0L,
+    /**
+     * Complete-interval V2 Sector results (D-06, D-11). Defaulted empty so V1
+     * history written before this field decodes cleanly and keeps its legacy
+     * cumulative [sectorEvents] meaning; a saved V2 session additionally carries
+     * these complete intervals with separate duration and cumulative split.
+     */
+    val sectorResults: List<SectorResultDto> = emptyList(),
 )
 
 /**

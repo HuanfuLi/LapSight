@@ -54,6 +54,10 @@ interface LocalSessionStore {
         gpsQuality: com.huanfuli.lapsight.shared.session.GpsQualitySummary,
         totalDurationMillis: Long,
         app: AppMetadata,
+        // Complete-interval V2 Sector results (D-06, D-11). Defaulted so existing
+        // callers and V1 history are unaffected; the recorder threads them so a
+        // saved session carries complete Sector coverage alongside legacy splits.
+        sectorResults: List<com.huanfuli.lapsight.shared.session.SectorResultDto> = emptyList(),
     )
 
     /**

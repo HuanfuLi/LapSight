@@ -59,6 +59,35 @@ data class SectorEvent(
     val splitMillis: Long,
 )
 
+/**
+ * A complete Sector INTERVAL result for one lap (D-06, D-11).
+ *
+ * Unlike the legacy line-centric [SectorEvent] (which carries only a cumulative
+ * split at a single crossing), a [SectorResult] is the span between two adjacent
+ * timing lines, carrying BOTH the adjacent-crossing [durationMillis] and the
+ * separate [cumulativeSplitMillis] from the lap start. Sector 1 opens at the lap
+ * crossing (so its duration equals its cumulative split); the final Sector closes
+ * on the accepted start/finish crossing at the same timestamp as the lap (D-06).
+ *
+ * @param lapNumber one-based lap this interval belongs to.
+ * @param sectorId stable identifier of the derived interval (e.g. "sector-1").
+ * @param sectorOrder one-based ordering beginning at start/finish (D-11).
+ * @param startedAtMillis interpolated time the interval opened (the prior accepted
+ *   boundary crossing, or the lap start for Sector 1).
+ * @param endedAtMillis interpolated time the closing crossing occurred.
+ * @param durationMillis adjacent-crossing difference [endedAtMillis] - [startedAtMillis].
+ * @param cumulativeSplitMillis time from the lap start to [endedAtMillis].
+ */
+data class SectorResult(
+    val lapNumber: Int,
+    val sectorId: String,
+    val sectorOrder: Int,
+    val startedAtMillis: Long,
+    val endedAtMillis: Long,
+    val durationMillis: Long,
+    val cumulativeSplitMillis: Long,
+)
+
 /** Status of a single sector within the current lap. */
 enum class SectorStatus {
     /** Not yet crossed in the current lap. */
@@ -107,6 +136,8 @@ data class LapTimingState(
     val bestLapMillis: Long? = null,
     val sectors: List<SectorTimingState> = emptyList(),
     val latestSector: SectorEvent? = null,
+    val latestSectorResult: SectorResult? = null,
+    val completedSectorResults: List<SectorResult> = emptyList(),
     val completedLaps: List<LapEvent> = emptyList(),
     val lastRejectReason: LapRejectReason? = null,
 ) {
