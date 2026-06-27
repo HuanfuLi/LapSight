@@ -63,11 +63,16 @@ data class SectorBoundary(
  * in recorded order. [startFinish] is the confirmed timing boundary required for
  * formal Timing (D-05); it is nullable because a Track may be saved before
  * start/finish is confirmed, in which case the revision is simply not yet
- * timing-ready.
+ * timing-ready. [startFinishProgress] is the absolute normalized arc-length anchor
+ * (0.0..1.0) of start/finish on the *recorded* orientation, so the offline editor
+ * (Plan 05-05) and later direction transforms can regenerate finite endpoints from
+ * progress alone instead of trusting persisted canvas coordinates (D-09, D-10). It
+ * is additive and defaults to `null` for V1-migrated setups.
  */
 @Serializable
 data class CourseSetup(
     val startFinish: StartFinishLineDto? = null,
+    val startFinishProgress: Double? = null,
     val sectorsEnabled: Boolean = false,
     val sectorCount: Int = 0,
     val boundaries: List<SectorBoundary> = emptyList(),
