@@ -6,7 +6,11 @@ import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
 import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.session.SessionControllerTest.TestTrackFactory
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
+import com.huanfuli.lapsight.shared.storage.SchemaMigrations
+import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtractor
+import com.huanfuli.lapsight.shared.track.Track
+import com.huanfuli.lapsight.shared.track.TrackPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackReviewDecision
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -41,6 +45,19 @@ class DriveMarkingControllerTest {
         repeat(count) { tick() }
     }
 
+    /**
+     * Persists [track] as its V2 profile (profileId == track.id) and optionally makes
+     * it the explicit current selection. Reuses the canonical migration mapping so the
+     * seeded profile is a real, validatable aggregate.
+     */
+    private fun seedProfile(track: Track, select: Boolean) {
+        val profile = SchemaMigrations.migrateTrack(TrackPayloadV1(track = track, app = app))
+        store.saveProfile(profile, app)
+        if (select) {
+            store.setCurrentSelection(CurrentTrackSelection(profileId = profile.profileId))
+        }
+    }
+
     @Test
     fun beginMarkingTransitionsToCapturingAndDoesNotRequireStartAtFinish() {
         val controller = controller()
@@ -63,11 +80,14 @@ class DriveMarkingControllerTest {
     }
 
     @Test
-    fun startTimingIsBlockedUntilASavedTrackHasConfirmedStartFinish() {
+    fun markingATrackSelectsItAsCurrentAndUnblocksTiming() {
         val controller = controller()
-        // No saved track yet: Start Timing is blocked with the exact UI-SPEC copy.
+        // No saved track yet: Start Timing is blocked with the exact UI-SPEC copy and
+        // the snapshot routes to the explicit selector (D-03).
         var snap = controller.snapshot()
         assertFalse(snap.canStartTiming)
+        assertTrue(snap.needsTrackSelection, "blocked Timing must route to the selector")
+        assertNull(snap.currentTrackName)
         assertEquals(
             "Mark a track first. Timing needs a saved start/finish line.",
             snap.startTimingBlockedReason,
@@ -79,56 +99,108 @@ class DriveMarkingControllerTest {
         controller.stopMarking()
         snap = controller.snapshot()
         assertTrue(snap.reviewState?.canSave == true)
-        // Even a ready review is not yet a saved track with confirmed start/finish.
+        // Even a ready review is not yet a saved + selected Track.
         assertFalse(snap.canStartTiming)
 
         // Confirm start/finish from the reference line, then save.
         controller.confirmStartFinish()
         controller.saveTrack()
         snap = controller.snapshot()
-        // Now a saved Track with a confirmed start/finish exists: timing unblocks.
-        assertTrue(snap.canStartTiming, "timing should unblock after saved track with start/finish")
+        // Saving makes the new Track the EXPLICIT current selection (D-01, D-02), so
+        // Timing unblocks against the exact persisted profile — not a newest-ready
+        // heuristic.
+        assertTrue(snap.canStartTiming, "timing should unblock after the saved track is selected")
+        assertFalse(snap.needsTrackSelection)
         assertNull(snap.reviewState, "review cleared after save")
         assertEquals(DriveMarkingPhase.Idle, snap.phase)
         assertEquals(1, snap.savedTrackCount)
         assertEquals("track-1700000000000", snap.timingReadyTrackId)
         assertEquals("Demo Track", snap.timingReadyTrackName)
+        assertEquals("Demo Track", snap.currentTrackName)
     }
 
+    // D-01 / D-03: a persisted explicit selection resolves on a fresh controller, and
+    // a newer unselected profile NEVER becomes current (no newest-Track fallback).
     @Test
-    fun newControllerHydratesPersistedTimingReadyTrackFromStore() {
-        val track = TestTrackFactory.savedTrackWithStartFinish()
-            .copy(id = "track-persisted-ready", name = "Persisted Ready Track", createdAtEpochMillis = 2_000L)
-        store.saveTrackBundle(track, TestTrackFactory.markingFor(track), app)
+    fun newControllerResolvesPersistedSelectionAndIgnoresNewerProfile() {
+        val selected = TestTrackFactory.savedTrackWithStartFinish()
+            .copy(id = "track-selected", name = "Selected Track", createdAtEpochMillis = 1_000L)
+        seedProfile(selected, select = true)
+        // A newer, timing-ready, but UNSELECTED profile that a newest-ready heuristic
+        // would wrongly pick.
+        val newer = TestTrackFactory.savedTrackWithStartFinish()
+            .copy(id = "track-newer", name = "Newer Track", createdAtEpochMillis = 9_000L)
+        seedProfile(newer, select = false)
 
         val controller = controller()
         val snap = controller.snapshot()
 
-        assertEquals(1, snap.savedTrackCount)
-        assertTrue(snap.canStartTiming, "persisted track with start/finish should unblock timing")
-        assertEquals(track.id, snap.timingReadyTrackId)
-        assertEquals(track.name, snap.timingReadyTrackName)
+        assertTrue(snap.canStartTiming, "persisted explicit selection should unblock timing")
+        assertEquals(selected.id, snap.timingReadyTrackId)
+        assertEquals(selected.name, snap.timingReadyTrackName)
+        assertEquals(selected.name, snap.currentTrackName)
+        // Both active profiles are offered by the selector, latest revision only (D-14).
+        assertEquals(
+            setOf("track-selected", "track-newer"),
+            snap.selectableProfiles.map { it.profileId }.toSet(),
+        )
+        assertTrue(snap.selectableProfiles.all { it.isTimingReady })
     }
 
+    // D-03 / D-04: with NO selection, Timing stays blocked and routes to the selector
+    // even though timing-ready profiles exist. This is the direct replacement for the
+    // removed newest-ready regression test — no `maxByOrNull(createdAtEpochMillis)`
+    // derivation remains.
     @Test
-    fun timingReadyTrackSelectionIgnoresTracksWithoutStartFinishAndUsesNewestReadyTrack() {
-        val notReady = TestTrackFactory.savedTrackWithoutStartFinish()
-            .copy(id = "track-no-start-finish", createdAtEpochMillis = 3_000L)
+    fun noCurrentSelectionBlocksTimingEvenWhenTimingReadyProfilesExist() {
         val readyOld = TestTrackFactory.savedTrackWithStartFinish()
             .copy(id = "track-ready-old", name = "Old Ready", createdAtEpochMillis = 1_000L)
         val readyNew = TestTrackFactory.savedTrackWithStartFinish()
-            .copy(id = "track-ready-new", name = "New Ready", createdAtEpochMillis = 2_000L)
-        listOf(notReady, readyOld, readyNew).forEach { track ->
-            store.saveTrackBundle(track, TestTrackFactory.markingFor(track), app)
-        }
+            .copy(id = "track-ready-new", name = "New Ready", createdAtEpochMillis = 9_000L)
+        seedProfile(readyOld, select = false)
+        seedProfile(readyNew, select = false)
 
         val controller = controller()
         val snap = controller.snapshot()
 
-        assertEquals(3, snap.savedTrackCount)
-        assertTrue(snap.canStartTiming)
-        assertEquals(readyNew.id, snap.timingReadyTrackId)
-        assertEquals(readyNew.name, snap.timingReadyTrackName)
+        // No newest-ready fallback: Timing is blocked and the selector is offered.
+        assertFalse(snap.canStartTiming, "no explicit selection must NOT fall back to the newest track")
+        assertTrue(snap.needsTrackSelection)
+        assertNull(snap.timingReadyTrackId)
+        assertNull(snap.currentTrackName)
+        assertEquals(
+            "Mark a track first. Timing needs a saved start/finish line.",
+            snap.startTimingBlockedReason,
+        )
+        // The selector still lists both active profiles for the user to choose from.
+        assertEquals(2, snap.selectableProfiles.size)
+    }
+
+    // D-16: the selector offers only ACTIVE profiles; an archived current selection is
+    // unavailable and never silently replaced by another profile.
+    @Test
+    fun archivedCurrentSelectionIsUnavailableAndExcludedFromSelector() {
+        val active = TestTrackFactory.savedTrackWithStartFinish()
+            .copy(id = "track-active", name = "Active Track", createdAtEpochMillis = 1_000L)
+        seedProfile(active, select = false)
+
+        val archivedTrack = TestTrackFactory.savedTrackWithStartFinish()
+            .copy(id = "track-archived", name = "Archived Track", createdAtEpochMillis = 2_000L)
+        val archivedProfile = SchemaMigrations
+            .migrateTrack(TrackPayloadV1(track = archivedTrack, app = app))
+            .copy(archivedAtEpochMillis = 3_000L)
+        store.saveProfile(archivedProfile, app)
+        store.setCurrentSelection(CurrentTrackSelection(profileId = archivedProfile.profileId))
+
+        val controller = controller()
+        val snap = controller.snapshot()
+
+        // The archived selection blocks Timing (no fallback to the active profile).
+        assertFalse(snap.canStartTiming)
+        assertTrue(snap.needsTrackSelection)
+        assertNull(snap.timingReadyTrackId)
+        // Only the active profile is selectable.
+        assertEquals(listOf("track-active"), snap.selectableProfiles.map { it.profileId })
     }
 
     @Test

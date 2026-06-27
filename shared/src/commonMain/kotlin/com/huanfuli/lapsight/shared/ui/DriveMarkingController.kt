@@ -10,12 +10,17 @@ import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.session.toDto
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
+import com.huanfuli.lapsight.shared.storage.SchemaMigrations
+import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
+import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtraction
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtractor
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
+import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import com.huanfuli.lapsight.shared.track.TrackProfileController
 import com.huanfuli.lapsight.shared.track.TrackReviewState
 
 /**
@@ -50,6 +55,12 @@ data class DriveMarkingSnapshot(
     val timingReadyTrackName: String?,
     val canStartTiming: Boolean,
     val startTimingBlockedReason: String,
+    /** Exact persisted current-Track name (D-01); null when nothing is selected. */
+    val currentTrackName: String? = null,
+    /** True when Timing is blocked and the UI must route to the Track selector (D-03). */
+    val needsTrackSelection: Boolean = true,
+    /** Active profiles (latest revision only) offered by the Track selector (D-14). */
+    val selectableProfiles: List<TrackProfileRow> = emptyList(),
 ) {
     val speedKmhLabel: String
         get() = latestSample?.speedMetersPerSecond
@@ -72,9 +83,24 @@ data class DriveMarkingSnapshot(
             timingReadyTrackName = null,
             canStartTiming = false,
             startTimingBlockedReason = START_TIMING_BLOCKED_COPY,
+            currentTrackName = null,
+            needsTrackSelection = true,
+            selectableProfiles = emptyList(),
         )
     }
 }
+
+/**
+ * A selectable Track row for the Drive selector (D-02, D-14).
+ *
+ * Only active profiles are surfaced and only their latest revision is described, so
+ * the selector never offers an archived Track or an older geometry revision.
+ */
+data class TrackProfileRow(
+    val profileId: String,
+    val name: String,
+    val isTimingReady: Boolean,
+)
 
 /**
  * Plain-Kotlin controller for the Mark New Track capture state machine.
@@ -108,16 +134,29 @@ class DriveMarkingController(
     private val savedTracks: MutableList<Track> = mutableListOf()
     private var trackNameOverride: String? = null
 
+    /** Resolves the explicit current Track selection without any newest-Track fallback. */
+    private val profileController = TrackProfileController(store)
+
     init {
         refreshSavedTracks()
     }
 
     /** Current immutable view of the Drive surface. */
     fun snapshot(): DriveMarkingSnapshot {
-        val timingReadyTrack = savedTracks
-            .filter { it.startFinish != null }
-            .maxByOrNull { it.createdAtEpochMillis }
-        val canStart = timingReadyTrack != null
+        // Resolve ONLY the explicit persisted current selection (D-01..D-04). There is
+        // no `maxByOrNull(createdAtEpochMillis)` newest-ready fallback any more: an
+        // unavailable selection blocks Timing and routes to the selector instead of
+        // silently switching to another Track (D-03).
+        val selected = profileController.resolveCurrent() as? CurrentProfileResolution.Selected
+        val canStart = selected != null
+        val selectableProfiles = store.listActiveProfiles().map { profile ->
+            TrackProfileRow(
+                profileId = profile.profileId,
+                name = profile.name,
+                // Describe the latest revision only (D-14).
+                isTimingReady = profile.latestRevision?.courseSetup?.startFinish != null,
+            )
+        }
         return DriveMarkingSnapshot(
             phase = phase,
             isDemoFeedRunning = provider.isRunning,
@@ -126,10 +165,13 @@ class DriveMarkingController(
             feedQuality = if (feedSamples.isEmpty()) null else GpsQualitySummary.from(feedSamples),
             reviewState = reviewState,
             savedTrackCount = savedTracks.size,
-            timingReadyTrackId = timingReadyTrack?.id,
-            timingReadyTrackName = timingReadyTrack?.name,
+            timingReadyTrackId = selected?.profile?.profileId,
+            timingReadyTrackName = selected?.profile?.name,
             canStartTiming = canStart,
             startTimingBlockedReason = if (canStart) "" else START_TIMING_BLOCKED_COPY,
+            currentTrackName = selected?.profile?.name,
+            needsTrackSelection = !canStart,
+            selectableProfiles = selectableProfiles,
         )
     }
 
@@ -234,6 +276,16 @@ class DriveMarkingController(
             createdAtEpochMillis = createdAt,
         )
         store.saveTrackBundle(track, review.extraction.markingSession, appMetadata)
+        // Promote the saved Track to its V2 profile and make it the explicit current
+        // selection so the mark -> time flow resolves through TrackProfileController
+        // with no newest-Track fallback (D-01, D-02). The migration mapping keeps
+        // profileId == track.id, so the existing SessionController.startTiming path is
+        // unchanged.
+        val profile = SchemaMigrations.migrateTrack(TrackPayloadV1(track = track, app = appMetadata))
+        store.saveProfile(profile, appMetadata)
+        store.setCurrentSelection(
+            CurrentTrackSelection(profileId = profile.profileId, direction = profile.preferredDirection),
+        )
         refreshSavedTracks()
         reviewState = null
         phase = DriveMarkingPhase.Idle

@@ -16,6 +16,7 @@ import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.GhostReferencePayloadV2
 import com.huanfuli.lapsight.shared.track.TimingSessionPayloadV2
 import com.huanfuli.lapsight.shared.track.TrackProfile
@@ -48,6 +49,9 @@ class InMemorySessionStore : LocalSessionStore {
 
     /** Commit marker mirroring the file store's profile index (index-last semantics). */
     private val profileIndex = mutableListOf<String>()
+
+    /** The single persisted explicit current-Track selection (D-01); null when unset. */
+    private var currentSelection: CurrentTrackSelection? = null
 
     override fun saveTrackBundle(track: Track, marking: TrackMarkingSession, app: AppMetadata): SaveResult {
         // Payloads first (mirrors FileSessionStore), then the index row.
@@ -275,6 +279,28 @@ class InMemorySessionStore : LocalSessionStore {
 
     override fun listActiveProfiles(): List<TrackProfile> =
         profileIndex.mapNotNull { profiles[it] }.filterNot { it.isArchived }
+
+    // --- Explicit current-Track selection (D-01..D-04) ----------------------
+
+    override fun loadCurrentSelection(): LoadResult<CurrentTrackSelection> {
+        val selection = currentSelection ?: return LoadResult.NotFound
+        // Mirror the file store's defense in depth: an unsafe persisted id is corrupt.
+        if (selection.profileId != null && !SchemaMigrations.isSafeId(selection.profileId)) {
+            return LoadResult.Corrupt("unsafe profile id")
+        }
+        return LoadResult.Loaded(selection)
+    }
+
+    override fun setCurrentSelection(selection: CurrentTrackSelection) {
+        require(selection.profileId == null || SchemaMigrations.isSafeId(selection.profileId)) {
+            "unsafe profile id"
+        }
+        currentSelection = selection
+    }
+
+    override fun clearCurrentSelection() {
+        currentSelection = null
+    }
 
     private fun referenceKey(trackId: String, isSimulated: Boolean): String =
         "${trackId}__${if (isSimulated) "sim" else "real"}"

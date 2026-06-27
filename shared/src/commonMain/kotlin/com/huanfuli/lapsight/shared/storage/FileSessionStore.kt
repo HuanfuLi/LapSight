@@ -17,6 +17,7 @@ import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.GhostReferencePayloadV2
 import com.huanfuli.lapsight.shared.track.TimingSessionPayloadV2
 import com.huanfuli.lapsight.shared.track.TrackProfile
@@ -62,6 +63,7 @@ class FileSessionStore(
     private val sessionsV2Dir: Path get() = root / SESSIONS_V2_DIR
     private val referencesV2Dir: Path get() = root / REFERENCES_V2_DIR
     private val profilesIndexPath: Path get() = root / PROFILES_INDEX_FILE
+    private val currentSelectionPath: Path get() = root / CURRENT_SELECTION_FILE
 
     /** Per-Track reference file, separated by source boundary (D-03, D-04). */
     private fun referencePath(trackId: String, isSimulated: Boolean): Path =
@@ -385,6 +387,44 @@ class FileSessionStore(
             (loadProfile(id) as? LoadResult.Loaded)?.value
         }.filterNot { it.isArchived }
 
+    // --- Explicit current-Track selection (D-01..D-04) ----------------------
+
+    override fun loadCurrentSelection(): LoadResult<CurrentTrackSelection> {
+        if (!fileSystem.exists(currentSelectionPath)) return LoadResult.NotFound
+        return try {
+            val text = fileSystem.read(currentSelectionPath) { readUtf8() }
+            val value = json.decodeFromString(CurrentTrackSelection.serializer(), text)
+            // Defense in depth: an unsafe persisted profileId is corrupt and must
+            // never be turned into an Okio path by a later loadProfile (T-05-05).
+            if (value.profileId != null && !SchemaMigrations.isSafeId(value.profileId)) {
+                LoadResult.Corrupt("unsafe profile id")
+            } else {
+                LoadResult.Loaded(value)
+            }
+        } catch (e: SerializationException) {
+            LoadResult.Corrupt(e.message ?: "malformed JSON")
+        } catch (e: IllegalArgumentException) {
+            LoadResult.Corrupt(e.message ?: "invalid payload")
+        }
+    }
+
+    override fun setCurrentSelection(selection: CurrentTrackSelection) {
+        // Reject an unsafe id before any write (T-05-05); null means "no current Track".
+        require(selection.profileId == null || SchemaMigrations.isSafeId(selection.profileId)) {
+            "unsafe profile id"
+        }
+        // Payload-first atomic write (sibling temp + atomicMove), like every other
+        // canonical payload, so a crashed write never leaves a torn selection file.
+        writeAtomically(
+            currentSelectionPath,
+            json.encodeToString(CurrentTrackSelection.serializer(), selection),
+        )
+    }
+
+    override fun clearCurrentSelection() {
+        if (fileSystem.exists(currentSelectionPath)) fileSystem.delete(currentSelectionPath)
+    }
+
     private fun readProfileIndex(): ProfileIndex {
         if (!fileSystem.exists(profilesIndexPath)) return ProfileIndex()
         return try {
@@ -454,6 +494,7 @@ class FileSessionStore(
         private const val SESSIONS_V2_DIR = "sessions-v2"
         private const val REFERENCES_V2_DIR = "references-v2"
         private const val PROFILES_INDEX_FILE = "profiles-index.json"
+        private const val CURRENT_SELECTION_FILE = "current-selection.json"
 
         /** Filename slot suffixes keeping real and simulated references apart (D-04). */
         private const val REAL_SLOT = "real"

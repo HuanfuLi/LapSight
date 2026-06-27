@@ -6,6 +6,7 @@ import com.huanfuli.lapsight.shared.session.GhostCandidate
 import com.huanfuli.lapsight.shared.session.GhostReferencePayloadV1
 import com.huanfuli.lapsight.shared.session.TimingSession
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
+import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
@@ -141,6 +142,30 @@ interface LocalSessionStore {
 
     /** Lists every non-archived V2 profile recorded in the profile index. */
     fun listActiveProfiles(): List<TrackProfile>
+
+    // --- Explicit current-Track selection (D-01..D-04) ----------------------
+
+    /**
+     * Loads the persisted explicit current-Track selection (D-01).
+     *
+     * Returns [LoadResult.NotFound] when no selection has ever been written (the
+     * post-migration default), [LoadResult.Corrupt] when the persisted payload is
+     * malformed or carries an unsafe opaque id (defense in depth, T-05-05), and
+     * [LoadResult.Loaded] otherwise. There is NO newest/only fallback: an absent
+     * selection is reported as absent, never substituted (D-03, D-04).
+     */
+    fun loadCurrentSelection(): LoadResult<CurrentTrackSelection>
+
+    /**
+     * Persists [selection] as the explicit current Track + Course Direction,
+     * overwriting any prior selection with a payload-first atomic write. Rejects a
+     * non-null but unsafe [CurrentTrackSelection.profileId] before any write
+     * (T-05-05).
+     */
+    fun setCurrentSelection(selection: CurrentTrackSelection)
+
+    /** Clears any persisted current selection (used on archive of the current Track). */
+    fun clearCurrentSelection()
 }
 
 /**
