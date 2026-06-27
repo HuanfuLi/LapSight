@@ -1,7 +1,9 @@
 package com.huanfuli.lapsight.shared.track
 
+import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
+import com.huanfuli.lapsight.shared.storage.SchemaMigrations
 
 /**
  * Resolves the explicit current Track selection with NO newest-Track fallback
@@ -32,6 +34,27 @@ class TrackProfileController(
      * 7. Otherwise -> [CurrentProfileResolution.Selected] with the exact profile, its
      *    latest timing-ready revision, and the remembered [CourseDirection].
      */
+    /**
+     * Creates the FIRST (or another) named V2 profile from a completed Track marking
+     * (SC-01, Task 05-04-1).
+     *
+     * Behavior contract:
+     * - The user-provided [name] is validated BEFORE any write: a blank name or a name
+     *   carrying path-injection / control characters is rejected as
+     *   [CreateProfileResult.Rejected] and NOTHING is persisted (T-05-07). A canonical
+     *   storage path is NEVER derived from the name.
+     * - Opaque identities (`profileId`, `revisionId`, `geometryCompatibilityId`) come
+     *   from the completed marking's opaque [Track.id], never from the name. Two creates
+     *   with the same name but different markings are two independent logical profiles.
+     * - The created profile is persisted via [LocalSessionStore.saveProfile] (payload
+     *   first / index last) with a single immutable first revision.
+     * - Creating a profile does NOT set the current selection: selection stays explicit
+     *   (D-01..D-04). The caller chooses when (and whether) to make it current.
+     */
+    fun saveProfile(track: Track, name: String, app: AppMetadata): CreateProfileResult {
+        TODO("05-04 Task 1 GREEN: validate name, build first revision, persist without selecting")
+    }
+
     fun resolveCurrent(): CurrentProfileResolution {
         val selection = when (val loaded = store.loadCurrentSelection()) {
             is LoadResult.Loaded -> loaded.value
@@ -95,4 +118,34 @@ sealed interface CurrentProfileResolution {
 
     /** The selected profile's latest revision has no confirmed start/finish (D-05). */
     data object NotTimingReady : CurrentProfileResolution
+}
+
+/**
+ * Typed outcome of the create-first-profile path ([TrackProfileController.saveProfile]).
+ *
+ * A name that is blank or carries unsafe characters yields [Rejected] and writes
+ * nothing; a valid create yields [Created] with the freshly persisted profile. The
+ * caller never needs to catch an exception to discover an invalid name.
+ */
+sealed interface CreateProfileResult {
+
+    /** The profile was validated and persisted (but NOT auto-selected). */
+    data class Created(val profile: TrackProfile) : CreateProfileResult
+
+    /** The name was blank or unsafe; nothing was written. */
+    data class Rejected(val reason: String) : CreateProfileResult
+}
+
+/**
+ * A profile name is safe when it is non-blank and cannot smuggle a path separator,
+ * a parent-directory escape, or a control character — defense in depth so a name can
+ * never become or influence a canonical storage path (T-05-07).
+ */
+fun isSafeProfileName(name: String): Boolean {
+    val trimmed = name.trim()
+    return trimmed.isNotBlank() &&
+        !trimmed.contains('/') &&
+        !trimmed.contains('\\') &&
+        !trimmed.contains("..") &&
+        trimmed.none { it.isISOControl() }
 }
