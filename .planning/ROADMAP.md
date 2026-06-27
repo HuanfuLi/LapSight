@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 1/14 plans executed
+**Plans:** 2/14 plans executed
 
 Plans:
 
@@ -177,7 +177,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 05-02-PLAN.md - Side-by-side idempotent store migration wiring
+- [x] 05-02-PLAN.md - Side-by-side idempotent store migration wiring
 
 **Wave 3** *(blocked on Wave 2)*
 
