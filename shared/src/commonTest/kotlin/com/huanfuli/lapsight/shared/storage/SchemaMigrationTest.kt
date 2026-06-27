@@ -1,6 +1,10 @@
 package com.huanfuli.lapsight.shared.storage
 
+import com.huanfuli.lapsight.shared.session.GhostReferencePayloadV1
+import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -190,6 +194,73 @@ class SchemaMigrationTest {
         val result = SchemaMigrations.decodeTrackProfile(V2_PROFILE_BAD_BOUNDARY_COUNT)
         val corrupt = assertIs<LoadResult.Corrupt>(result)
         assertTrue(corrupt.reason.contains("boundary count"))
+    }
+
+    // --- Task 2: pure V1 -> V2 migration-correctness gates (T-05-02) ----------
+
+    @Test
+    fun trackMigrationIdentitiesAreDeterministicAndNotHashed() {
+        // Identities are explicit string formulas, never a geometry hash (D-15).
+        assertEquals("track-legacy-1:r1", SchemaMigrations.migratedRevisionId("track-legacy-1"))
+        assertEquals("track-legacy-1:g1", SchemaMigrations.migratedGeometryCompatibilityId("track-legacy-1"))
+
+        val v1 = SchemaMigrations.migrationJson.decodeFromString<TrackPayloadV1>(member("track"))
+        val first = SchemaMigrations.migrateTrack(v1)
+        val second = SchemaMigrations.migrateTrack(v1)
+        // Pure + deterministic: same input maps to an identical aggregate every time.
+        assertEquals(first, second)
+
+        val revision = assertNotNull(first.latestRevision)
+        assertEquals("track-legacy-1", first.profileId)
+        assertEquals("track-legacy-1:r1", revision.revisionId)
+        assertEquals("track-legacy-1:g1", revision.geometryCompatibilityId)
+        assertEquals(1, revision.ordinal)
+        // D-01/D-04: never derive a non-Recorded preferred direction at migration.
+        assertEquals(CourseDirection.Recorded, first.preferredDirection)
+        assertNull(first.archivedAtEpochMillis)
+    }
+
+    @Test
+    fun legacySplitsArePreservedWithoutInferringAFinalSector() {
+        val v1 = SchemaMigrations.migrationJson.decodeFromString<TimingSessionPayloadV1>(member("session"))
+        val v2 = SchemaMigrations.migrateTimingSession(v1)
+        val snapshot = v2.session.courseSnapshot
+
+        // Every legacy cumulative line split survives verbatim — same count, same values.
+        assertEquals(v1.sectorEvents.size, snapshot.legacySplits.size)
+        assertEquals(
+            v1.sectorEvents.map { it.splitMillis },
+            snapshot.legacySplits.map { it.cumulativeSplitMillis },
+        )
+        // Intermediate boundaries equal the source line count (N-1); migration never
+        // inflates them into N complete Sector results (D-06).
+        assertEquals(v1.session.sectors.size, snapshot.boundaries.size)
+        assertTrue(snapshot.isLegacyMigrated)
+        // Deterministic migrated identities flow into the immutable snapshot.
+        assertEquals("track-legacy-1:r1", snapshot.revisionId)
+        assertEquals("track-legacy-1:g1", snapshot.geometryCompatibilityId)
+        assertEquals(CourseDirection.Recorded, snapshot.direction)
+    }
+
+    @Test
+    fun migrationMapsCurrentSelectionToNull() {
+        val selection = SchemaMigrations.migrateCurrentSelection()
+        assertNull(selection.profileId)
+        assertEquals(CourseDirection.Recorded, selection.direction)
+    }
+
+    @Test
+    fun ghostMigrationKeepsSourceSlotAndNeverReverses() {
+        val v1 = SchemaMigrations.migrationJson.decodeFromString<GhostReferencePayloadV1>(member("ghost"))
+        val v2 = SchemaMigrations.migrateGhostReference(v1)
+
+        assertEquals(v1.source.isSimulated, v2.compatibilityKey.isSimulated)
+        // Legacy references only ever attach to the Recorded direction (Pattern 2).
+        assertEquals(CourseDirection.Recorded, v2.compatibilityKey.direction)
+        assertEquals("track-legacy-1:g1", v2.compatibilityKey.geometryCompatibilityId)
+        // Raw best-lap evidence and the precomputed curve are preserved for replay.
+        assertEquals(v1.samples.size, v2.samples.size)
+        assertEquals(v1.progressPoints.size, v2.progressPoints.size)
     }
 
     private companion object {
