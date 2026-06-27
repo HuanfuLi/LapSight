@@ -48,7 +48,7 @@ class DriveMarkingControllerTest {
         // the (yet-unknown) start/finish line (D-07).
         controller.beginMarking()
         assertEquals(DriveMarkingPhase.Capturing, controller.snapshot().phase)
-        controller.captureSamples(480) // ~10 loops of the clean fixture
+        controller.captureSamples(2400) // ~10 loops of the clean fixture
         controller.stopMarking()
         val snap = controller.snapshot()
         assertEquals(DriveMarkingPhase.Review, snap.phase)
@@ -75,7 +75,7 @@ class DriveMarkingControllerTest {
 
         // Capture + stop into review (ready), but do NOT confirm start/finish yet.
         controller.beginMarking()
-        controller.captureSamples(480)
+        controller.captureSamples(2400)
         controller.stopMarking()
         snap = controller.snapshot()
         assertTrue(snap.reviewState?.canSave == true)
@@ -135,7 +135,7 @@ class DriveMarkingControllerTest {
     fun stopMarkingOnNoisyCaptureDegradesToNotSaveReadyReview() {
         val controller = controller(scenarioId = GpsFixtureLibrary.NOISE_DRIFT)
         controller.beginMarking()
-        controller.captureSamples(8 * 48) // noise-drift fixture
+        controller.captureSamples(8 * 240) // noise-drift fixture
         controller.stopMarking()
         val review = controller.snapshot().reviewState
         assertNotNull(review)

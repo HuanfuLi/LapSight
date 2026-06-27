@@ -175,13 +175,14 @@ class DriveMarkingController(
      * Advance the feed by one sample. Called on a UI timer. While capturing, the
      * sample is also appended to the marking trace.
      */
-    fun tick() {
-        if (!provider.isRunning) return
-        val sample = provider.nextSample() ?: return
+    fun tick(): LocationSample? {
+        if (!provider.isRunning) return null
+        val sample = provider.nextSample() ?: return null
         feedSamples.add(sample)
         if (phase == DriveMarkingPhase.Capturing) {
             captured.add(sample)
         }
+        return sample
     }
 
     /**

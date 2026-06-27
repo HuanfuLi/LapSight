@@ -155,11 +155,13 @@ class TimingSessionRecorder(
             currentLapMillis = timing.currentLapElapsedMillis,
             lastLapMillis = timing.lastLapMillis,
             bestLapMillis = timing.bestLapMillis,
+            sessionElapsedMillis = totalDurationMillis,
             checkpointedSampleCount = sampleCount,
             speedMetersPerSecond = latestSample?.speedMetersPerSecond,
             accuracyMeters = latestSample?.horizontalAccuracyMeters,
             source = session.source,
             deltaDisplay = DeltaDisplayState.from(liveDelta),
+            referenceLapMillis = activeReference?.durationMillis,
         )
     }
 

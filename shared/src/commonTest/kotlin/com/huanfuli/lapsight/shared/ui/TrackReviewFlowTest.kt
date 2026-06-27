@@ -34,7 +34,7 @@ class TrackReviewFlowTest {
 
     private fun captureReady(controller: DriveMarkingController) {
         controller.beginMarking()
-        repeat(480) { controller.tick() }
+        repeat(2400) { controller.tick() }
         controller.stopMarking()
     }
 

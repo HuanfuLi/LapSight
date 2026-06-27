@@ -74,7 +74,7 @@ object GpsFixtureLibrary {
 
     private const val SEMI_MAJOR_M = 200.0 // east radius
     private const val SEMI_MINOR_M = 130.0 // north radius
-    private const val POINTS_PER_LOOP = 48
+    private const val POINTS_PER_LOOP = 240
     private const val LOOP_MILLIS = 24_000L
     private const val ALTITUDE_M = 219.0
     private const val CLEAN_ACCURACY_M = 4.5

@@ -100,14 +100,13 @@ fun DriveScreen(
     // track, even before/after a marking capture or timing run.
     LaunchedEffect(snapshot.isDemoFeedRunning, timingActive) {
         while (snapshot.isDemoFeedRunning || timingActive) {
-            delay(700)
-            controller.tick()
+            delay(100L)
+            val sample = controller.tick()
             snapshot = controller.snapshot()
             if (timingActive) {
                 // Production sample pump: feed the active recorder through the
                 // controller (never recorderForTest) and read the timing/delta
                 // view back for the UI.
-                val sample = provider.nextSample()
                 if (sample != null) {
                     sessionController.ingestSample(sample)
                 }
@@ -439,12 +438,25 @@ private fun TimingRunSurface(
         }
 
         // 1. Current lap time — primary display (UI-SPEC: largest timing value).
-        Text(
-            text = "CURRENT LAP",
-            color = Color(0xFF7E8DA0),
-            fontSize = if (isCompactLandscape) 10.sp else 11.sp,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(
+                text = "CURRENT LAP",
+                color = Color(0xFF7E8DA0),
+                fontSize = if (isCompactLandscape) 10.sp else 11.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "ELAPSED ${timingRun.sessionElapsedMillis.formatLapTime()}",
+                color = Color(0xFF7E8DA0),
+                fontSize = if (isCompactLandscape) 10.sp else 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                style = tnum,
+            )
+        }
         Text(
             text = displayMillis.formatLapTime(),
             color = MaterialTheme.colorScheme.primary,

@@ -253,11 +253,13 @@ data class TimingRunSnapshot(
     val currentLapMillis: Long?,
     val lastLapMillis: Long?,
     val bestLapMillis: Long?,
+    val sessionElapsedMillis: Long,
     val checkpointedSampleCount: Int,
     val speedMetersPerSecond: Double?,
     val accuracyMeters: Double?,
     val source: SourceMetadata?,
     val deltaDisplay: DeltaDisplayState,
+    val referenceLapMillis: Long?,
 ) {
     companion object {
         /** Inactive snapshot: no run, neutral `--` delta, other metrics empty. */
@@ -267,6 +269,7 @@ data class TimingRunSnapshot(
             currentLapMillis = null,
             lastLapMillis = null,
             bestLapMillis = null,
+            sessionElapsedMillis = 0L,
             checkpointedSampleCount = 0,
             speedMetersPerSecond = null,
             accuracyMeters = null,
@@ -274,6 +277,7 @@ data class TimingRunSnapshot(
             deltaDisplay = DeltaDisplayState.from(
                 LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.NoCurrentLap),
             ),
+            referenceLapMillis = null,
         )
     }
 }
