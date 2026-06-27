@@ -30,15 +30,124 @@ data class TraceLayer(
 )
 
 /**
+ * An invertible viewport transform between canonical geographic / local-meter
+ * coordinates and normalized [0..1] render space (Plan 05-06, D-10).
+ *
+ * Built once from a set of geo layers via [TraceViewport.fromLayers], it captures
+ * the single common bounding-box projection (origin [LocalProjection], min corner,
+ * uniform aspect-preserving scale, and centering offset) used by [TraceProjection].
+ * Unlike the one-way [TraceProjection.project], a viewport also inverts: an editor
+ * surface converts a pointer position in normalized space back to local meters /
+ * latitude-longitude so a drag forwards only a *candidate* progress and never a
+ * persisted screen coordinate (D-10). The transform is uniform (`scaleX == scaleY`)
+ * and reversible; saved geometry stays in lat/lon.
+ */
+class TraceViewport internal constructor(
+    /** The canonical projection around the first geo point of the source layers. */
+    val projection: LocalProjection,
+    private val minX: Double,
+    private val minY: Double,
+    /** Uniform aspect-preserving scale (meters → normalized); always positive. */
+    private val scale: Double,
+    private val offsetX: Double,
+    private val offsetY: Double,
+) {
+    /** Local meters → normalized [0..1] render point. */
+    fun localToNormalized(point: LocalPoint): TracePoint = TracePoint(
+        x = offsetX + (point.x - minX) * scale,
+        y = offsetY + (point.y - minY) * scale,
+    )
+
+    /** Canonical lat/lon → normalized [0..1] render point. */
+    fun geoToNormalized(geo: GeoPointDto): TracePoint =
+        localToNormalized(projection.toLocal(GeoPoint(geo.latitude, geo.longitude)))
+
+    /** Normalized [0..1] render point → local meters (inverse of [localToNormalized]). */
+    fun normalizedToLocal(normalizedX: Double, normalizedY: Double): LocalPoint = LocalPoint(
+        x = minX + (normalizedX - offsetX) / scale,
+        y = minY + (normalizedY - offsetY) / scale,
+    )
+
+    /** Normalized [0..1] render point → canonical lat/lon (inverse of [geoToNormalized]). */
+    fun normalizedToGeo(normalizedX: Double, normalizedY: Double): GeoPointDto {
+        val geo = projection.toGeo(normalizedToLocal(normalizedX, normalizedY))
+        return GeoPointDto(latitude = geo.latitude, longitude = geo.longitude)
+    }
+
+    /** Project one geo layer into normalized render points. */
+    fun projectLayer(layer: List<GeoPointDto>): List<TracePoint> = layer.map { geoToNormalized(it) }
+
+    companion object {
+        private const val MIN_BOUNDING_BOX_METERS = 1e-6
+
+        /**
+         * Build the common bounding-box viewport across [layers], or `null` for an
+         * empty/degenerate input (no points, single point, or zero-area bounds). The
+         * math is identical to [TraceProjection.project] so the forward projection
+         * and the editor's inverse share exactly one transform.
+         */
+        fun fromLayers(
+            layers: List<List<GeoPointDto>>,
+            width: Double,
+            height: Double,
+            padding: Double,
+        ): TraceViewport? {
+            val allDtos = layers.flatten()
+            if (allDtos.isEmpty()) return null
+
+            val originDto = allDtos.first()
+            val projection = LocalProjection(GeoPoint(originDto.latitude, originDto.longitude))
+
+            var minX = Double.POSITIVE_INFINITY
+            var maxX = Double.NEGATIVE_INFINITY
+            var minY = Double.POSITIVE_INFINITY
+            var maxY = Double.NEGATIVE_INFINITY
+            for (dto in allDtos) {
+                val pt = projection.toLocal(GeoPoint(dto.latitude, dto.longitude))
+                minX = min(minX, pt.x)
+                maxX = max(maxX, pt.x)
+                minY = min(minY, pt.y)
+                maxY = max(maxY, pt.y)
+            }
+
+            val spanX = maxX - minX
+            val spanY = maxY - minY
+            // Degenerate bounding box (all points coincident or within tolerance).
+            if (spanX < MIN_BOUNDING_BOX_METERS && spanY < MIN_BOUNDING_BOX_METERS) return null
+
+            // Preserve aspect ratio: fit the geographic bounding box into the target
+            // canvas while keeping the correct proportions.
+            val padded = padding.coerceIn(0.0, 0.4)
+            val canvasAspect = if (height > 0.0) width / height else 1.0
+            val dataAspect = if (spanY > 1e-9) spanX / spanY else 1.0
+
+            val usableWidth = 1.0 - 2.0 * padded
+            val usableHeight = 1.0 - 2.0 * padded
+
+            // Uniform scale: width-constrained when wider than the canvas, else height.
+            val scale = if (dataAspect > canvasAspect) usableWidth / spanX else usableHeight / spanY
+
+            val scaledSpanX = spanX * scale
+            val scaledSpanY = spanY * scale
+            val offsetX = padded + (usableWidth - scaledSpanX) / 2.0
+            val offsetY = padded + (usableHeight - scaledSpanY) / 2.0
+
+            return TraceViewport(projection, minX, minY, scale, offsetX, offsetY)
+        }
+    }
+}
+
+/**
  * Pure projection from canonical [GeoPointDto] lists to normalized [TracePoint]
  * render layers. Uses [LocalProjection] around the first valid point to convert
  * lat/lon to local meters, computes a stable bounding box across all supplied
  * layers, preserves aspect ratio, applies caller padding, and returns render-only
  * points (D-34). Never writes screen coordinates back to saved models.
+ *
+ * Delegates to the single [TraceViewport] transform so the offline editor's
+ * inverse screen→local conversion stays consistent with this forward projection.
  */
 object TraceProjection {
-
-    private const val MIN_BOUNDING_BOX_METERS = 1e-6
 
     /**
      * Project multiple geo-point layers into a common normalized coordinate
@@ -58,79 +167,8 @@ object TraceProjection {
         padding: Double,
     ): List<List<TracePoint>> {
         if (layers.isEmpty()) return emptyList()
-
-        // Collect all points and find the first valid one as projection origin.
-        val allDtos = layers.flatten()
-        if (allDtos.isEmpty()) return layers.map { emptyList() }
-
-        val originDto = allDtos.first()
-        val projection = LocalProjection(GeoPoint(originDto.latitude, originDto.longitude))
-
-        // Convert every point to local meters.
-        val allLocal: List<List<LocalPoint>> = layers.map { layer ->
-            layer.map { dto -> projection.toLocal(GeoPoint(dto.latitude, dto.longitude)) }
-        }
-
-        // Compute the bounding box across ALL layers.
-        val allLocalFlat = allLocal.flatten()
-        if (allLocalFlat.isEmpty()) return layers.map { emptyList() }
-
-        var minX = Double.POSITIVE_INFINITY
-        var maxX = Double.NEGATIVE_INFINITY
-        var minY = Double.POSITIVE_INFINITY
-        var maxY = Double.NEGATIVE_INFINITY
-
-        for (pt in allLocalFlat) {
-            minX = min(minX, pt.x)
-            maxX = max(maxX, pt.x)
-            minY = min(minY, pt.y)
-            maxY = max(maxY, pt.y)
-        }
-
-        val spanX = maxX - minX
-        val spanY = maxY - minY
-
-        // Degenerate bounding box (all points coincident or within tolerance).
-        if (spanX < MIN_BOUNDING_BOX_METERS && spanY < MIN_BOUNDING_BOX_METERS) {
-            return layers.map { emptyList() }
-        }
-
-        // Preserve aspect ratio: fit the geographic bounding box into the
-        // target canvas while keeping the correct proportions.
-        val padded = padding.coerceIn(0.0, 0.4)
-        val canvasAspect = if (height > 0.0) width / height else 1.0
-        val dataAspect = if (spanY > 1e-9) spanX / spanY else 1.0
-
-        // Compute the scale so the data fits within the padded canvas.
-        val usableWidth = 1.0 - 2.0 * padded
-        val usableHeight = 1.0 - 2.0 * padded
-
-        val scaleX: Double
-        val scaleY: Double
-        if (dataAspect > canvasAspect) {
-            // Data is wider than canvas → constrained by width.
-            scaleX = usableWidth / spanX
-            scaleY = scaleX // preserve aspect ratio
-        } else {
-            // Data is taller (or square) → constrained by height.
-            scaleY = usableHeight / spanY
-            scaleX = scaleY // preserve aspect ratio
-        }
-
-        // Center offset after scaling + padding.
-        val scaledSpanX = spanX * scaleX
-        val scaledSpanY = spanY * scaleY
-        val offsetX = padded + (usableWidth - scaledSpanX) / 2.0
-        val offsetY = padded + (usableHeight - scaledSpanY) / 2.0
-
-        // Project each layer.
-        return allLocal.map { localLayer ->
-            localLayer.map { pt ->
-                TracePoint(
-                    x = offsetX + (pt.x - minX) * scaleX,
-                    y = offsetY + (pt.y - minY) * scaleY,
-                )
-            }
-        }
+        val viewport = TraceViewport.fromLayers(layers, width, height, padding)
+            ?: return layers.map { emptyList() }
+        return layers.map { viewport.projectLayer(it) }
     }
 }
