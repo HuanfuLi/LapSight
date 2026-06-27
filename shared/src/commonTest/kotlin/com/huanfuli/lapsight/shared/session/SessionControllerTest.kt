@@ -7,11 +7,15 @@ import com.huanfuli.lapsight.shared.lap.LapEngineConfig
 import com.huanfuli.lapsight.shared.lap.ReplayFixtures
 import com.huanfuli.lapsight.shared.session.SessionControllerTest.TestTrackFactory.savedTrackWithStartFinish
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
+import com.huanfuli.lapsight.shared.storage.LoadResult
+import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -223,6 +227,56 @@ class SessionControllerTest {
         @Suppress("UNCHECKED_CAST")
         val payload = (savedPayload as com.huanfuli.lapsight.shared.storage.LoadResult.Loaded<TimingSessionPayloadV1>).value
         assertEquals(payload.laps.minOf { it.durationMillis }, ghost.lapDurationMillis)
+    }
+
+    // --- SC-03 / SC-04 (D-18, D-21): selected Course Direction drives Timing ------
+
+    @Test
+    fun recordedSelectionCompletesTheForwardReplay() {
+        val track = saveTrackWithStartFinish()
+        // Recorded is the default, but make the selection explicit for clarity.
+        store.setCurrentSelection(
+            CurrentTrackSelection(profileId = track.id, direction = CourseDirection.Recorded),
+        )
+        val controller = controller()
+        assertIs<StartTimingResult.Started>(controller.startTiming(track.id))
+        val recorder = controller.recorderForTest()!!
+
+        // The canonical multi-lap loop drives the recorded (eastbound) direction.
+        ReplayFixtures.multiLapLoop(listOf(40_000L, 32_000L)).forEach { recorder.onSample(it) }
+        controller.stop()
+
+        assertTrue(recorder.lapCount >= 1, "the recorded direction accepts the forward replay")
+        val saved = controller.saveStoppedDraft() as SaveDraftResult.Saved
+        val payload = (store.loadTimingSession(saved.sessionId) as LoadResult.Loaded<TimingSessionPayloadV1>).value
+        assertEquals(CourseDirection.Recorded, payload.session.direction)
+    }
+
+    @Test
+    fun reverseSelectionRejectsTheForwardReplayAndSnapshotsDirection() {
+        val track = saveTrackWithStartFinish()
+        // Persist Reverse as the current selection for this Track.
+        store.setCurrentSelection(
+            CurrentTrackSelection(profileId = track.id, direction = CourseDirection.Reverse),
+        )
+        val controller = controller()
+        assertIs<StartTimingResult.Started>(controller.startTiming(track.id))
+        val recorder = controller.recorderForTest()!!
+
+        // Feed the SAME forward (eastbound) replay. Under the Reverse configuration the
+        // accepted approach side is flipped, so every eastbound start/finish crossing is
+        // the wrong way and no lap is ever completed (SC-04, D-21).
+        ReplayFixtures.multiLapLoop(listOf(40_000L, 32_000L)).forEach { recorder.onSample(it) }
+        controller.stop()
+
+        val draft = controller.snapshot().activeDraft
+        assertNotNull(draft)
+        assertEquals(0, draft.checkpointedLapCount, "Reverse rejects the opposite-direction replay")
+
+        // Direction is snapshotted into the persisted session/draft (D-14, D-18).
+        val saved = controller.saveStoppedDraft() as SaveDraftResult.Saved
+        val payload = (store.loadTimingSession(saved.sessionId) as LoadResult.Loaded<TimingSessionPayloadV1>).value
+        assertEquals(CourseDirection.Reverse, payload.session.direction)
     }
 
     object TestTrackFactory {
