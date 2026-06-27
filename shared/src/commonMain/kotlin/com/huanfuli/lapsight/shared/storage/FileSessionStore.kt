@@ -7,6 +7,7 @@ import com.huanfuli.lapsight.shared.session.GpsQualitySummary
 import com.huanfuli.lapsight.shared.session.LapDto
 import com.huanfuli.lapsight.shared.session.LocationSampleDto
 import com.huanfuli.lapsight.shared.session.SectorEventDto
+import com.huanfuli.lapsight.shared.session.SectorResultDto
 import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.session.TimingSession
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
@@ -157,6 +158,7 @@ class FileSessionStore(
         gpsQuality: GpsQualitySummary,
         totalDurationMillis: Long,
         app: AppMetadata,
+        sectorResults: List<SectorResultDto>,
     ) {
         val payload = TimingSessionPayloadV1(
             session = session,
@@ -166,6 +168,7 @@ class FileSessionStore(
             sectorEvents = sectorEvents,
             gpsQuality = gpsQuality,
             totalDurationMillis = totalDurationMillis,
+            sectorResults = sectorResults,
         )
         // Drafts persist continuously (D-13). Atomic temp-write + move avoids
         // partial-write corruption on crash (Pitfall 2).

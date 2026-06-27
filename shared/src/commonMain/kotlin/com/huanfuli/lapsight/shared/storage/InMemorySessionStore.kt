@@ -7,6 +7,7 @@ import com.huanfuli.lapsight.shared.session.GpsQualitySummary
 import com.huanfuli.lapsight.shared.session.LapDto
 import com.huanfuli.lapsight.shared.session.LocationSampleDto
 import com.huanfuli.lapsight.shared.session.SectorEventDto
+import com.huanfuli.lapsight.shared.session.SectorResultDto
 import com.huanfuli.lapsight.shared.session.TimingSession
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
@@ -112,6 +113,7 @@ class InMemorySessionStore : LocalSessionStore {
         gpsQuality: GpsQualitySummary,
         totalDurationMillis: Long,
         app: AppMetadata,
+        sectorResults: List<SectorResultDto>,
     ) {
         activeDraft = TimingSessionPayloadV1(
             session = session,
@@ -121,6 +123,7 @@ class InMemorySessionStore : LocalSessionStore {
             sectorEvents = sectorEvents,
             gpsQuality = gpsQuality,
             totalDurationMillis = totalDurationMillis,
+            sectorResults = sectorResults,
         )
     }
 

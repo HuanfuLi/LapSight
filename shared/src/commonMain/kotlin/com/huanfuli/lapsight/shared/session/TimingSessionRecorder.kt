@@ -13,6 +13,7 @@ import com.huanfuli.lapsight.shared.lap.LapEngineConfig
 import com.huanfuli.lapsight.shared.lap.LapEvent
 import com.huanfuli.lapsight.shared.lap.SectorEvent
 import com.huanfuli.lapsight.shared.lap.SectorLine
+import com.huanfuli.lapsight.shared.lap.SectorResult
 import com.huanfuli.lapsight.shared.lap.StartFinishLine
 import com.huanfuli.lapsight.shared.lap.GeoPoint
 import com.huanfuli.lapsight.shared.track.SectorLineDto
@@ -93,6 +94,13 @@ class TimingSessionRecorder(
     private val samples: MutableList<LocationSample> = mutableListOf()
     private val completedLaps: MutableList<LapEvent> = mutableListOf()
     private val sectorEvents: MutableList<SectorEvent> = mutableListOf()
+
+    /**
+     * Complete-interval V2 Sector results accumulated from the engine (D-06,
+     * D-11). Fanned out into every draft checkpoint UNCONDITIONALLY, exactly like
+     * raw samples and laps; incomplete Sector coverage never suppresses recording.
+     */
+    private val sectorResults: MutableList<SectorResult> = mutableListOf()
     private var lastTimingState = engine.state
     private var totalDurationMillis: Long = 0L
 
@@ -134,6 +142,9 @@ class TimingSessionRecorder(
 
     /** Number of sector events checkpointed so far. */
     val sectorEventCount: Int get() = sectorEvents.size
+
+    /** Number of complete-interval V2 Sector results checkpointed so far (D-06, D-11). */
+    val sectorResultCount: Int get() = sectorResults.size
 
     /** Latest sample observed, or null. */
     val latestSample: LocationSample? get() = samples.lastOrNull()
@@ -207,6 +218,14 @@ class TimingSessionRecorder(
                 sectorEvents.add(latest)
             }
         }
+        // Capture any newly closed complete-Sector intervals (D-06, D-11). The
+        // engine appends to completedSectorResults as each interval closes, so we
+        // mirror new entries without re-walking the whole list.
+        if (state.completedSectorResults.size > sectorResults.size) {
+            for (i in sectorResults.size until state.completedSectorResults.size) {
+                sectorResults.add(state.completedSectorResults[i])
+            }
+        }
 
         totalDurationMillis = if (samples.size >= 2) {
             samples.last().elapsedMillis - samples.first().elapsedMillis
@@ -260,6 +279,7 @@ class TimingSessionRecorder(
             gpsQuality = qualitySummary,
             totalDurationMillis = totalDurationMillis,
             app = app,
+            sectorResults = sectorResults.map { it.toDto() },
         )
         onCheckpoint()
     }
