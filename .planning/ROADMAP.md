@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 7/14 plans executed
+**Plans:** 8/14 plans executed
 
 Plans:
 
@@ -198,7 +198,7 @@ Plans:
 **Wave 7** *(blocked on Wave 6; parallel write sets)*
 
 - [x] 05-07-PLAN.md - Complete-Sector timing semantics and persistence
-- [ ] 05-08-PLAN.md - Profile lifecycle, archive, duplicate, and history
+- [x] 05-08-PLAN.md - Profile lifecycle, archive, duplicate, and history
 
 **Wave 8** *(blocked on both Wave 7 plans)*
 
