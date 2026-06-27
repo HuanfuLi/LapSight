@@ -17,9 +17,12 @@ import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import com.huanfuli.lapsight.shared.track.GhostReferencePayloadV2
+import com.huanfuli.lapsight.shared.track.TimingSessionPayloadV2
 import com.huanfuli.lapsight.shared.track.TrackProfile
 import com.huanfuli.lapsight.shared.track.TrackProfilePayloadV2
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okio.FileSystem
 import okio.Path
@@ -53,6 +56,12 @@ class FileSessionStore(
     private val referencesDir: Path get() = root / REFERENCES_DIR
     private val indexPath: Path get() = root / INDEX_FILE
     private val activeDraftPath: Path get() = draftsDir / ACTIVE_DRAFT_FILE
+
+    // V2 side-by-side layout (D-12..D-14): written alongside the V1 originals above.
+    private val profilesDir: Path get() = root / PROFILES_DIR
+    private val sessionsV2Dir: Path get() = root / SESSIONS_V2_DIR
+    private val referencesV2Dir: Path get() = root / REFERENCES_V2_DIR
+    private val profilesIndexPath: Path get() = root / PROFILES_INDEX_FILE
 
     /** Per-Track reference file, separated by source boundary (D-03, D-04). */
     private fun referencePath(trackId: String, isSimulated: Boolean): Path =
@@ -280,17 +289,127 @@ class FileSessionStore(
 
     // --- V2 course profiles + side-by-side migration (D-12..D-14) -----------
 
-    override fun migrate(app: AppMetadata): MigrationResult =
-        TODO("Plan 05-02 GREEN: wire side-by-side V1->V2 store migration")
+    private fun profilePath(profileId: String): Path = profilesDir / "$profileId.json"
 
-    override fun saveProfile(profile: TrackProfile, app: AppMetadata): SaveResult =
-        TODO("Plan 05-02 GREEN: persist V2 profile aggregate")
+    override fun migrate(app: AppMetadata): MigrationResult {
+        val skipped = mutableListOf<MigrationSkip>()
+        val migratedProfileIds = mutableListOf<String>()
 
-    override fun loadProfile(profileId: String): LoadResult<TrackProfile> =
-        TODO("Plan 05-02 GREEN: load V2 profile aggregate")
+        // 1) Profiles from V1 Tracks. Decode + validate BEFORE writing any V2 payload
+        //    (decode rejects unsafe ids / bad geometry, so no unsafe path is built).
+        var profilesMigrated = 0
+        for (path in listJsonPayloads(tracksDir)) {
+            when (val decoded = SchemaMigrations.decodeTrackProfile(readText(path))) {
+                is LoadResult.Loaded -> {
+                    val profile = decoded.value
+                    writeAtomically(
+                        profilePath(profile.profileId),
+                        json.encodeToString(TrackProfilePayloadV2.serializer(), TrackProfilePayloadV2(profile = profile, app = app)),
+                    )
+                    migratedProfileIds += profile.profileId
+                    profilesMigrated++
+                }
+                is LoadResult.Corrupt -> skipped += MigrationSkip(path.name, decoded.reason)
+                LoadResult.NotFound -> Unit
+            }
+        }
+
+        // 2) Sessions from V1 timing sessions (their app metadata is preserved).
+        var sessionsMigrated = 0
+        for (path in listJsonPayloads(sessionsDir)) {
+            when (val decoded = SchemaMigrations.decodeTimingSession(readText(path))) {
+                is LoadResult.Loaded -> {
+                    val payload = decoded.value
+                    writeAtomically(
+                        sessionsV2Dir / "${payload.session.id}.json",
+                        json.encodeToString(TimingSessionPayloadV2.serializer(), payload),
+                    )
+                    sessionsMigrated++
+                }
+                is LoadResult.Corrupt -> skipped += MigrationSkip(path.name, decoded.reason)
+                LoadResult.NotFound -> Unit
+            }
+        }
+
+        // 3) Ghost references from V1 reference slots (real/sim slot preserved).
+        var referencesMigrated = 0
+        for (path in listJsonPayloads(referencesDir)) {
+            when (val decoded = SchemaMigrations.decodeGhostReference(readText(path))) {
+                is LoadResult.Loaded -> {
+                    val payload = decoded.value
+                    writeAtomically(
+                        referencesV2Dir / "${referenceV2Name(payload)}.json",
+                        json.encodeToString(GhostReferencePayloadV2.serializer(), payload),
+                    )
+                    referencesMigrated++
+                }
+                is LoadResult.Corrupt -> skipped += MigrationSkip(path.name, decoded.reason)
+                LoadResult.NotFound -> Unit
+            }
+        }
+
+        // 4) Index LAST: the single commit point. A fault before this leaves every V1
+        //    original readable and the migration recoverable on retry (T-05-04). The
+        //    profile index never records a current selection (D-01/D-04).
+        val merged = (readProfileIndex().profileIds + migratedProfileIds).distinct()
+        writeAtomically(profilesIndexPath, json.encodeToString(ProfileIndex.serializer(), ProfileIndex(profileIds = merged)))
+
+        return MigrationResult(profilesMigrated, sessionsMigrated, referencesMigrated, skipped)
+    }
+
+    override fun saveProfile(profile: TrackProfile, app: AppMetadata): SaveResult {
+        // Reject an unsafe id before any Okio path is built (T-05-03).
+        require(SchemaMigrations.isSafeId(profile.profileId)) { "unsafe profile id" }
+        val path = profilePath(profile.profileId)
+        // Payload first, then the index (mirrors saveTrackBundle ordering).
+        writeAtomically(path, json.encodeToString(TrackProfilePayloadV2.serializer(), TrackProfilePayloadV2(profile = profile, app = app)))
+        val index = readProfileIndex()
+        if (profile.profileId !in index.profileIds) {
+            writeAtomically(
+                profilesIndexPath,
+                json.encodeToString(ProfileIndex.serializer(), index.copy(profileIds = index.profileIds + profile.profileId)),
+            )
+        }
+        return SaveResult.Saved(trackPath = path.toString(), markingPath = profilesIndexPath.toString())
+    }
+
+    override fun loadProfile(profileId: String): LoadResult<TrackProfile> {
+        if (!SchemaMigrations.isSafeId(profileId)) return LoadResult.Corrupt("unsafe profile id")
+        val path = profilePath(profileId)
+        if (!fileSystem.exists(path)) return LoadResult.NotFound
+        return SchemaMigrations.decodeTrackProfile(readText(path))
+    }
 
     override fun listActiveProfiles(): List<TrackProfile> =
-        TODO("Plan 05-02 GREEN: list active V2 profiles")
+        readProfileIndex().profileIds.mapNotNull { id ->
+            (loadProfile(id) as? LoadResult.Loaded)?.value
+        }.filterNot { it.isArchived }
+
+    private fun readProfileIndex(): ProfileIndex {
+        if (!fileSystem.exists(profilesIndexPath)) return ProfileIndex()
+        return try {
+            json.decodeFromString(ProfileIndex.serializer(), fileSystem.read(profilesIndexPath) { readUtf8() })
+        } catch (e: SerializationException) {
+            ProfileIndex()
+        } catch (e: IllegalArgumentException) {
+            ProfileIndex()
+        }
+    }
+
+    /** Lists committed `*.json` payloads in [dir], skipping in-flight `*.tmp` files. */
+    private fun listJsonPayloads(dir: Path): List<Path> =
+        (fileSystem.listOrNull(dir) ?: emptyList())
+            .filter { it.name.endsWith(".json") && !it.name.endsWith(TMP_SUFFIX) }
+            .sortedBy { it.name }
+
+    private fun readText(path: Path): String = fileSystem.read(path) { readUtf8() }
+
+    /** Deterministic V2 reference filename: profile + direction + real/sim slot (D-04, D-19). */
+    private fun referenceV2Name(payload: GhostReferencePayloadV2): String {
+        val key = payload.compatibilityKey
+        val slot = if (key.isSimulated) SIM_SLOT else REAL_SLOT
+        return "${key.profileId}__${key.direction.name}__$slot"
+    }
 
     private inline fun <reified T> load(path: Path, validate: (T) -> String?): LoadResult<T> {
         if (!fileSystem.exists(path)) return LoadResult.NotFound
@@ -329,6 +448,13 @@ class FileSessionStore(
         private const val INDEX_FILE = "index.json"
         private const val TMP_SUFFIX = ".tmp"
 
+        // V2 course-profile layout (Plan 05-02). Kept distinct from the V1 dirs so
+        // migration is strictly additive and every V1 original survives.
+        private const val PROFILES_DIR = "profiles"
+        private const val SESSIONS_V2_DIR = "sessions-v2"
+        private const val REFERENCES_V2_DIR = "references-v2"
+        private const val PROFILES_INDEX_FILE = "profiles-index.json"
+
         /** Filename slot suffixes keeping real and simulated references apart (D-04). */
         private const val REAL_SLOT = "real"
         private const val SIM_SLOT = "sim"
@@ -342,3 +468,17 @@ class FileSessionStore(
         }
     }
 }
+
+/**
+ * The rebuildable commit marker for migrated/saved V2 profiles (Plan 05-02).
+ *
+ * It records only profile ids; the canonical aggregate lives in each
+ * `profiles/<id>.json`. Written LAST in [FileSessionStore.migrate] / [saveProfile]
+ * so a fault before this write never exposes a half-migrated profile. It is a cache
+ * (like `index.json`) and a corrupt index is treated as empty, not fatal.
+ */
+@Serializable
+internal data class ProfileIndex(
+    val schemaVersion: Int = SCHEMA_VERSION_V2,
+    val profileIds: List<String> = emptyList(),
+)

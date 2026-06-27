@@ -41,6 +41,14 @@ class InMemorySessionStore : LocalSessionStore {
     /** Reference laps keyed by "<trackId>__real|sim" so source slots stay apart (D-04). */
     private val references = LinkedHashMap<String, GhostReferencePayloadV1>()
 
+    // V2 side-by-side state (Plan 05-02); the V1 maps above are retained untouched.
+    private val profiles = LinkedHashMap<String, TrackProfile>()
+    private val sessionsV2 = LinkedHashMap<String, TimingSessionPayloadV2>()
+    private val referencesV2 = LinkedHashMap<String, GhostReferencePayloadV2>()
+
+    /** Commit marker mirroring the file store's profile index (index-last semantics). */
+    private val profileIndex = mutableListOf<String>()
+
     override fun saveTrackBundle(track: Track, marking: TrackMarkingSession, app: AppMetadata): SaveResult {
         // Payloads first (mirrors FileSessionStore), then the index row.
         markings[marking.id] = TrackMarkingPayloadV1(marking = marking, app = app)
@@ -196,17 +204,77 @@ class InMemorySessionStore : LocalSessionStore {
 
     // --- V2 course profiles + side-by-side migration (D-12..D-14) -----------
 
-    override fun migrate(app: AppMetadata): MigrationResult =
-        TODO("Plan 05-02 GREEN: mirror side-by-side V1->V2 store migration")
+    override fun migrate(app: AppMetadata): MigrationResult {
+        val skipped = mutableListOf<MigrationSkip>()
+        val migratedProfileIds = mutableListOf<String>()
 
-    override fun saveProfile(profile: TrackProfile, app: AppMetadata): SaveResult =
-        TODO("Plan 05-02 GREEN: persist V2 profile aggregate")
+        // Route every source payload through the SAME SchemaMigrations dispatch the
+        // file store uses (encode the held V1 object, decode through version dispatch),
+        // so the externally observable migration result is identical (D-12).
+        var profilesMigrated = 0
+        for ((_, v1) in tracks.toList()) {
+            val text = FileSessionStore.canonicalJson.encodeToString(TrackPayloadV1.serializer(), v1)
+            when (val decoded = SchemaMigrations.decodeTrackProfile(text)) {
+                is LoadResult.Loaded -> {
+                    profiles[decoded.value.profileId] = decoded.value
+                    migratedProfileIds += decoded.value.profileId
+                    profilesMigrated++
+                }
+                is LoadResult.Corrupt -> skipped += MigrationSkip(v1.track.id, decoded.reason)
+                LoadResult.NotFound -> Unit
+            }
+        }
 
-    override fun loadProfile(profileId: String): LoadResult<TrackProfile> =
-        TODO("Plan 05-02 GREEN: load V2 profile aggregate")
+        var sessionsMigrated = 0
+        for ((_, v1) in sessions.toList()) {
+            val text = FileSessionStore.canonicalJson.encodeToString(TimingSessionPayloadV1.serializer(), v1)
+            when (val decoded = SchemaMigrations.decodeTimingSession(text)) {
+                is LoadResult.Loaded -> {
+                    sessionsV2[decoded.value.session.id] = decoded.value
+                    sessionsMigrated++
+                }
+                is LoadResult.Corrupt -> skipped += MigrationSkip(v1.session.id, decoded.reason)
+                LoadResult.NotFound -> Unit
+            }
+        }
+
+        var referencesMigrated = 0
+        for ((key, v1) in references.toList()) {
+            val text = FileSessionStore.canonicalJson.encodeToString(GhostReferencePayloadV1.serializer(), v1)
+            when (val decoded = SchemaMigrations.decodeGhostReference(text)) {
+                is LoadResult.Loaded -> {
+                    referencesV2[key] = decoded.value
+                    referencesMigrated++
+                }
+                is LoadResult.Corrupt -> skipped += MigrationSkip(v1.trackId, decoded.reason)
+                LoadResult.NotFound -> Unit
+            }
+        }
+
+        // Index last (commit point); migration never records a current selection.
+        for (id in migratedProfileIds) if (id !in profileIndex) profileIndex += id
+
+        return MigrationResult(profilesMigrated, sessionsMigrated, referencesMigrated, skipped)
+    }
+
+    override fun saveProfile(profile: TrackProfile, app: AppMetadata): SaveResult {
+        require(SchemaMigrations.isSafeId(profile.profileId)) { "unsafe profile id" }
+        profiles[profile.profileId] = profile
+        if (profile.profileId !in profileIndex) profileIndex += profile.profileId
+        return SaveResult.Saved(
+            trackPath = "profiles/${profile.profileId}.json",
+            markingPath = "profiles-index.json",
+        )
+    }
+
+    override fun loadProfile(profileId: String): LoadResult<TrackProfile> {
+        if (!SchemaMigrations.isSafeId(profileId)) return LoadResult.Corrupt("unsafe profile id")
+        val profile = profiles[profileId] ?: return LoadResult.NotFound
+        return LoadResult.Loaded(profile)
+    }
 
     override fun listActiveProfiles(): List<TrackProfile> =
-        TODO("Plan 05-02 GREEN: list active V2 profiles")
+        profileIndex.mapNotNull { profiles[it] }.filterNot { it.isArchived }
 
     private fun referenceKey(trackId: String, isSimulated: Boolean): String =
         "${trackId}__${if (isSimulated) "sim" else "real"}"
