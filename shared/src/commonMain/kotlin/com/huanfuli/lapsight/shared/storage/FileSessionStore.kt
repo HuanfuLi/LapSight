@@ -17,6 +17,7 @@ import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.GhostReferencePayloadV2
 import com.huanfuli.lapsight.shared.track.TimingSessionPayloadV2
 import com.huanfuli.lapsight.shared.track.TrackProfile
@@ -384,6 +385,19 @@ class FileSessionStore(
         readProfileIndex().profileIds.mapNotNull { id ->
             (loadProfile(id) as? LoadResult.Loaded)?.value
         }.filterNot { it.isArchived }
+
+    // --- Explicit current-Track selection (D-01..D-04) ----------------------
+    // RED stub: persistence is not wired yet, so the selection never survives.
+
+    override fun loadCurrentSelection(): LoadResult<CurrentTrackSelection> = LoadResult.NotFound
+
+    override fun setCurrentSelection(selection: CurrentTrackSelection) {
+        // intentionally not implemented yet (RED)
+    }
+
+    override fun clearCurrentSelection() {
+        // intentionally not implemented yet (RED)
+    }
 
     private fun readProfileIndex(): ProfileIndex {
         if (!fileSystem.exists(profilesIndexPath)) return ProfileIndex()
