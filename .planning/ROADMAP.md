@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 3/14 plans executed
+**Plans:** 4/14 plans executed
 
 Plans:
 
@@ -185,7 +185,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 05-04-PLAN.md - New-user create+name+select first profile and iOS bootstrap
+- [x] 05-04-PLAN.md - New-user create+name+select first profile and iOS bootstrap
 
 **Wave 5** *(blocked on Wave 4)*
 
