@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 2/14 plans executed
+**Plans:** 3/14 plans executed
 
 Plans:
 
@@ -181,7 +181,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 05-03-PLAN.md - Explicit current Track selection and no-fallback resolution
+- [x] 05-03-PLAN.md - Explicit current Track selection and no-fallback resolution
 
 **Wave 4** *(blocked on Wave 3)*
 
