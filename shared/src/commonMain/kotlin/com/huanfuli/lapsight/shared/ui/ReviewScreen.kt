@@ -50,9 +50,13 @@ import com.huanfuli.lapsight.shared.review.buildTimingTraceLayers
 import com.huanfuli.lapsight.shared.review.buildTrackTraceLayers
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
+import com.huanfuli.lapsight.shared.track.CreateProfileResult
+import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
+import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import com.huanfuli.lapsight.shared.track.TrackProfileController
 
 /**
  * Review tab (D-27, D-28): lists saved Tracks and marking entries from the
@@ -411,6 +415,25 @@ private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore, 
             )
         }
 
+        // Set as current track (D-02): make this Track the explicit current selection
+        // from detail, WITHOUT starting a session. Older V1-only Tracks are promoted to
+        // a V2 profile on demand so selection always resolves a real aggregate.
+        if (row.type == ReviewEntryType.Track) {
+            Spacer(Modifier.height(6.dp))
+            var selectMessage by remember(row.id) { mutableStateOf<String?>(null) }
+            OutlinedButton(onClick = {
+                selectMessage = setAsCurrentTrack(sessionStore, row.id)
+            }) { Text("Set as current track") }
+            selectMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    color = if (msg.startsWith("Couldn't")) Color(0xFFFF6B6B) else Color(0xFF8CFF9B),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+
         // Export actions (D-40): explicit button tap on Track Review detail only.
         if (row.type == ReviewEntryType.Track) {
             Spacer(Modifier.height(6.dp))
@@ -505,6 +528,36 @@ private fun TrackTraceSection(
         )
         Spacer(Modifier.height(4.dp))
         TraceView(layers = layers, minHeight = 180.dp, maxHeight = 260.dp)
+    }
+}
+
+/**
+ * Makes the Track identified by [trackId] the explicit current selection (D-02),
+ * promoting a V1-only Track to a V2 profile first if needed. Returns a short status
+ * message for the detail surface. Never starts a Timing session and never derives a
+ * different Track (D-03/D-04).
+ */
+private fun setAsCurrentTrack(store: LocalSessionStore, trackId: String): String {
+    val controller = TrackProfileController(store)
+    // Ensure a V2 profile (profileId == trackId) exists before selecting it.
+    if (store.loadProfile(trackId) !is LoadResult.Loaded) {
+        val payload = (store.loadTrack(trackId) as? LoadResult.Loaded<TrackPayloadV1>)?.value
+            ?: return "Couldn't load this track."
+        val created = controller.saveProfile(
+            track = payload.track,
+            name = payload.track.name,
+            app = payload.app,
+        )
+        if (created is CreateProfileResult.Rejected) {
+            return "Couldn't set as current: ${created.reason}."
+        }
+    }
+    store.setCurrentSelection(CurrentTrackSelection(profileId = trackId))
+    return when (controller.resolveCurrent()) {
+        is CurrentProfileResolution.Selected -> "Set as current track."
+        CurrentProfileResolution.NotTimingReady ->
+            "Set as current. Add a start/finish before timing."
+        else -> "Set as current track."
     }
 }
 

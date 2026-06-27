@@ -24,6 +24,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -203,6 +204,12 @@ fun DriveScreen(
             controller.toggleDemoFeed()
             snapshot = controller.snapshot()
         },
+        onSelectProfile = { profileId ->
+            // Explicit user selection only (D-02/D-03); the controller never auto-derives.
+            controller.selectTrack(profileId)
+            startTimingBlockedMessage = null
+            snapshot = controller.snapshot()
+        },
         onPrimaryAction = {
             when (snapshot.phase) {
                 DriveMarkingPhase.Idle -> {
@@ -272,6 +279,7 @@ private fun DriveSurface(
     orientation: DashOrientation,
     onToggleOrientation: () -> Unit,
     onToggleDemoFeed: () -> Unit,
+    onSelectProfile: (String) -> Unit,
     onPrimaryAction: () -> Unit,
     onStopTiming: () -> Unit,
     timingActive: Boolean,
@@ -333,6 +341,7 @@ private fun DriveSurface(
                     orientation = orientation,
                     onToggleOrientation = onToggleOrientation,
                     onToggleDemoFeed = onToggleDemoFeed,
+                    onSelectProfile = onSelectProfile,
                     onPrimaryAction = onPrimaryAction,
                     modifier = Modifier.weight(0.9f),
                     compact = isCompactLandscape,
@@ -355,6 +364,7 @@ private fun DriveSurface(
                     orientation = orientation,
                     onToggleOrientation = onToggleOrientation,
                     onToggleDemoFeed = onToggleDemoFeed,
+                    onSelectProfile = onSelectProfile,
                     onPrimaryAction = onPrimaryAction,
                     modifier = Modifier.fillMaxWidth(),
                     startTimingBlockedMessage = startTimingBlockedMessage,
@@ -685,6 +695,7 @@ private fun ControlPanel(
     orientation: DashOrientation,
     onToggleOrientation: () -> Unit,
     onToggleDemoFeed: () -> Unit,
+    onSelectProfile: (String) -> Unit,
     onPrimaryAction: () -> Unit,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
@@ -717,6 +728,16 @@ private fun ControlPanel(
                 // Track Review owns its own actions; no primary CTA here.
             }
             DriveMarkingPhase.Idle -> {
+                // Compact current-Track selector (D-01, D-02): always states the
+                // selected Track or clearly states none, and offers a direct selection
+                // action so a blocked Timing routes to picking a Track (D-03). This is a
+                // pre-Timing control only; it is never shown on the moving fullscreen
+                // timing surface. No automatic newest/nearby recommendation (D-04).
+                TrackSelectorSection(
+                    snapshot = snapshot,
+                    onSelectProfile = onSelectProfile,
+                    compact = compact,
+                )
                 if (snapshot.canStartTiming) {
                     // Saved track with confirmed start/finish exists: Start Timing
                     // drives the formal session lifecycle (D-19, SESS-01).
@@ -765,6 +786,81 @@ private fun ControlPanel(
 }
 
 /**
+ * Compact pre-Timing Track selector (D-01, D-02, D-03).
+ *
+ * Always states the current Track by name (or clearly states none), and lists the
+ * active, latest-revision profiles as direct selection actions so a blocked Timing
+ * has an obvious recovery path. Selection is always explicit: tapping a row sets it
+ * as the current Track. There is deliberately no automatic newest/nearby
+ * recommendation (D-04). This control is rendered only on the stationary Drive
+ * surface, never on the moving fullscreen timing dash (safety).
+ */
+@Composable
+private fun TrackSelectorSection(
+    snapshot: DriveMarkingSnapshot,
+    onSelectProfile: (String) -> Unit,
+    compact: Boolean = false,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            Modifier.padding(if (compact) 12.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+        ) {
+            Text(
+                text = "CURRENT TRACK",
+                color = Color(0xFF7E8DA0),
+                fontSize = if (compact) 10.sp else 11.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = snapshot.currentTrackName ?: "No track selected",
+                color = if (snapshot.currentTrackName != null) Color.White else Color(0xFFFFD166),
+                fontSize = if (compact) 16.sp else 18.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            if (snapshot.needsTrackSelection) {
+                Text(
+                    text = "Select a track to start timing.",
+                    color = Color(0xFFFFD166),
+                    fontSize = if (compact) 11.sp else 13.sp,
+                    lineHeight = if (compact) 15.sp else 17.sp,
+                )
+            }
+            if (snapshot.selectableProfiles.isEmpty()) {
+                Text(
+                    text = "No saved tracks yet. Mark a track to create your first one.",
+                    color = Color(0xFF7E8DA0),
+                    fontSize = if (compact) 11.sp else 13.sp,
+                    lineHeight = if (compact) 15.sp else 17.sp,
+                )
+            } else {
+                snapshot.selectableProfiles.forEach { row ->
+                    val isCurrent = row.profileId == snapshot.timingReadyTrackId
+                    OutlinedButton(
+                        onClick = { onSelectProfile(row.profileId) },
+                        enabled = row.isTimingReady && !isCurrent,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (isCurrent) MaterialTheme.colorScheme.primary else Color(0xFFCED7E2),
+                        ),
+                    ) {
+                        val suffix = when {
+                            isCurrent -> " (current)"
+                            !row.isTimingReady -> " (needs start/finish)"
+                            else -> ""
+                        }
+                        Text((if (isCurrent) "✓ " else "") + row.name + suffix)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
  * Track Review surface rendered when a marking capture stops (D-31).
  *
  * Shows reference readiness, GPS/capture quality summary, start/finish status,
@@ -783,6 +879,9 @@ internal fun TrackReviewContent(
     val review = snapshot.reviewState ?: return
     var confirmReRecord by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
+    // Name-on-create affordance (D-02, SC-01): the user names the Track before saving.
+    // The controller validates/falls back to a default if left blank.
+    var trackName by remember { mutableStateOf("") }
 
     if (confirmReRecord) {
         AlertDialog(
@@ -879,9 +978,22 @@ internal fun TrackReviewContent(
             )
 
             Spacer(Modifier.height(4.dp))
+            // Name this Track before saving (D-02). Blank falls back to the default
+            // name in the controller; the name never forms a storage path (T-05-07).
+            OutlinedTextField(
+                value = trackName,
+                onValueChange = {
+                    trackName = it
+                    controller.setTrackName(it)
+                },
+                label = { Text("Track name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
             // Save Track — primary CTA; accent-styled, enabled only when ready.
             Button(
                 onClick = {
+                    controller.setTrackName(trackName)
                     controller.saveTrack()
                     onChanged()
                     onSavedTrack()
