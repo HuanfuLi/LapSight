@@ -10,6 +10,7 @@ import com.huanfuli.lapsight.shared.lap.LapEvent
 import com.huanfuli.lapsight.shared.nowEpochMillis
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
+import com.huanfuli.lapsight.shared.track.CourseDirection
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.Track
 
@@ -93,7 +94,11 @@ class SessionController(
         if (track.startFinish == null) {
             return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
         }
-        val course = courseFromTrack(track.startFinish, track.sectors)
+        // Resolve the persisted Course Direction for this Track and build the
+        // direction-specific course (D-18, D-21). Reverse flips the accepted approach
+        // side and Sector order; Recorded keeps the recorded orientation.
+        val direction = selectedDirectionFor(track.id)
+        val course = courseFromTrack(track.startFinish, track.sectors, direction)
             ?: return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
         val createdAt = now()
         val session = TimingSession(
@@ -104,6 +109,7 @@ class SessionController(
             source = sourceForTrack(track),
             startFinish = track.startFinish,
             sectors = track.sectors,
+            direction = direction,
         )
         val rec = TimingSessionRecorder(
             session = session,
@@ -205,7 +211,9 @@ class SessionController(
                 val payload = store.loadUnfinishedDraft() ?: return SaveDraftResult.NothingToSave
                 val track = loadTrackForTiming(payload.session.trackId)
                 if (track?.startFinish != null) {
-                    val course = courseFromTrack(track.startFinish, track.sectors)!!
+                    // Rebuild the SAME direction-specific course the draft was timed under,
+                    // taken from the immutable session snapshot (D-18).
+                    val course = courseFromTrack(track.startFinish, track.sectors, payload.session.direction)!!
                     val rec = TimingSessionRecorder(
                         session = payload.session,
                         course = course,
@@ -278,11 +286,28 @@ class SessionController(
     }
 
     /**
+     * The persisted Course Direction for [trackId] (D-18). Reads the exact current
+     * selection and uses its direction only when it names this Track; any other case
+     * (no selection, a different Track, corrupt) falls back to
+     * [CourseDirection.Recorded] so a normal start is never blocked by selection state.
+     */
+    private fun selectedDirectionFor(trackId: String): CourseDirection {
+        val selection = (store.loadCurrentSelection() as? LoadResult.Loaded)?.value ?: return CourseDirection.Recorded
+        return if (selection.profileId == trackId) selection.direction else CourseDirection.Recorded
+    }
+
+    /**
      * Loads the persisted fastest reference for a session's Track within its
      * source boundary (D-01, D-04). A real session loads only the real reference;
      * a simulated session loads only the simulated reference.
+     *
+     * Ghost loading is SUPPRESSED for any non-Recorded direction: the legacy
+     * per-Track reference is recorded-direction by construction, so a Reverse run
+     * must not consume it as its Ghost. Reference identity becomes direction-aware in
+     * Plan 05-10; until then Reverse simply runs without a Ghost (SC-04, D-19).
      */
     private fun loadReferenceFor(session: TimingSession): ReferenceLap? {
+        if (session.direction != CourseDirection.Recorded) return null
         val result = store.loadReferenceLap(session.trackId, session.source.isSimulated)
         return (result as? LoadResult.Loaded)?.value?.toReferenceLap()
     }

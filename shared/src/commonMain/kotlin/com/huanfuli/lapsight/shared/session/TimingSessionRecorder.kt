@@ -16,6 +16,8 @@ import com.huanfuli.lapsight.shared.lap.SectorLine
 import com.huanfuli.lapsight.shared.lap.SectorResult
 import com.huanfuli.lapsight.shared.lap.StartFinishLine
 import com.huanfuli.lapsight.shared.lap.GeoPoint
+import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.CourseGeometryBuilder
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 
@@ -57,6 +59,26 @@ fun courseFromTrack(
         startFinish = startFinish.toDomain(),
         sectors = sectors.map { it.toDomain() },
     )
+}
+
+/**
+ * Derives a DIRECTION-SPECIFIC lap-domain [CourseDefinition] from a saved Track's
+ * start/finish + sectors (D-18, D-21).
+ *
+ * The recorded-oriented base is projected into [direction] by
+ * [CourseGeometryBuilder.directionalCourse]: Recorded keeps the recorded order and
+ * an explicit accepted approach side; Reverse swaps every endpoint and reverses the
+ * Sector order so the lap engine accepts only the opposite physical crossing and
+ * rejects the recorded one from the first crossing. Returns null when start/finish
+ * is unconfirmed (D-19).
+ */
+fun courseFromTrack(
+    startFinish: StartFinishLineDto?,
+    sectors: List<SectorLineDto>,
+    direction: CourseDirection,
+): CourseDefinition? {
+    val base = courseFromTrack(startFinish, sectors) ?: return null
+    return CourseGeometryBuilder.directionalCourse(base, direction)
 }
 
 /**

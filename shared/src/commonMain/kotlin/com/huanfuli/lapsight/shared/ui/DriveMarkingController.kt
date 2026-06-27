@@ -10,6 +10,7 @@ import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.session.toDto
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
+import com.huanfuli.lapsight.shared.track.CourseDirection
 import com.huanfuli.lapsight.shared.track.CreateProfileResult
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
@@ -60,6 +61,8 @@ data class DriveMarkingSnapshot(
     val needsTrackSelection: Boolean = true,
     /** Active profiles (latest revision only) offered by the Track selector (D-14). */
     val selectableProfiles: List<TrackProfileRow> = emptyList(),
+    /** The persisted Course Direction of the current selection (D-18); Recorded when none. */
+    val selectedDirection: CourseDirection = CourseDirection.Recorded,
 ) {
     val speedKmhLabel: String
         get() = latestSample?.speedMetersPerSecond
@@ -85,6 +88,7 @@ data class DriveMarkingSnapshot(
             currentTrackName = null,
             needsTrackSelection = true,
             selectableProfiles = emptyList(),
+            selectedDirection = CourseDirection.Recorded,
         )
     }
 }
@@ -171,7 +175,21 @@ class DriveMarkingController(
             currentTrackName = selected?.profile?.name,
             needsTrackSelection = !canStart,
             selectableProfiles = selectableProfiles,
+            selectedDirection = selected?.direction ?: CourseDirection.Recorded,
         )
+    }
+
+    /**
+     * Persist an explicit Recorded/Reverse [direction] for the current Track (D-18).
+     *
+     * This is a pre-Timing configuration over the SAME selected revision: it rewrites
+     * only the direction of the existing current selection and never changes the
+     * selected Track. It is a no-op when no Track is currently selected.
+     */
+    fun selectDirection(direction: CourseDirection) {
+        val selection = (store.loadCurrentSelection() as? LoadResult.Loaded)?.value ?: return
+        val profileId = selection.profileId ?: return
+        store.setCurrentSelection(CurrentTrackSelection(profileId = profileId, direction = direction))
     }
 
     /**

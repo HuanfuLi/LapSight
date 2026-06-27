@@ -11,6 +11,7 @@ import com.huanfuli.lapsight.shared.ghost.ReferenceLap
 import com.huanfuli.lapsight.shared.lap.LapEvent
 import com.huanfuli.lapsight.shared.lap.SectorEvent
 import com.huanfuli.lapsight.shared.lap.SectorResult
+import com.huanfuli.lapsight.shared.track.CourseDirection
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import kotlinx.serialization.Serializable
@@ -223,6 +224,13 @@ data class TimingSession(
     val source: SourceMetadata,
     val startFinish: StartFinishLineDto,
     val sectors: List<SectorLineDto> = emptyList(),
+    /**
+     * The Course Direction this run was timed under (D-18). Defaulted to
+     * [CourseDirection.Recorded] so V1 history written before this field decodes
+     * cleanly; a Reverse run snapshots its flipped configuration here so Review and
+     * Ghost compatibility never confuse it with the recorded direction (D-19, SC-04).
+     */
+    val direction: CourseDirection = CourseDirection.Recorded,
 )
 
 /**
