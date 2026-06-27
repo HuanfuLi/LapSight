@@ -50,12 +50,14 @@ import com.huanfuli.lapsight.shared.review.buildTimingTraceLayers
 import com.huanfuli.lapsight.shared.review.buildTrackTraceLayers
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
+import com.huanfuli.lapsight.shared.track.AppendRevisionResult
 import com.huanfuli.lapsight.shared.track.CreateProfileResult
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
+import com.huanfuli.lapsight.shared.track.TrackProfile
 import com.huanfuli.lapsight.shared.track.TrackProfileController
 
 /**
@@ -434,6 +436,12 @@ private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore, 
             }
         }
 
+        // Edit course + revision history (SC-02, D-05, D-12..D-14): offline editing of
+        // start/finish and Sector layout, saved as an immutable revision.
+        if (row.type == ReviewEntryType.Track) {
+            EditCourseSection(trackId = row.id, sessionStore = sessionStore)
+        }
+
         // Export actions (D-40): explicit button tap on Track Review detail only.
         if (row.type == ReviewEntryType.Track) {
             Spacer(Modifier.height(6.dp))
@@ -528,6 +536,125 @@ private fun TrackTraceSection(
         )
         Spacer(Modifier.height(4.dp))
         TraceView(layers = layers, minHeight = 180.dp, maxHeight = 260.dp)
+    }
+}
+
+/**
+ * Offline course-editing surface on Track detail (SC-02, D-05, D-12..D-14).
+ *
+ * Shows the profile's immutable revision history and, on demand, the offline
+ * [TrackEditorScreen] seeded with the latest revision's course setup. A valid save
+ * appends a new immutable revision via [TrackProfileController.appendRevision] and the
+ * history updates immediately; prior revisions are never overwritten. A V1-only Track
+ * is promoted to a V2 profile before editing so a real aggregate always backs the edit.
+ */
+@Composable
+private fun EditCourseSection(trackId: String, sessionStore: LocalSessionStore) {
+    val payload = remember(trackId) {
+        (sessionStore.loadTrack(trackId) as? LoadResult.Loaded<TrackPayloadV1>)?.value
+    }
+    // Resolve (promoting if needed) the V2 aggregate; held in state so a save refreshes it.
+    var profile by remember(trackId) { mutableStateOf(ensureProfile(sessionStore, trackId)) }
+    var editing by remember(trackId) { mutableStateOf(false) }
+    var message by remember(trackId) { mutableStateOf<String?>(null) }
+
+    val current = profile
+    if (current == null || payload == null) {
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Course editing unavailable for this entry.",
+            color = Color(0xFF7E8DA0),
+            fontSize = 13.sp,
+        )
+        return
+    }
+
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "Revision history",
+        color = Color(0xFF7E8DA0),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+    )
+    current.revisions.sortedBy { it.ordinal }.forEach { revision ->
+        val ready = revision.courseSetup.startFinish != null
+        Text(
+            text = "Rev ${revision.ordinal} · ${formatEpochMillis(revision.createdAtEpochMillis)} · " +
+                if (ready) "timing-ready" else "needs start/finish",
+            color = Color(0xFFCED7E2),
+            fontSize = 13.sp,
+        )
+    }
+
+    message?.let { msg ->
+        Text(
+            text = msg,
+            color = if (msg.startsWith("Couldn't") || msg.startsWith("Edit")) Color(0xFFFF6B6B) else Color(0xFF8CFF9B),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+
+    if (!editing) {
+        Spacer(Modifier.height(6.dp))
+        OutlinedButton(onClick = { editing = true; message = null }) { Text("Edit course") }
+        return
+    }
+
+    // Edit over the latest revision's canonical reference line + course setup.
+    val latest = current.latestRevision
+    val referenceLine = latest?.referenceLine ?: payload.track.referenceLine
+    if (referenceLine == null || referenceLine.points.isEmpty()) {
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "This track has no reference line to edit.",
+            color = Color(0xFFFFD166),
+            fontSize = 13.sp,
+        )
+        OutlinedButton(onClick = { editing = false }) { Text("Close") }
+        return
+    }
+
+    Spacer(Modifier.height(8.dp))
+    TrackEditorScreen(
+        referenceLine = referenceLine,
+        initialSetup = latest?.courseSetup,
+        onSave = { setup ->
+            val controller = TrackProfileController(sessionStore)
+            when (val result = controller.appendRevision(
+                profileId = current.profileId,
+                referenceLine = referenceLine,
+                courseSetup = setup,
+                app = payload.app,
+                sourceMarkingSessionId = latest?.sourceMarkingSessionId,
+            )) {
+                is AppendRevisionResult.Appended -> {
+                    profile = result.profile
+                    editing = false
+                    message = "Saved revision ${result.revision.ordinal}."
+                }
+                is AppendRevisionResult.Rejected -> {
+                    message = "Couldn't save: ${result.reason}."
+                }
+            }
+        },
+        onCancel = { editing = false },
+    )
+}
+
+/**
+ * Resolves the V2 [TrackProfile] for [trackId], promoting a V1-only Track to a V2
+ * profile if no aggregate exists yet. Returns null when neither a profile nor a
+ * loadable Track payload is available.
+ */
+private fun ensureProfile(store: LocalSessionStore, trackId: String): TrackProfile? {
+    (store.loadProfile(trackId) as? LoadResult.Loaded<TrackProfile>)?.let { return it.value }
+    val payload = (store.loadTrack(trackId) as? LoadResult.Loaded<TrackPayloadV1>)?.value ?: return null
+    val controller = TrackProfileController(store)
+    when (controller.saveProfile(payload.track, payload.track.name, payload.app)) {
+        is CreateProfileResult.Created ->
+            return (store.loadProfile(trackId) as? LoadResult.Loaded<TrackProfile>)?.value
+        is CreateProfileResult.Rejected -> return null
     }
 }
 

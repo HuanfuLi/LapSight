@@ -1,5 +1,6 @@
 package com.huanfuli.lapsight.shared.track
 
+import com.huanfuli.lapsight.shared.nowEpochMillis
 import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
@@ -73,6 +74,79 @@ class TrackProfileController(
         // current selection: selection stays an explicit, separate step (D-01..D-04).
         store.saveProfile(profile, app)
         return CreateProfileResult.Created(profile)
+    }
+
+    /**
+     * Appends an immutable geometry revision to an existing profile (Plan 05-06 Task 2;
+     * D-12 through D-15).
+     *
+     * Behavior contract:
+     * - A revision is only timing-meaningful with a confirmed start/finish, so a
+     *   [courseSetup] whose [CourseSetup.startFinish] is null is rejected and NOTHING is
+     *   written ([AppendRevisionResult.Rejected]); the offline editor (Plan 05-06 Task 1)
+     *   only emits such a setup once `canSave` is true, this is defense in depth (D-05).
+     * - The target profile is loaded as an aggregate; a missing or corrupt profile is a
+     *   typed rejection, never a silent create.
+     * - The new revision is APPENDED with a strictly increasing [TrackRevision.ordinal]
+     *   and a deterministic exact-history [TrackRevision.revisionId]. Prior revisions are
+     *   copied forward unchanged — historical geometry is never overwritten (D-12, D-13).
+     * - Geometry compatibility follows D-15: a Sector-only edit (same reference line and
+     *   same start/finish) carries the prior [TrackRevision.geometryCompatibilityId]
+     *   forward so existing Ghost references stay reusable; a reference-line or
+     *   start/finish change regenerates a fresh compatibility id. Compatibility is decided
+     *   by identity comparison, never by hashing serialized floating-point geometry.
+     * - On success the whole updated aggregate is persisted via [LocalSessionStore.saveProfile]
+     *   (payload-first / index-last) and returned so the caller can show updated history
+     *   immediately.
+     */
+    fun appendRevision(
+        profileId: String,
+        referenceLine: TrackReferenceLine,
+        courseSetup: CourseSetup,
+        app: AppMetadata,
+        sourceMarkingSessionId: String? = null,
+        now: () -> Long = ::nowEpochMillisSafe,
+    ): AppendRevisionResult {
+        // A confirmed start/finish is mandatory for a timing-ready revision (D-05). Reject
+        // an invalid/partial setup WITHOUT writing so a half-finished edit never appends.
+        if (courseSetup.startFinish == null) {
+            return AppendRevisionResult.Rejected("course setup has no confirmed start/finish")
+        }
+
+        val profile = when (val loaded = store.loadProfile(profileId)) {
+            is LoadResult.Loaded -> loaded.value
+            LoadResult.NotFound -> return AppendRevisionResult.Rejected("no such profile")
+            is LoadResult.Corrupt -> return AppendRevisionResult.Rejected("profile payload corrupt: ${loaded.reason}")
+        }
+
+        val latest = profile.latestRevision
+        val nextOrdinal = (latest?.ordinal ?: 0) + 1
+
+        // D-15: carry compatibility forward for a Sector-only change; regenerate it when
+        // the reference line or start/finish geometry changes.
+        val geometryChanged = latest == null ||
+            latest.referenceLine != referenceLine ||
+            latest.courseSetup.startFinish != courseSetup.startFinish
+        val geometryCompatibilityId = if (geometryChanged) {
+            "$profileId:g$nextOrdinal"
+        } else {
+            latest.geometryCompatibilityId
+        }
+
+        val revision = TrackRevision(
+            revisionId = "$profileId:r$nextOrdinal",
+            ordinal = nextOrdinal,
+            createdAtEpochMillis = now(),
+            sourceMarkingSessionId = sourceMarkingSessionId ?: latest?.sourceMarkingSessionId,
+            referenceLine = referenceLine,
+            courseSetup = courseSetup,
+            geometryCompatibilityId = geometryCompatibilityId,
+        )
+
+        // Append immutably: prior revisions are copied forward unchanged (D-12, D-13).
+        val updated = profile.copy(revisions = profile.revisions + revision)
+        store.saveProfile(updated, app)
+        return AppendRevisionResult.Appended(profile = updated, revision = revision)
     }
 
     fun resolveCurrent(): CurrentProfileResolution {
@@ -154,6 +228,30 @@ sealed interface CreateProfileResult {
 
     /** The name was blank or unsafe; nothing was written. */
     data class Rejected(val reason: String) : CreateProfileResult
+}
+
+/**
+ * Typed outcome of [TrackProfileController.appendRevision] (D-12..D-15).
+ *
+ * An invalid/partial edit or a missing/corrupt profile yields [Rejected] and writes
+ * nothing; a valid save yields [Appended] with the whole updated aggregate plus the
+ * freshly appended revision so the caller can render history immediately. The caller
+ * never needs to catch an exception to discover a rejected edit.
+ */
+sealed interface AppendRevisionResult {
+
+    /** The revision was appended and the updated profile aggregate persisted. */
+    data class Appended(val profile: TrackProfile, val revision: TrackRevision) : AppendRevisionResult
+
+    /** The edit was invalid, or the target profile was missing/corrupt; nothing was written. */
+    data class Rejected(val reason: String) : AppendRevisionResult
+}
+
+/** Wall-clock epoch millis that never throws (mirrors the SessionController guard). */
+private fun nowEpochMillisSafe(): Long = try {
+    nowEpochMillis()
+} catch (_: Throwable) {
+    0L
 }
 
 /**
