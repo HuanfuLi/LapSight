@@ -175,6 +175,20 @@ class DriveMarkingController(
     }
 
     /**
+     * Make [profileId] the EXPLICIT current Track selection (D-02). This is the only
+     * way Drive changes the current Track: it loads the exactly-named active profile
+     * and persists it as the selection with the profile's preferred direction. It is a
+     * no-op for a missing/unloadable profile and NEVER derives a different Track
+     * (no newest/nearby fallback, D-03/D-04).
+     */
+    fun selectTrack(profileId: String) {
+        val profile = (store.loadProfile(profileId) as? LoadResult.Loaded)?.value ?: return
+        store.setCurrentSelection(
+            CurrentTrackSelection(profileId = profile.profileId, direction = profile.preferredDirection),
+        )
+    }
+
+    /**
      * Re-hydrate saved Tracks from the canonical local store. Review reads the
      * same index directly, so Drive must do this on construction/tab entry and
      * after save to keep Start Timing stable across navigation and cold start.
