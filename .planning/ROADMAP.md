@@ -167,6 +167,43 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
+**Plans:** 9 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 05-01-PLAN.md - V1-to-V2 profile migration and historical integrity
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 05-02-PLAN.md - Explicit current Track selection and reuse
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 05-03-PLAN.md - Offline course editor and immutable revision save
+
+**Wave 4** *(blocked on Wave 3 completion; parallel write sets)*
+
+- [ ] 05-04-PLAN.md - Complete-Sector timing semantics and persistence
+- [ ] 05-05-PLAN.md - Profile lifecycle, archive, duplicate, and history
+
+**Wave 5** *(blocked on both Wave 4 plans)*
+
+- [ ] 05-06-PLAN.md - Course Direction and Ghost compatibility isolation
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 05-07-PLAN.md - Ghost compatibility and source isolation
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 05-08-PLAN.md - Course-progress Ghost matcher and recovery
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 05-09-PLAN.md - Wrong-course preflight, override, and Phase 5 UAT
+
 **Success Criteria:**
 
 1. User can save named track/course profiles.
