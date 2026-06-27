@@ -119,6 +119,18 @@ class TrackProfileController(
             is LoadResult.Corrupt -> return AppendRevisionResult.Rejected("profile payload corrupt: ${loaded.reason}")
         }
 
+        // Defense in depth on the append-only invariant: refuse to append onto a profile
+        // whose stored revisions are not strictly increasing by ordinal (a corrupt
+        // history), so a colliding/non-monotonic ordinal can never be produced (T-05-16).
+        if (!revisionsStrictlyIncreasing(profile)) {
+            return AppendRevisionResult.Rejected("corrupt revision history (non-increasing ordinals)")
+        }
+        // Bound the immutable history so a runaway caller cannot grow an aggregate without
+        // limit; the cap is generous and only trips on clearly abnormal usage.
+        if (profile.revisions.size >= MAX_REVISIONS_PER_PROFILE) {
+            return AppendRevisionResult.Rejected("revision history is full")
+        }
+
         val latest = profile.latestRevision
         val nextOrdinal = (latest?.ordinal ?: 0) + 1
 
@@ -147,6 +159,161 @@ class TrackProfileController(
         val updated = profile.copy(revisions = profile.revisions + revision)
         store.saveProfile(updated, app)
         return AppendRevisionResult.Appended(profile = updated, revision = revision)
+    }
+
+    /**
+     * Renames a profile's display name without touching geometry (D-12, SC-01).
+     *
+     * Behavior contract:
+     * - The new [newName] is validated BEFORE any write; a blank or path-unsafe name is a
+     *   [RenameProfileResult.Rejected] and NOTHING is persisted (T-05-16). The name is
+     *   metadata only and never forms a storage path.
+     * - Every immutable [TrackRevision] is copied forward unchanged: rename mutates only
+     *   the profile's name, never its revision history (D-12).
+     * - A missing or corrupt profile is a typed rejection, never a silent create.
+     */
+    fun renameProfile(profileId: String, newName: String, app: AppMetadata): RenameProfileResult {
+        if (!isSafeProfileName(newName)) {
+            return RenameProfileResult.Rejected("blank or unsafe profile name")
+        }
+        val profile = when (val loaded = store.loadProfile(profileId)) {
+            is LoadResult.Loaded -> loaded.value
+            LoadResult.NotFound -> return RenameProfileResult.Rejected("no such profile")
+            is LoadResult.Corrupt -> return RenameProfileResult.Rejected("profile payload corrupt: ${loaded.reason}")
+        }
+        // Metadata-only change: revisions are carried forward byte-for-byte (D-12).
+        val renamed = profile.copy(name = newName.trim())
+        store.saveProfile(renamed, app)
+        return RenameProfileResult.Renamed(renamed)
+    }
+
+    /**
+     * Archives a profile: removes it from active selectors WITHOUT deleting any revision,
+     * session, or Ghost, and clears ONLY a current selection that points at it (D-16,
+     * D-01, D-03).
+     *
+     * Behavior contract:
+     * - Archive is a reversible data-state change (an `archivedAtEpochMillis` stamp), never
+     *   a file deletion (T-05-18). All revisions are preserved so old sessions/references
+     *   remain loadable.
+     * - It is idempotent: re-archiving keeps the ORIGINAL archive timestamp.
+     * - If (and only if) the persisted current selection names THIS profile, the selection
+     *   is atomically cleared; a non-matching selection is left untouched and no
+     *   replacement Track is ever chosen (D-01/D-03).
+     * - A missing or corrupt profile is a typed rejection.
+     */
+    fun archiveProfile(
+        profileId: String,
+        app: AppMetadata,
+        now: () -> Long = ::nowEpochMillisSafe,
+    ): ArchiveProfileResult {
+        val profile = when (val loaded = store.loadProfile(profileId)) {
+            is LoadResult.Loaded -> loaded.value
+            LoadResult.NotFound -> return ArchiveProfileResult.Rejected("no such profile")
+            is LoadResult.Corrupt -> return ArchiveProfileResult.Rejected("profile payload corrupt: ${loaded.reason}")
+        }
+
+        // Idempotent: keep the first archive timestamp; never delete or rewrite revisions.
+        val archivedAt = profile.archivedAtEpochMillis ?: now()
+        val archived = profile.copy(archivedAtEpochMillis = archivedAt)
+        store.saveProfile(archived, app)
+
+        // Clear ONLY a current selection that matches this profile; never select a
+        // replacement (D-03). A missing/corrupt selection is treated as "not matching".
+        val clearedCurrentSelection = when (val selection = store.loadCurrentSelection()) {
+            is LoadResult.Loaded -> if (selection.value.profileId == profileId) {
+                store.clearCurrentSelection()
+                true
+            } else {
+                false
+            }
+            LoadResult.NotFound, is LoadResult.Corrupt -> false
+        }
+
+        return ArchiveProfileResult.Archived(
+            profile = archived,
+            clearedCurrentSelection = clearedCurrentSelection,
+        )
+    }
+
+    /**
+     * Duplicates a profile into a fully INDEPENDENT logical profile (D-16).
+     *
+     * Behavior contract:
+     * - [newName] and [newProfileId] are validated BEFORE any write; a blank/unsafe name or
+     *   an unsafe id is a [DuplicateProfileResult.Rejected] and nothing is persisted
+     *   (T-05-16). The duplicate's storage path is derived from the opaque
+     *   [newProfileId], never from the name.
+     * - The source profile is copied deeply: every revision gets a FRESH [TrackRevision.revisionId]
+     *   and a fresh [TrackRevision.geometryCompatibilityId] tied to [newProfileId], so a copied
+     *   Ghost reference can never collide with the source (D-16, T-05-18). The source's internal
+     *   compatibility grouping (e.g. a sector-only edit sharing one id across revisions) is
+     *   preserved by remapping each DISTINCT source compatibility id to one fresh id.
+     * - The duplicate starts un-archived and is NOT made current (selection stays explicit).
+     * - The source profile is left completely unchanged.
+     */
+    fun duplicateProfile(
+        profileId: String,
+        newName: String,
+        newProfileId: String,
+        app: AppMetadata,
+        now: () -> Long = ::nowEpochMillisSafe,
+    ): DuplicateProfileResult {
+        if (!isSafeProfileName(newName)) {
+            return DuplicateProfileResult.Rejected("blank or unsafe profile name")
+        }
+        if (!SchemaMigrations.isSafeId(newProfileId)) {
+            return DuplicateProfileResult.Rejected("unsafe profile id")
+        }
+        val source = when (val loaded = store.loadProfile(profileId)) {
+            is LoadResult.Loaded -> loaded.value
+            LoadResult.NotFound -> return DuplicateProfileResult.Rejected("no such profile")
+            is LoadResult.Corrupt -> return DuplicateProfileResult.Rejected("profile payload corrupt: ${loaded.reason}")
+        }
+
+        // Remap each DISTINCT source compatibility id to one fresh, profile-scoped id so the
+        // duplicate keeps its internal sharing structure while being isolated from the source.
+        val compatRemap = HashMap<String, String>()
+        var freshCompatCounter = 0
+        val copiedRevisions = source.revisions.sortedBy { it.ordinal }.map { revision ->
+            val freshCompat = compatRemap.getOrPut(revision.geometryCompatibilityId) {
+                freshCompatCounter += 1
+                "$newProfileId:g$freshCompatCounter"
+            }
+            revision.copy(
+                revisionId = "$newProfileId:r${revision.ordinal}",
+                geometryCompatibilityId = freshCompat,
+            )
+        }
+
+        val duplicate = TrackProfile(
+            profileId = newProfileId,
+            name = newName.trim(),
+            createdAtEpochMillis = now(),
+            source = source.source,
+            revisions = copiedRevisions,
+            archivedAtEpochMillis = null,
+            preferredDirection = source.preferredDirection,
+        )
+        store.saveProfile(duplicate, app)
+        return DuplicateProfileResult.Duplicated(source = source, duplicate = duplicate)
+    }
+
+    /**
+     * Lists a profile's full immutable revision history in append order, including the
+     * history of ARCHIVED profiles (exact-history navigation remains available even though
+     * an archived profile leaves active selectors, D-13, D-16).
+     */
+    fun listHistory(profileId: String): ProfileHistoryResult {
+        val profile = when (val loaded = store.loadProfile(profileId)) {
+            is LoadResult.Loaded -> loaded.value
+            LoadResult.NotFound -> return ProfileHistoryResult.NotFound
+            is LoadResult.Corrupt -> return ProfileHistoryResult.Corrupt(loaded.reason)
+        }
+        return ProfileHistoryResult.History(
+            profile = profile,
+            revisions = profile.revisions.sortedBy { it.ordinal },
+        )
     }
 
     fun resolveCurrent(): CurrentProfileResolution {
@@ -180,6 +347,29 @@ class TrackProfileController(
             revision = revision,
             direction = selection.direction,
         )
+    }
+
+    /**
+     * True when [profile]'s stored revisions are strictly increasing by ordinal in append
+     * order (the append-only invariant). A profile that violates it is treated as corrupt
+     * history and refused for further appends.
+     */
+    private fun revisionsStrictlyIncreasing(profile: TrackProfile): Boolean {
+        val ordinals = profile.revisions.map { it.ordinal }
+        if (ordinals.any { it <= 0 }) return false
+        for (i in 1 until ordinals.size) {
+            if (ordinals[i] <= ordinals[i - 1]) return false
+        }
+        return true
+    }
+
+    companion object {
+        /**
+         * Upper bound on the number of immutable revisions a single profile may retain.
+         * Generous enough that normal editing never approaches it; it only guards against a
+         * runaway caller growing one aggregate without limit.
+         */
+        const val MAX_REVISIONS_PER_PROFILE: Int = 100
     }
 }
 
@@ -245,6 +435,73 @@ sealed interface AppendRevisionResult {
 
     /** The edit was invalid, or the target profile was missing/corrupt; nothing was written. */
     data class Rejected(val reason: String) : AppendRevisionResult
+}
+
+/**
+ * Typed outcome of [TrackProfileController.renameProfile] (D-12).
+ *
+ * A blank/unsafe name or a missing/corrupt profile yields [Rejected] and writes nothing;
+ * a valid rename yields [Renamed] with the updated profile (revisions unchanged).
+ */
+sealed interface RenameProfileResult {
+
+    /** The name was updated; every immutable revision was carried forward unchanged. */
+    data class Renamed(val profile: TrackProfile) : RenameProfileResult
+
+    /** The name was blank/unsafe, or the profile was missing/corrupt; nothing was written. */
+    data class Rejected(val reason: String) : RenameProfileResult
+}
+
+/**
+ * Typed outcome of [TrackProfileController.archiveProfile] (D-16, D-01/D-03).
+ *
+ * [Archived] reports the archived aggregate and whether a matching current selection was
+ * cleared; a missing/corrupt profile yields [Rejected]. Archive never deletes data.
+ */
+sealed interface ArchiveProfileResult {
+
+    /** The profile was archived (history preserved). [clearedCurrentSelection] is true iff the current selection matched it. */
+    data class Archived(
+        val profile: TrackProfile,
+        val clearedCurrentSelection: Boolean,
+    ) : ArchiveProfileResult
+
+    /** The target profile was missing or corrupt; nothing was written. */
+    data class Rejected(val reason: String) : ArchiveProfileResult
+}
+
+/**
+ * Typed outcome of [TrackProfileController.duplicateProfile] (D-16).
+ *
+ * [Duplicated] carries the unchanged [source] and the freshly forked [duplicate] (new
+ * profile/revision/compatibility ids); a blank/unsafe name, unsafe id, or missing/corrupt
+ * source yields [Rejected].
+ */
+sealed interface DuplicateProfileResult {
+
+    /** An independent copy was created with fresh identities; the source is unchanged. */
+    data class Duplicated(val source: TrackProfile, val duplicate: TrackProfile) : DuplicateProfileResult
+
+    /** The name/id was unsafe, or the source was missing/corrupt; nothing was written. */
+    data class Rejected(val reason: String) : DuplicateProfileResult
+}
+
+/**
+ * Typed outcome of [TrackProfileController.listHistory] (D-13, D-16).
+ *
+ * [History] carries the profile and its revisions in append order (archived profiles
+ * included); a missing profile yields [NotFound] and a malformed payload yields [Corrupt].
+ */
+sealed interface ProfileHistoryResult {
+
+    /** The profile's full immutable revision history, ordered by ordinal. */
+    data class History(val profile: TrackProfile, val revisions: List<TrackRevision>) : ProfileHistoryResult
+
+    /** No profile exists for the requested id. */
+    data object NotFound : ProfileHistoryResult
+
+    /** The profile payload was malformed. */
+    data class Corrupt(val reason: String) : ProfileHistoryResult
 }
 
 /** Wall-clock epoch millis that never throws (mirrors the SessionController guard). */

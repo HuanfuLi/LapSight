@@ -20,6 +20,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,12 +49,17 @@ import com.huanfuli.lapsight.shared.review.ReviewSummaries
 import com.huanfuli.lapsight.shared.review.TimingSessionReviewSummary
 import com.huanfuli.lapsight.shared.review.buildTimingTraceLayers
 import com.huanfuli.lapsight.shared.review.buildTrackTraceLayers
+import com.huanfuli.lapsight.shared.nowEpochMillis
+import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.AppendRevisionResult
+import com.huanfuli.lapsight.shared.track.ArchiveProfileResult
 import com.huanfuli.lapsight.shared.track.CreateProfileResult
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
+import com.huanfuli.lapsight.shared.track.DuplicateProfileResult
+import com.huanfuli.lapsight.shared.track.RenameProfileResult
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
@@ -436,6 +442,12 @@ private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore, 
             }
         }
 
+        // Profile lifecycle (SC-01, D-12/D-16, D-01/D-03): rename, archive, and duplicate
+        // a saved Track profile without deleting or rebinding history.
+        if (row.type == ReviewEntryType.Track) {
+            ProfileLifecycleSection(trackId = row.id, sessionStore = sessionStore)
+        }
+
         // Edit course + revision history (SC-02, D-05, D-12..D-14): offline editing of
         // start/finish and Sector layout, saved as an immutable revision.
         if (row.type == ReviewEntryType.Track) {
@@ -536,6 +548,62 @@ private fun TrackTraceSection(
         )
         Spacer(Modifier.height(4.dp))
         TraceView(layers = layers, minHeight = 180.dp, maxHeight = 260.dp)
+    }
+}
+
+/**
+ * Profile lifecycle controls on Track detail (SC-01; D-12 rename, D-16 archive/duplicate;
+ * D-01/D-03 selection clearing).
+ *
+ * Rename updates the profile's display name without touching its immutable revisions;
+ * Archive removes the profile from active selectors while retaining every revision/session/
+ * Ghost and — when it was the current Track — clears the selection so Drive returns to the
+ * explicit no-selection state rather than auto-picking another Track; Duplicate forks an
+ * independent profile with fresh identities. None of these deletes data. A V1-only Track is
+ * promoted to a V2 profile on demand so a real aggregate always backs the action.
+ */
+@Composable
+private fun ProfileLifecycleSection(trackId: String, sessionStore: LocalSessionStore) {
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "Profile",
+        color = Color(0xFF7E8DA0),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+    )
+
+    var message by remember(trackId) { mutableStateOf<String?>(null) }
+    var renameValue by remember(trackId) { mutableStateOf("") }
+
+    // Rename: a non-geometric metadata change (D-12). Blank/unsafe names are rejected by
+    // the controller and never form a storage path.
+    Spacer(Modifier.height(6.dp))
+    OutlinedTextField(
+        value = renameValue,
+        onValueChange = { renameValue = it },
+        label = { Text("Rename profile") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(4.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = {
+            message = renameTrack(sessionStore, trackId, renameValue)
+        }) { Text("Rename") }
+        OutlinedButton(onClick = {
+            message = duplicateTrack(sessionStore, trackId)
+        }) { Text("Duplicate") }
+        OutlinedButton(onClick = {
+            message = archiveTrack(sessionStore, trackId)
+        }) { Text("Archive") }
+    }
+    message?.let { msg ->
+        Text(
+            text = msg,
+            color = if (msg.startsWith("Couldn't")) Color(0xFFFF6B6B) else Color(0xFF8CFF9B),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -686,6 +754,75 @@ private fun setAsCurrentTrack(store: LocalSessionStore, trackId: String): String
             "Set as current. Add a start/finish before timing."
         else -> "Set as current track."
     }
+}
+
+/**
+ * Renames the profile backing [trackId] (D-12), promoting a V1-only Track first if needed.
+ * Returns a short status message. The revision history is preserved unchanged.
+ */
+internal fun renameTrack(store: LocalSessionStore, trackId: String, newName: String): String {
+    val profile = ensureProfile(store, trackId) ?: return "Couldn't load this track."
+    val app = trackApp(store, trackId) ?: return "Couldn't load this track."
+    return when (val result = TrackProfileController(store).renameProfile(profile.profileId, newName, app)) {
+        is RenameProfileResult.Renamed -> "Renamed to \"${result.profile.name}\"."
+        is RenameProfileResult.Rejected -> "Couldn't rename: ${result.reason}."
+    }
+}
+
+/**
+ * Archives the profile backing [trackId] (D-16) and, when it was the current Track, clears
+ * the selection so Drive returns to the explicit no-selection state (D-01/D-03). Never
+ * deletes any revision/session/Ghost and never selects a replacement Track.
+ */
+internal fun archiveTrack(
+    store: LocalSessionStore,
+    trackId: String,
+    now: () -> Long = ::nowEpochMillisSafeUi,
+): String {
+    val profile = ensureProfile(store, trackId) ?: return "Couldn't load this track."
+    val app = trackApp(store, trackId) ?: return "Couldn't load this track."
+    return when (val result = TrackProfileController(store).archiveProfile(profile.profileId, app, now)) {
+        is ArchiveProfileResult.Archived ->
+            if (result.clearedCurrentSelection) {
+                "Archived. Current track cleared — pick a track before timing."
+            } else {
+                "Archived. It stays in history but leaves track selection."
+            }
+        is ArchiveProfileResult.Rejected -> "Couldn't archive: ${result.reason}."
+    }
+}
+
+/**
+ * Duplicates the profile backing [trackId] into an independent profile with fresh identities
+ * (D-16). Returns a short status message. The source profile is left unchanged.
+ */
+internal fun duplicateTrack(
+    store: LocalSessionStore,
+    trackId: String,
+    now: () -> Long = ::nowEpochMillisSafeUi,
+): String {
+    val profile = ensureProfile(store, trackId) ?: return "Couldn't load this track."
+    val app = trackApp(store, trackId) ?: return "Couldn't load this track."
+    val newProfileId = "${profile.profileId}-copy-${now()}"
+    val newName = "${profile.name} copy"
+    return when (
+        val result = TrackProfileController(store)
+            .duplicateProfile(profile.profileId, newName, newProfileId, app, now)
+    ) {
+        is DuplicateProfileResult.Duplicated -> "Duplicated as \"${result.duplicate.name}\"."
+        is DuplicateProfileResult.Rejected -> "Couldn't duplicate: ${result.reason}."
+    }
+}
+
+/** The app metadata stamped on the V1 Track payload backing [trackId], or null if absent. */
+private fun trackApp(store: LocalSessionStore, trackId: String): AppMetadata? =
+    (store.loadTrack(trackId) as? LoadResult.Loaded<TrackPayloadV1>)?.value?.app
+
+/** Wall-clock epoch millis that never throws (mirrors the controller guard). */
+private fun nowEpochMillisSafeUi(): Long = try {
+    nowEpochMillis()
+} catch (_: Throwable) {
+    0L
 }
 
 @Composable
