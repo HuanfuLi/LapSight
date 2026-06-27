@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 5/14 plans executed
+**Plans:** 6/14 plans executed
 
 Plans:
 
@@ -193,7 +193,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5)*
 
-- [ ] 05-06-PLAN.md - Offline editor UI and immutable revision save
+- [x] 05-06-PLAN.md - Offline editor UI and immutable revision save
 
 **Wave 7** *(blocked on Wave 6; parallel write sets)*
 
