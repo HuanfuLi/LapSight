@@ -13,6 +13,7 @@ import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.DuplicateProfileResult
 import com.huanfuli.lapsight.shared.track.ProfileHistoryResult
 import com.huanfuli.lapsight.shared.track.RenameProfileResult
+import com.huanfuli.lapsight.shared.track.SectorBoundary
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.TrackProfile
 import com.huanfuli.lapsight.shared.track.TrackProfileController
@@ -111,7 +112,7 @@ class TrackRevisionStoreTest {
         val result = controller.appendRevision(
             profileId = "track-a",
             referenceLine = referenceLine(),
-            courseSetup = CourseSetup(startFinish = startFinishLine(), sectorsEnabled = true, sectorCount = 2),
+            courseSetup = sectorEnabledSetup(),
             app = app,
             now = { 2_000L },
         )
@@ -378,7 +379,7 @@ class TrackRevisionStoreTest {
         controller.appendRevision(
             profileId = "track-a",
             referenceLine = referenceLine(),
-            courseSetup = CourseSetup(startFinish = startFinishLine(), sectorsEnabled = true, sectorCount = 2),
+            courseSetup = sectorEnabledSetup(),
             app = app,
             now = { 2_000L },
         )
@@ -475,6 +476,22 @@ class TrackRevisionStoreTest {
     private fun startFinishLine() = StartFinishLineDto(
         pointA = GeoPointDto(latitude = 0.0, longitude = 0.0),
         pointB = GeoPointDto(latitude = 0.0, longitude = 0.001),
+    )
+
+    /** A valid 2-Sector course setup (1 boundary) sharing the base reference + start/finish. */
+    private fun sectorEnabledSetup() = CourseSetup(
+        startFinish = startFinishLine(),
+        sectorsEnabled = true,
+        sectorCount = 2,
+        boundaries = listOf(
+            SectorBoundary(
+                id = "boundary-1",
+                order = 1,
+                pointA = GeoPointDto(latitude = 0.0005, longitude = 0.0),
+                pointB = GeoPointDto(latitude = 0.0005, longitude = 0.001),
+                normalizedProgress = 0.5,
+            ),
+        ),
     )
 
     private fun referenceLine() = TrackReferenceLine(
