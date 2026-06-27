@@ -45,6 +45,23 @@ class LapEngine(
      */
     private var expectedStartFinishSign: Double? = null
 
+    /**
+     * Index into [CourseDefinition.orderedSectors] of the next intermediate
+     * boundary expected to close a complete Sector interval (D-06, D-11). Only a
+     * crossing of this exact boundary advances V2 Sector state; duplicate,
+     * out-of-order, and backward/opposite crossings leave it untouched (D-20).
+     * When it equals the boundary count, the final Sector is awaiting the
+     * accepted start/finish crossing.
+     */
+    private var nextBoundaryIndex: Int = 0
+
+    /**
+     * Interpolated open time of the in-progress complete Sector (the prior
+     * accepted boundary crossing, or the lap start for Sector 1). Used to derive
+     * the adjacent-crossing [SectorResult.durationMillis].
+     */
+    private var sectorOpenMillis: Long? = null
+
     var state: LapTimingState = LapTimingState.initial(course)
         private set
 
@@ -55,6 +72,8 @@ class LapEngine(
         previous = null
         lastStartFinishAcceptMillis = null
         expectedStartFinishSign = null
+        nextBoundaryIndex = 0
+        sectorOpenMillis = null
         state = LapTimingState.initial(course)
     }
 
@@ -134,6 +153,9 @@ class LapEngine(
     private fun startFirstLap(candidate: CrossingCandidate) {
         learnDirection(candidate)
         lastStartFinishAcceptMillis = candidate.crossingMillis
+        // Open complete-Sector tracking: Sector 1 begins at the lap crossing.
+        nextBoundaryIndex = 0
+        sectorOpenMillis = candidate.crossingMillis
         state = state.copy(
             phase = LapPhase.Timing,
             currentLapNumber = 1,
@@ -178,7 +200,32 @@ class LapEngine(
         val best = state.bestLapMillis?.let { min(it, completed.durationMillis) }
             ?: completed.durationMillis
 
+        // D-06: the accepted start/finish crossing closes the FINAL complete Sector
+        // at the same interpolated timestamp as the lap — but only when every
+        // intermediate boundary was observed in order (otherwise coverage is
+        // explicitly incomplete and no final interval is emitted, D-20).
+        val boundaries = course.orderedSectors
+        val finalSectorResult: SectorResult? =
+            if (boundaries.isNotEmpty() && nextBoundaryIndex == boundaries.size) {
+                val open = sectorOpenMillis ?: lapStart
+                val order = boundaries.size + 1
+                SectorResult(
+                    lapNumber = lapNumber,
+                    sectorId = "sector-$order",
+                    sectorOrder = order,
+                    startedAtMillis = open,
+                    endedAtMillis = candidate.crossingMillis,
+                    durationMillis = candidate.crossingMillis - open,
+                    cumulativeSplitMillis = candidate.crossingMillis - lapStart,
+                )
+            } else {
+                null
+            }
+
         lastStartFinishAcceptMillis = candidate.crossingMillis
+        // Reopen complete-Sector tracking for the next lap at this crossing.
+        nextBoundaryIndex = 0
+        sectorOpenMillis = candidate.crossingMillis
         state = state.copy(
             lapCount = lapNumber,
             currentLapNumber = lapNumber + 1,
@@ -187,6 +234,10 @@ class LapEngine(
             lastLapMillis = completed.durationMillis,
             bestLapMillis = best,
             completedLaps = state.completedLaps + completed,
+            latestSectorResult = finalSectorResult ?: state.latestSectorResult,
+            completedSectorResults = finalSectorResult
+                ?.let { state.completedSectorResults + it }
+                ?: state.completedSectorResults,
             sectors = resetSectors(),
             lastRejectReason = null,
         )
@@ -208,6 +259,12 @@ class LapEngine(
             markSectorRejected(sector.id, quality)
             return
         }
+
+        // V2 complete-Sector advancement runs independently of the legacy
+        // line-centric split below. Only the next expected boundary in order
+        // closes an interval; duplicate / out-of-order / backward crossings are
+        // ignored by the order gate (D-06, D-11, D-20).
+        maybeAdvanceSector(sector, candidate)
 
         val existing = state.sectors.firstOrNull { it.sectorId == sector.id }
         if (existing != null && existing.status == SectorStatus.Crossed) {
@@ -239,6 +296,43 @@ class LapEngine(
             },
             latestSector = event,
             lastRejectReason = null,
+        )
+    }
+
+    /**
+     * Close a complete Sector interval iff [sector] is the next expected
+     * intermediate boundary in order (D-06, D-11). A crossing of any other
+     * boundary — an already-passed one (duplicate / backward / opposite) or a
+     * future one (out-of-order) — leaves the expected state untouched (D-20).
+     *
+     * Emits a [SectorResult] carrying both the adjacent-crossing duration and the
+     * separate cumulative Split from the lap start, then advances the expected
+     * boundary and opens the next interval at this crossing.
+     */
+    private fun maybeAdvanceSector(sector: SectorLine, candidate: CrossingCandidate) {
+        if (state.phase != LapPhase.Timing) return
+        val lapStart = state.currentLapStartMillis ?: return
+        val boundaries = course.orderedSectors
+        val idx = boundaries.indexOfFirst { it.id == sector.id }
+        if (idx < 0 || idx != nextBoundaryIndex) return
+
+        val open = sectorOpenMillis ?: lapStart
+        val close = candidate.crossingMillis
+        val order = idx + 1
+        val result = SectorResult(
+            lapNumber = state.currentLapNumber ?: 1,
+            sectorId = "sector-$order",
+            sectorOrder = order,
+            startedAtMillis = open,
+            endedAtMillis = close,
+            durationMillis = close - open,
+            cumulativeSplitMillis = close - lapStart,
+        )
+        nextBoundaryIndex = idx + 1
+        sectorOpenMillis = close
+        state = state.copy(
+            latestSectorResult = result,
+            completedSectorResults = state.completedSectorResults + result,
         )
     }
 
