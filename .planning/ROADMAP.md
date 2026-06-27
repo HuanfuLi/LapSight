@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 6/14 plans executed
+**Plans:** 7/14 plans executed
 
 Plans:
 
@@ -197,7 +197,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6; parallel write sets)*
 
-- [ ] 05-07-PLAN.md - Complete-Sector timing semantics and persistence
+- [x] 05-07-PLAN.md - Complete-Sector timing semantics and persistence
 - [ ] 05-08-PLAN.md - Profile lifecycle, archive, duplicate, and history
 
 **Wave 8** *(blocked on both Wave 7 plans)*
@@ -230,6 +230,32 @@ Plans:
 2. User can edit start/finish line and optional sector lines.
 3. App can reuse prior course setup for new sessions.
 4. App can detect obvious wrong-direction or wrong-course usage.
+
+### Phase 5.1: MVP Field Validation and Hardening Gate
+
+**Goal:** As the product owner and tester, I want to freeze feature expansion after course profiles and validate the phone app in real use, so that external GNSS and glasses work only begins after the mounted-phone MVP is trustworthy.
+**Mode:** validation
+
+**Requirements:** Validate the implemented PLAT, GPS, LAP, SESS, GHOST, SAFE, ARCH, and Phase 5 course-profile requirements. No new feature scope unless required to fix validation blockers.
+
+**Success Criteria:**
+
+1. Code audit of Phase 1-5 core paths has no unresolved P0/P1 findings across architecture boundaries, lap engine logic, location ingestion, storage, session recovery, licensing, privacy, and safety positioning.
+2. Replay validation passes repeatably for lap detection, GPS quality degradation, course-profile selection, direction handling, session recovery, and ghost delta behavior using synthetic or recorded data.
+3. On-device UAT verifies Android and iOS smoke paths plus at least three complete real-world walking, cycling, or closed-course sessions with preserved replay/debug evidence.
+4. Mounted-phone display UAT confirms the live dash is readable in portrait/landscape, sunlight/low light, and moving-use conditions without requiring complex interaction while moving.
+5. UI audit passes a 6-pillar review with all pillars scoring at least 3/4 and no blocking issues in domain fit, hierarchy, state clarity, motion safety, responsiveness, or accessibility.
+6. Field-test logs compare lap count and lap timing against manual or reference observations, and a documented Go/No-Go decision is made before Phase 6 starts.
+7. Phase 6 and Phase 7 remain blocked until all P0/P1 validation defects are fixed or explicitly deferred with rationale.
+
+**Implementation Notes:**
+
+- Treat this as a validation and hardening phase, not a product expansion phase.
+- Produce `5.1-CODE-REVIEW.md`, `5.1-UAT.md`, `5.1-UI-REVIEW.md`, `5.1-FIELD-TEST-LOG.md`, and `5.1-GO-NOGO.md`.
+- Use replayable raw samples, exported sessions, screenshots, and field notes as evidence.
+- Keep any new instrumentation minimal and focused on reproducibility or diagnosis.
+- Re-check safety language: closed-course/private-track use, passive UI while moving, and no public-road racing positioning.
+- Do not begin Meta glasses, external GNSS, or other peripheral adaptation work in this phase.
 
 ### Phase 6: External GNSS and Sensor Ingestion
 
