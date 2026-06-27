@@ -167,42 +167,62 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 9 plans
+**Plans:** 14 plans
 
 Plans:
 
 **Wave 1**
 
-- [ ] 05-01-PLAN.md - V1-to-V2 profile migration and historical integrity
+- [ ] 05-01-PLAN.md - V1 freeze, V2 contracts, and pure V1->V2 migration mapping
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Wave 2** *(blocked on Wave 1)*
 
-- [ ] 05-02-PLAN.md - Explicit current Track selection and reuse
+- [ ] 05-02-PLAN.md - Side-by-side idempotent store migration wiring
 
-**Wave 3** *(blocked on Wave 2 completion)*
+**Wave 3** *(blocked on Wave 2)*
 
-- [ ] 05-03-PLAN.md - Offline course editor and immutable revision save
+- [ ] 05-03-PLAN.md - Explicit current Track selection and no-fallback resolution
 
-**Wave 4** *(blocked on Wave 3 completion; parallel write sets)*
+**Wave 4** *(blocked on Wave 3)*
 
-- [ ] 05-04-PLAN.md - Complete-Sector timing semantics and persistence
-- [ ] 05-05-PLAN.md - Profile lifecycle, archive, duplicate, and history
+- [ ] 05-04-PLAN.md - New-user create+name+select first profile and iOS bootstrap
 
-**Wave 5** *(blocked on both Wave 4 plans)*
+**Wave 5** *(blocked on Wave 4)*
 
-- [ ] 05-06-PLAN.md - Course Direction and Ghost compatibility isolation
+- [ ] 05-05-PLAN.md - Closed reference path and constrained editor geometry
 
-**Wave 6** *(blocked on Wave 5 completion)*
+**Wave 6** *(blocked on Wave 5)*
 
-- [ ] 05-07-PLAN.md - Ghost compatibility and source isolation
+- [ ] 05-06-PLAN.md - Offline editor UI and immutable revision save
 
-**Wave 7** *(blocked on Wave 6 completion)*
+**Wave 7** *(blocked on Wave 6; parallel write sets)*
 
-- [ ] 05-08-PLAN.md - Course-progress Ghost matcher and recovery
+- [ ] 05-07-PLAN.md - Complete-Sector timing semantics and persistence
+- [ ] 05-08-PLAN.md - Profile lifecycle, archive, duplicate, and history
 
-**Wave 8** *(blocked on Wave 7 completion)*
+**Wave 8** *(blocked on both Wave 7 plans)*
 
-- [ ] 05-09-PLAN.md - Wrong-course preflight, override, and Phase 5 UAT
+- [ ] 05-09-PLAN.md - Course Direction (Recorded/Reverse) and turnaround integrity
+
+**Wave 9** *(blocked on Wave 8)*
+
+- [ ] 05-10-PLAN.md - Ghost compatibility key contract and key-gated selection
+
+**Wave 10** *(blocked on Wave 9)*
+
+- [ ] 05-11-PLAN.md - Exact-key reference persistence and provider provenance
+
+**Wave 11** *(blocked on Wave 10)*
+
+- [ ] 05-12-PLAN.md - Course-progress Ghost matcher and recovery
+
+**Wave 12** *(blocked on Wave 11)*
+
+- [ ] 05-13-PLAN.md - Wrong-course preflight, override, and vertical integration
+
+**Wave 13** *(blocked on Wave 12)*
+
+- [ ] 05-14-PLAN.md - Review override evidence and Phase 5 UAT gates
 
 **Success Criteria:**
 

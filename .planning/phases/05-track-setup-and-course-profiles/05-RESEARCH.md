@@ -624,20 +624,16 @@ The final call occurs inside accepted start/finish completion. [VERIFIED: `05-CO
 
 ## Open Questions
 
-1. **What real-track distances should ship as defaults?**
-   - What we know: the phase requires conservative behavior and deterministic tests; RaceChrono documents a 50 m full-size-circuit trap width. [VERIFIED: `05-CONTEXT.md`; CITED: https://racechrono.com/article/1923]
-   - What's unclear: LapSight spans karting, full-size tracks, and cycling, and no recorded near-parallel/paddock corpus exists yet. [VERIFIED: `AGENTS.md`; codebase fixture audit]
-   - Recommendation: ship centralized initial values from this research only after fixtures for a kart track, full-size circuit, pit/paddock, hairpin, and parallel straight pass. [ASSUMED]
+**Status: RESOLVED (2026-06-26, during phase-05 revision).** All three questions are decided below; decisions are sourced from `05-CONTEXT.md` discretion where stated, otherwise an explicit conservative default is recorded.
 
-2. **Are editable Sector labels required in the first implementation wave?**
-   - What we know: context explicitly allows generated labels initially if stable IDs and semantics are correct. [VERIFIED: `05-CONTEXT.md` discretion]
-   - What's unclear: no post-discussion product requirement elevates label editing. [VERIFIED: `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`]
-   - Recommendation: defer label editing until the revision/interval model is working; keep label fields in snapshots with generated defaults. [ASSUMED]
+1. **What real-track distances should ship as defaults? — RESOLVED.**
+   - Decision: ship the centralized initial thresholds from Pattern 6 as the Phase 5 defaults: wrong-course block at `max(0, distanceToPath - accuracyMeters) > 250 m`, `Unavailable` when accuracy is worse than `100 m` or the fix is older than a `15 s` freshness window, generated boundary full length `30 m`, drag snap `1 m`, minimum cyclic spacing `max(20 m, 2% of lap length)`, and the live-confidence gates in Pattern 6's table. These are centralized and replay-configurable (the agent's Discretion in `05-CONTEXT.md` permits conservative thresholds covered by deterministic replay tests). They ship behind the deterministic kart/full-size/pit/hairpin/parallel fixtures and are flagged for real-track recalibration after the first Phase 5 dataset. [VERIFIED: `05-CONTEXT.md` discretion] [ASSUMED initial values]
 
-3. **How much real V1 device data exists?**
-   - What we know: Android has file-backed storage; iOS currently uses in-memory storage from its entry point. [VERIFIED: codebase platform bootstrap]
-   - What's unclear: this workspace cannot inspect device sandboxes or record counts. [VERIFIED: environment audit]
-   - Recommendation: before migration UAT, export/copy one real Android app-private dataset and run an upgrade build over it; do not rely only on synthetic JSON. [ASSUMED]
+2. **Are editable Sector labels required in the first implementation wave? — RESOLVED.**
+   - Decision: ship generated labels (`Sector 1...N`) with stable IDs; defer editable labels. `05-CONTEXT.md` discretion explicitly allows generated labels initially provided stable IDs and correct complete-coverage timing semantics are implemented. Label fields remain in snapshots with generated defaults so editing can follow without a schema change. [VERIFIED: `05-CONTEXT.md` discretion]
+
+3. **How much real V1 device data exists, and how is migration verified on a real device? — RESOLVED.**
+   - Decision: real-device record counts cannot be inspected from this workspace, so the real-device migration risk is closed through the Phase 5 UAT gate (authored in Plan 05-14, `05-UAT.md`): before any V2 revision, export/copy one real Android app-private V1 dataset, install the upgrade build over it, and verify old Tracks, sessions, exports, and Ghost references remain available; synthetic literal fixtures (Plans 05-01/05-02) cover the automated path. iOS persistence is verified by the explicit, unresolved-on-Windows macOS/Xcode cold-launch gate in the same UAT. [VERIFIED: environment audit; `05-VALIDATION.md` Manual/Device UAT]
 
 ## Environment Availability
 
