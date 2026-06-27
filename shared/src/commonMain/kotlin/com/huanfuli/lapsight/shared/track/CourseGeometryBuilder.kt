@@ -1,7 +1,10 @@
 package com.huanfuli.lapsight.shared.track
 
+import com.huanfuli.lapsight.shared.lap.CourseDefinition
 import com.huanfuli.lapsight.shared.lap.LocalPoint
+import com.huanfuli.lapsight.shared.lap.SectorLine
 import com.huanfuli.lapsight.shared.lap.SegmentGeometry
+import com.huanfuli.lapsight.shared.lap.StartFinishLine
 import kotlin.math.hypot
 
 /**
@@ -29,8 +32,87 @@ object CourseGeometryBuilder {
     /** Two crossing points within this distance are the same physical crossing. */
     private const val CROSSING_DEDUP_METERS: Double = 0.01
 
+    /**
+     * Normalized signed side of an accepted RECORDED-direction start/finish
+     * crossing for a forward-oriented course (D-18, D-21).
+     *
+     * A course is "forward-oriented" when a recorded-direction crossing yields a
+     * positive [com.huanfuli.lapsight.shared.lap.SegmentGeometry.cross] — the
+     * orientation [buildStartFinishLine]/[buildBoundary] and the demo course
+     * produce (pointA = center − normal·half, pointB = center + normal·half, with
+     * normal = tangent rotated +90°). Reverse keeps this same accepted sign and
+     * instead swaps every line's endpoints, so a reverse-direction physical crossing
+     * lands on the same positive side.
+     */
+    const val FORWARD_CROSSING_SIGN: Double = 1.0
+
     /** Stable id for the k-th (1-based) intermediate boundary. */
     fun boundaryId(k: Int): String = "sb-$k"
+
+    /**
+     * Direction-relative closed-loop progress of arc-length [s] for [direction]
+     * (D-11, D-18). Recorded measures forward from the start/finish anchor
+     * `wrap(s − startProgress, L)`; Reverse measures backward `wrap(startProgress − s, L)`.
+     * Both read 0 at the start/finish anchor and increase along their own travel
+     * direction, so the same physical revision yields two mirrored progress axes.
+     */
+    fun directionalProgress(
+        direction: CourseDirection,
+        s: Double,
+        startProgress: Double,
+        perimeter: Double,
+    ): Double {
+        if (perimeter <= 0.0) return 0.0
+        val raw = when (direction) {
+            CourseDirection.Recorded -> s - startProgress
+            CourseDirection.Reverse -> startProgress - s
+        }
+        var r = raw % perimeter
+        if (r < 0.0) r += perimeter
+        if (r >= perimeter) r -= perimeter
+        return r
+    }
+
+    /**
+     * Project a recorded-oriented lap [CourseDefinition] into the selected
+     * [direction] over the SAME physical anchors (D-11, D-18, D-21).
+     *
+     * [base] must be forward-oriented (a recorded crossing yields
+     * [FORWARD_CROSSING_SIGN]; this is the orientation [buildStartFinishLine] and the
+     * demo course produce). The result always declares an explicit accepted approach
+     * side so the lap engine enforces orientation from the first crossing with no
+     * learned-first-crossing fallback.
+     *
+     * - Recorded: identical geometry/order, accepted side = [FORWARD_CROSSING_SIGN].
+     * - Reverse: every line's endpoints are swapped and the intermediate boundaries
+     *   are walked in reverse spatial order (relabeled Sector 1..N from start/finish);
+     *   because the endpoints are swapped, a reverse-direction physical crossing again
+     *   lands on the [FORWARD_CROSSING_SIGN] side, so the engine accepts the reverse
+     *   pass and rejects the recorded pass.
+     */
+    fun directionalCourse(base: CourseDefinition, direction: CourseDirection): CourseDefinition =
+        when (direction) {
+            CourseDirection.Recorded -> base.copy(acceptedStartFinishSign = FORWARD_CROSSING_SIGN)
+            CourseDirection.Reverse -> {
+                val sf = base.startFinish
+                val swappedStartFinish = StartFinishLine(pointA = sf.pointB, pointB = sf.pointA)
+                val reversedBoundaries = base.orderedSectors.reversed().mapIndexed { index, boundary ->
+                    SectorLine(
+                        id = boundary.id,
+                        name = "Sector ${index + 1}",
+                        order = index,
+                        // Swap endpoints so this boundary's accepted orientation flips too.
+                        pointA = boundary.pointB,
+                        pointB = boundary.pointA,
+                    )
+                }
+                CourseDefinition(
+                    startFinish = swappedStartFinish,
+                    sectors = reversedBoundaries,
+                    acceptedStartFinishSign = FORWARD_CROSSING_SIGN,
+                )
+            }
+        }
 
     /** Equal closed-loop arc-length progresses for the `sectorCount-1` boundaries. */
     fun equalBoundaryProgresses(

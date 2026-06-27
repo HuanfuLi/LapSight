@@ -38,12 +38,23 @@ class LapEngine(
 
     /**
      * Expected sign of [CrossingCandidate.signedSide] for a valid start/finish
-     * crossing, learned from the first accepted crossing. Used by the direction
-     * gate so later laps must cross from the same side. Stays null until a
-     * crossing with a non-zero side is seen (a crossing that starts exactly on
-     * the line has side 0 and must not lock the gate — see WR-01).
+     * crossing. When the course supplies an EXPLICIT accepted side
+     * ([CourseDefinition.acceptedStartFinishSign], a Recorded/Reverse config) it is
+     * seeded here so the orientation is enforced from the first crossing (D-18,
+     * D-21). Otherwise it is learned from the first accepted crossing and stays null
+     * until a crossing with a non-zero side is seen (a crossing that starts exactly
+     * on the line has side 0 and must not lock the gate — see WR-01).
      */
-    private var expectedStartFinishSign: Double? = null
+    private var expectedStartFinishSign: Double? = course.acceptedStartFinishSign
+
+    /**
+     * True when the course declares an explicit accepted approach side (a
+     * direction-specific Recorded/Reverse config). Explicit orientation is enforced
+     * unconditionally — even the first start/finish crossing and regardless of
+     * [LapEngineConfig.enforceDirection] — so an opposite-direction crossing never
+     * starts or completes a lap (D-21). It is never relearned at runtime.
+     */
+    private val explicitDirection: Boolean = course.acceptedStartFinishSign != null
 
     /**
      * Index into [CourseDefinition.orderedSectors] of the next intermediate
@@ -71,7 +82,7 @@ class LapEngine(
         detector = null
         previous = null
         lastStartFinishAcceptMillis = null
-        expectedStartFinishSign = null
+        expectedStartFinishSign = course.acceptedStartFinishSign
         nextBoundaryIndex = 0
         sectorOpenMillis = null
         state = LapTimingState.initial(course)
@@ -145,7 +156,16 @@ class LapEngine(
         }
 
         when (state.phase) {
-            LapPhase.AwaitingStart -> startFirstLap(candidate)
+            LapPhase.AwaitingStart -> {
+                // An explicit accepted orientation gates even the FIRST crossing, so a
+                // wrong-direction opening pass never starts timing (D-21). There is no
+                // learned-first-crossing fallback for a direction-specific course.
+                if (explicitDirection && !directionMatches(candidate)) {
+                    state = state.copy(lastRejectReason = LapRejectReason.WrongDirection)
+                    return
+                }
+                startFirstLap(candidate)
+            }
             LapPhase.Timing -> completeLap(candidate)
         }
     }
@@ -169,8 +189,12 @@ class LapEngine(
     private fun completeLap(candidate: CrossingCandidate) {
         val lapStart = state.currentLapStartMillis ?: return
 
-        // Direction gate.
-        if (config.enforceDirection && !directionMatches(candidate)) {
+        // Direction gate. An explicit accepted orientation (Recorded/Reverse) is
+        // always enforced; the legacy learned gate stays opt-in via the config. A
+        // wrong-way crossing — including a mid-lap turnaround — is rejected here
+        // BEFORE any cooldown/min-lap bookkeeping, so timing simply continues with
+        // no false completion and no pause (D-17, D-21).
+        if ((explicitDirection || config.enforceDirection) && !directionMatches(candidate)) {
             state = state.copy(lastRejectReason = LapRejectReason.WrongDirection)
             return
         }

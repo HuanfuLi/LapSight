@@ -65,10 +65,21 @@ data class SectorDefinition(
  * mid-lap). Complete Sector INTERVALS are derived from them via [derivedSectors]:
  * `M` boundaries yield `M + 1` complete intervals, and an empty boundary list
  * (Sectors disabled) yields no intervals (D-07).
+ *
+ * [acceptedStartFinishSign] is the EXPLICIT accepted approach side for a valid
+ * start/finish crossing (the normalized sign, +1.0 or -1.0, of
+ * [CrossingCandidate.signedSide], D-18, D-21). When it is non-null the engine
+ * enforces that orientation from the FIRST crossing onward — including rejecting an
+ * opposite first crossing — instead of learning the direction at runtime. A
+ * Recorded course supplies the recorded-direction sign; a Reverse course supplies
+ * the opposite (achieved by swapping every line's endpoints). It defaults to `null`
+ * for direction-agnostic demo/legacy courses, which keep the learned-first-crossing
+ * behavior gated by [LapEngineConfig.enforceDirection].
  */
 data class CourseDefinition(
     val startFinish: StartFinishLine,
     val sectors: List<SectorLine> = emptyList(),
+    val acceptedStartFinishSign: Double? = null,
 ) {
     /** Intermediate boundaries sorted by their declared [SectorLine.order]. */
     val orderedSectors: List<SectorLine>
