@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 4/14 plans executed
+**Plans:** 5/14 plans executed
 
 Plans:
 
@@ -189,7 +189,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4)*
 
-- [ ] 05-05-PLAN.md - Closed reference path and constrained editor geometry
+- [x] 05-05-PLAN.md - Closed reference path and constrained editor geometry
 
 **Wave 6** *(blocked on Wave 5)*
 
