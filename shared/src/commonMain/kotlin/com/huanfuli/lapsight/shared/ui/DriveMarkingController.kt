@@ -10,7 +10,7 @@ import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.session.toDto
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
-import com.huanfuli.lapsight.shared.storage.SchemaMigrations
+import com.huanfuli.lapsight.shared.track.CreateProfileResult
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtraction
@@ -19,7 +19,6 @@ import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
-import com.huanfuli.lapsight.shared.track.TrackPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackProfileController
 import com.huanfuli.lapsight.shared.track.TrackReviewState
 
@@ -276,16 +275,23 @@ class DriveMarkingController(
             createdAtEpochMillis = createdAt,
         )
         store.saveTrackBundle(track, review.extraction.markingSession, appMetadata)
-        // Promote the saved Track to its V2 profile and make it the explicit current
-        // selection so the mark -> time flow resolves through TrackProfileController
-        // with no newest-Track fallback (D-01, D-02). The migration mapping keeps
-        // profileId == track.id, so the existing SessionController.startTiming path is
-        // unchanged.
-        val profile = SchemaMigrations.migrateTrack(TrackPayloadV1(track = track, app = appMetadata))
-        store.saveProfile(profile, appMetadata)
-        store.setCurrentSelection(
-            CurrentTrackSelection(profileId = profile.profileId, direction = profile.preferredDirection),
-        )
+        // Route the completed-marking save through the create-first-profile path so the
+        // named V2 profile is built and validated in ONE place (SC-01, T-05-07): it
+        // validates the name, generates opaque IDs (profileId == track.id), and writes
+        // an immutable first revision without auto-selecting.
+        val created = profileController.saveProfile(track = track, name = track.name, app = appMetadata)
+        if (created is CreateProfileResult.Created) {
+            // The mark -> time flow then EXPLICITLY makes the just-created profile the
+            // current selection so Timing resolves through TrackProfileController with no
+            // newest-Track fallback (D-01, D-02). Selection is a separate, deliberate step
+            // here; the create API itself never selects.
+            store.setCurrentSelection(
+                CurrentTrackSelection(
+                    profileId = created.profile.profileId,
+                    direction = created.profile.preferredDirection,
+                ),
+            )
+        }
         refreshSavedTracks()
         reviewState = null
         phase = DriveMarkingPhase.Idle

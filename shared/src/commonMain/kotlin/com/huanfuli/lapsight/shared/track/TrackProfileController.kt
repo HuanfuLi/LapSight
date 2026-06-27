@@ -52,7 +52,27 @@ class TrackProfileController(
      *   (D-01..D-04). The caller chooses when (and whether) to make it current.
      */
     fun saveProfile(track: Track, name: String, app: AppMetadata): CreateProfileResult {
-        TODO("05-04 Task 1 GREEN: validate name, build first revision, persist without selecting")
+        // Validate the user-provided name BEFORE any write so an unsafe or blank name
+        // never reaches persistence (T-05-07). The name is metadata only; it never
+        // forms a path.
+        if (!isSafeProfileName(name)) {
+            return CreateProfileResult.Rejected("blank or unsafe profile name")
+        }
+        // The opaque marking id is the only path-forming identity; reject it too if it
+        // could escape its storage directory (defense in depth with the store guard).
+        if (!SchemaMigrations.isSafeId(track.id)) {
+            return CreateProfileResult.Rejected("unsafe profile id")
+        }
+        // Build the single immutable first revision with deterministic opaque geometry
+        // identities (profileId / "<id>:r1" / "<id>:g1") via the canonical mapping, then
+        // stamp the validated user name. Geometry IDs are never derived from the name.
+        val profile = SchemaMigrations
+            .migrateTrack(TrackPayloadV1(track = track, app = app))
+            .copy(name = name.trim())
+        // Persist payload-first / index-last. Creating a profile does NOT establish a
+        // current selection: selection stays an explicit, separate step (D-01..D-04).
+        store.saveProfile(profile, app)
+        return CreateProfileResult.Created(profile)
     }
 
     fun resolveCurrent(): CurrentProfileResolution {
