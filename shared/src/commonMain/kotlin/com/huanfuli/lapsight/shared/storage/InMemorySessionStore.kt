@@ -50,6 +50,9 @@ class InMemorySessionStore : LocalSessionStore {
     /** Commit marker mirroring the file store's profile index (index-last semantics). */
     private val profileIndex = mutableListOf<String>()
 
+    /** The single persisted explicit current-Track selection (D-01); null when unset. */
+    private var currentSelection: CurrentTrackSelection? = null
+
     override fun saveTrackBundle(track: Track, marking: TrackMarkingSession, app: AppMetadata): SaveResult {
         // Payloads first (mirrors FileSessionStore), then the index row.
         markings[marking.id] = TrackMarkingPayloadV1(marking = marking, app = app)
@@ -278,16 +281,25 @@ class InMemorySessionStore : LocalSessionStore {
         profileIndex.mapNotNull { profiles[it] }.filterNot { it.isArchived }
 
     // --- Explicit current-Track selection (D-01..D-04) ----------------------
-    // RED stub: persistence is not wired yet, so the selection never survives.
 
-    override fun loadCurrentSelection(): LoadResult<CurrentTrackSelection> = LoadResult.NotFound
+    override fun loadCurrentSelection(): LoadResult<CurrentTrackSelection> {
+        val selection = currentSelection ?: return LoadResult.NotFound
+        // Mirror the file store's defense in depth: an unsafe persisted id is corrupt.
+        if (selection.profileId != null && !SchemaMigrations.isSafeId(selection.profileId)) {
+            return LoadResult.Corrupt("unsafe profile id")
+        }
+        return LoadResult.Loaded(selection)
+    }
 
     override fun setCurrentSelection(selection: CurrentTrackSelection) {
-        // intentionally not implemented yet (RED)
+        require(selection.profileId == null || SchemaMigrations.isSafeId(selection.profileId)) {
+            "unsafe profile id"
+        }
+        currentSelection = selection
     }
 
     override fun clearCurrentSelection() {
-        // intentionally not implemented yet (RED)
+        currentSelection = null
     }
 
     private fun referenceKey(trackId: String, isSimulated: Boolean): String =
