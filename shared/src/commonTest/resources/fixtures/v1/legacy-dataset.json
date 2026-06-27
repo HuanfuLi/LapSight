@@ -1,0 +1,151 @@
+{
+  "track": {
+    "schemaVersion": 1,
+    "track": {
+      "id": "track-legacy-1",
+      "name": "Legacy Oval",
+      "createdAtEpochMillis": 1700000000000,
+      "sourceMarkingSessionId": "mark-legacy-1",
+      "source": { "source": "PhoneGps", "isSimulated": false, "label": "Phone" },
+      "referenceLine": {
+        "points": [
+          { "latitude": 39.7900, "longitude": -86.2300 },
+          { "latitude": 39.7910, "longitude": -86.2300 },
+          { "latitude": 39.7910, "longitude": -86.2290 },
+          { "latitude": 39.7900, "longitude": -86.2290 }
+        ],
+        "isClosed": true
+      },
+      "startFinish": {
+        "pointA": { "latitude": 39.7900, "longitude": -86.2300 },
+        "pointB": { "latitude": 39.7900, "longitude": -86.2295 }
+      },
+      "sectors": [
+        {
+          "id": "s1",
+          "name": "Sector 1",
+          "order": 1,
+          "pointA": { "latitude": 39.7910, "longitude": -86.2300 },
+          "pointB": { "latitude": 39.7910, "longitude": -86.2295 }
+        },
+        {
+          "id": "s2",
+          "name": "Sector 2",
+          "order": 2,
+          "pointA": { "latitude": 39.7905, "longitude": -86.2290 },
+          "pointB": { "latitude": 39.7905, "longitude": -86.2295 }
+        }
+      ]
+    },
+    "app": { "appVersion": "0.4.0", "buildNumber": "50", "platform": "android" }
+  },
+  "reviewIndex": {
+    "schemaVersion": 1,
+    "rows": [
+      {
+        "id": "track-legacy-1",
+        "type": "Track",
+        "name": "Legacy Oval",
+        "createdAtEpochMillis": 1700000000000,
+        "source": { "source": "PhoneGps", "isSimulated": false, "label": "Phone" },
+        "payloadPath": "tracks/track-legacy-1.json"
+      },
+      {
+        "id": "sess-legacy-1",
+        "type": "TimingSession",
+        "name": "Legacy Oval",
+        "createdAtEpochMillis": 1700000100000,
+        "source": { "source": "PhoneGps", "isSimulated": false, "label": "Phone" },
+        "payloadPath": "sessions/sess-legacy-1.json",
+        "sampleCount": 3,
+        "bestLapMillis": 60000
+      }
+    ]
+  },
+  "session": {
+    "schemaVersion": 1,
+    "session": {
+      "id": "sess-legacy-1",
+      "trackId": "track-legacy-1",
+      "trackName": "Legacy Oval",
+      "createdAtEpochMillis": 1700000100000,
+      "source": { "source": "PhoneGps", "isSimulated": false, "label": "Phone" },
+      "startFinish": {
+        "pointA": { "latitude": 39.7900, "longitude": -86.2300 },
+        "pointB": { "latitude": 39.7900, "longitude": -86.2295 }
+      },
+      "sectors": [
+        {
+          "id": "s1",
+          "name": "Sector 1",
+          "order": 1,
+          "pointA": { "latitude": 39.7910, "longitude": -86.2300 },
+          "pointB": { "latitude": 39.7910, "longitude": -86.2295 }
+        },
+        {
+          "id": "s2",
+          "name": "Sector 2",
+          "order": 2,
+          "pointA": { "latitude": 39.7905, "longitude": -86.2290 },
+          "pointB": { "latitude": 39.7905, "longitude": -86.2295 }
+        }
+      ]
+    },
+    "app": { "appVersion": "0.4.0", "buildNumber": "50", "platform": "android" },
+    "samples": [
+      { "elapsedMillis": 0, "latitude": 39.7900, "longitude": -86.2300, "horizontalAccuracyMeters": 5.0, "speedMetersPerSecond": 12.0, "headingDegrees": 90.0, "altitudeMeters": 200.0, "source": "PhoneGps" },
+      { "elapsedMillis": 20000, "latitude": 39.7910, "longitude": -86.2300, "horizontalAccuracyMeters": 5.0, "speedMetersPerSecond": 12.0, "headingDegrees": 90.0, "altitudeMeters": 200.0, "source": "PhoneGps" },
+      { "elapsedMillis": 40000, "latitude": 39.7905, "longitude": -86.2290, "horizontalAccuracyMeters": 5.0, "speedMetersPerSecond": 12.0, "headingDegrees": 90.0, "altitudeMeters": 200.0, "source": "PhoneGps" }
+    ],
+    "laps": [
+      { "lapNumber": 1, "startMillis": 0, "endMillis": 60000 }
+    ],
+    "sectorEvents": [
+      { "lapNumber": 1, "sectorId": "s1", "sectorOrder": 1, "crossingMillis": 20000, "splitMillis": 20000 },
+      { "lapNumber": 1, "sectorId": "s2", "sectorOrder": 2, "crossingMillis": 40000, "splitMillis": 40000 }
+    ],
+    "gpsQuality": { "sampleCount": 3, "averageAccuracyMeters": 5.0, "source": "PhoneGps" },
+    "totalDurationMillis": 60000
+  },
+  "draft": {
+    "schemaVersion": 1,
+    "session": {
+      "id": "draft-legacy-1",
+      "trackId": "track-legacy-1",
+      "trackName": "Legacy Oval",
+      "createdAtEpochMillis": 1700000200000,
+      "source": { "source": "PhoneGps", "isSimulated": false, "label": "Phone" },
+      "startFinish": {
+        "pointA": { "latitude": 39.7900, "longitude": -86.2300 },
+        "pointB": { "latitude": 39.7900, "longitude": -86.2295 }
+      },
+      "sectors": []
+    },
+    "app": { "appVersion": "0.4.0", "buildNumber": "50", "platform": "android" },
+    "samples": [
+      { "elapsedMillis": 0, "latitude": 39.7900, "longitude": -86.2300, "horizontalAccuracyMeters": 6.0, "speedMetersPerSecond": 10.0, "headingDegrees": 88.0, "altitudeMeters": 201.0, "source": "PhoneGps" }
+    ],
+    "laps": [],
+    "sectorEvents": [],
+    "gpsQuality": { "sampleCount": 1, "averageAccuracyMeters": 6.0, "source": "PhoneGps" },
+    "totalDurationMillis": 5000
+  },
+  "ghost": {
+    "schemaVersion": 1,
+    "trackId": "track-legacy-1",
+    "sessionId": "sess-legacy-1",
+    "lapNumber": 1,
+    "durationMillis": 60000,
+    "source": { "source": "PhoneGps", "isSimulated": false, "label": "Phone" },
+    "totalDistanceMeters": 400.0,
+    "samples": [
+      { "elapsedMillis": 0, "latitude": 39.7900, "longitude": -86.2300, "horizontalAccuracyMeters": 5.0, "speedMetersPerSecond": 12.0, "headingDegrees": 90.0, "altitudeMeters": 200.0, "source": "PhoneGps" },
+      { "elapsedMillis": 60000, "latitude": 39.7900, "longitude": -86.2300, "horizontalAccuracyMeters": 5.0, "speedMetersPerSecond": 12.0, "headingDegrees": 90.0, "altitudeMeters": 200.0, "source": "PhoneGps" }
+    ],
+    "progressPoints": [
+      { "elapsedMillis": 0, "progressMeters": 0.0, "normalizedProgress": 0.0, "latitude": 39.7900, "longitude": -86.2300, "localX": 0.0, "localY": 0.0, "speedMetersPerSecond": 12.0, "headingDegrees": 90.0, "horizontalAccuracyMeters": 5.0 },
+      { "elapsedMillis": 60000, "progressMeters": 400.0, "normalizedProgress": 1.0, "latitude": 39.7900, "longitude": -86.2300, "localX": 0.0, "localY": 0.0, "speedMetersPerSecond": 12.0, "headingDegrees": 90.0, "horizontalAccuracyMeters": 5.0 }
+    ],
+    "app": { "appVersion": "0.4.0", "buildNumber": "50", "platform": "android" }
+  }
+}

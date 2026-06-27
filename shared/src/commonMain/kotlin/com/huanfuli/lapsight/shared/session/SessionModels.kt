@@ -10,8 +10,6 @@ import com.huanfuli.lapsight.shared.ghost.ProgressPoint
 import com.huanfuli.lapsight.shared.ghost.ReferenceLap
 import com.huanfuli.lapsight.shared.lap.LapEvent
 import com.huanfuli.lapsight.shared.lap.SectorEvent
-import com.huanfuli.lapsight.shared.storage.CURRENT_GHOST_REFERENCE_SCHEMA_VERSION
-import com.huanfuli.lapsight.shared.storage.CURRENT_SESSION_SCHEMA_VERSION
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import kotlinx.serialization.Serializable
@@ -184,7 +182,7 @@ data class TimingSession(
  */
 @Serializable
 data class TimingSessionPayloadV1(
-    val schemaVersion: Int = CURRENT_SESSION_SCHEMA_VERSION,
+    val schemaVersion: Int = 1,
     val session: TimingSession,
     val app: AppMetadata,
     val samples: List<LocationSampleDto>,
@@ -354,7 +352,7 @@ data class ProgressPointDto(
  */
 @Serializable
 data class GhostReferencePayloadV1(
-    val schemaVersion: Int = CURRENT_GHOST_REFERENCE_SCHEMA_VERSION,
+    val schemaVersion: Int = 1,
     val trackId: String,
     val sessionId: String,
     val lapNumber: Int,

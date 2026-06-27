@@ -21,3 +21,18 @@ const val CURRENT_SESSION_SCHEMA_VERSION: Int = 1
  * them.
  */
 const val CURRENT_GHOST_REFERENCE_SCHEMA_VERSION: Int = 1
+
+// --- Phase 5 frozen-version dispatch constants (D-12..D-15) --------------------
+//
+// The V1 payload DTOs are FROZEN: each embeds the literal `1` directly (not the
+// mutable `CURRENT_*` constant above) so a future bump can never re-serialize the
+// old shape under a new number. The V2 profile/session/reference payloads embed
+// the literal `2`. These two constants exist for the migration dispatch layer
+// (`SchemaMigrations`) to branch on a named value; they are intentionally NOT used
+// as DTO property defaults, which stay literal.
+
+/** Literal schema version emitted by every frozen `*PayloadV1` / `ReviewIndex` DTO. */
+const val SCHEMA_VERSION_V1: Int = 1
+
+/** Literal schema version emitted by every V2 profile/session/reference payload. */
+const val SCHEMA_VERSION_V2: Int = 2

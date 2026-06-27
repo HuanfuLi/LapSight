@@ -4,7 +4,6 @@ import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.session.GeoPointDto
 import com.huanfuli.lapsight.shared.session.LocationSampleDto
 import com.huanfuli.lapsight.shared.session.SourceMetadata
-import com.huanfuli.lapsight.shared.storage.CURRENT_TRACK_SCHEMA_VERSION
 import kotlinx.serialization.Serializable
 
 /**
@@ -78,18 +77,29 @@ data class Track(
     val sectors: List<SectorLineDto> = emptyList(),
 )
 
-/** Versioned on-disk payload wrapper for a saved [Track] (D-23, D-25). */
+/**
+ * Versioned on-disk payload wrapper for a saved [Track] (D-23, D-25).
+ *
+ * FROZEN V1 shape: [schemaVersion] is the literal `1` and must never track the
+ * mutable `CURRENT_*` constant. Phase 5 migration (`SchemaMigrations`) dispatches
+ * on this literal before decoding, so the old shape can never be re-emitted under
+ * a newer number. New geometry lives in the V2 `TrackProfilePayloadV2`.
+ */
 @Serializable
 data class TrackPayloadV1(
-    val schemaVersion: Int = CURRENT_TRACK_SCHEMA_VERSION,
+    val schemaVersion: Int = 1,
     val track: Track,
     val app: AppMetadata,
 )
 
-/** Versioned on-disk payload wrapper for a [TrackMarkingSession] (D-23, D-25). */
+/**
+ * Versioned on-disk payload wrapper for a [TrackMarkingSession] (D-23, D-25).
+ *
+ * FROZEN V1 shape: [schemaVersion] is the literal `1` (see [TrackPayloadV1]).
+ */
 @Serializable
 data class TrackMarkingPayloadV1(
-    val schemaVersion: Int = CURRENT_TRACK_SCHEMA_VERSION,
+    val schemaVersion: Int = 1,
     val marking: TrackMarkingSession,
     val app: AppMetadata,
 )
@@ -120,9 +130,15 @@ data class ReviewIndexRow(
     val bestLapMillis: Long? = null,
 )
 
-/** The metadata index that lists saved tracks/markings/sessions for Review (D-21, D-22). */
+/**
+ * The metadata index that lists saved tracks/markings/sessions for Review (D-21, D-22).
+ *
+ * FROZEN V1 shape: [schemaVersion] is the literal `1`. The index is a rebuildable
+ * cache; Phase 5 migration rebuilds V2 rows from canonical payloads rather than
+ * trusting it as migration evidence.
+ */
 @Serializable
 data class ReviewIndex(
-    val schemaVersion: Int = CURRENT_TRACK_SCHEMA_VERSION,
+    val schemaVersion: Int = 1,
     val rows: List<ReviewIndexRow> = emptyList(),
 )
