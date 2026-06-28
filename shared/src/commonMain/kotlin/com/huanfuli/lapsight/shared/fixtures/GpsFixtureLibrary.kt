@@ -2,6 +2,8 @@ package com.huanfuli.lapsight.shared.fixtures
 
 import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.LocationSource
+import com.huanfuli.lapsight.shared.session.GeoPointDto
+import com.huanfuli.lapsight.shared.track.TrackReferenceLine
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -54,6 +56,9 @@ object GpsFixtureLibrary {
     const val DROPPED_LOW_FREQUENCY = "dropped-low-frequency"
     const val MULTI_SESSION_BEST_CANDIDATE = "multi-session-best-candidate"
     const val VARIABLE_PACE_GHOST_UAT = "variable-pace-ghost-uat"
+    const val COURSE_MATCH_AMBIGUITY = "course-match-ambiguity"
+    const val COURSE_MATCH_RECOVERY = "course-match-recovery"
+    const val COURSE_MATCH_BACKWARD = "course-match-backward"
 
     /** The six required scenario ids from D-04, in canonical order. */
     val requiredScenarioIds: List<String> = listOf(
@@ -251,6 +256,74 @@ object GpsFixtureLibrary {
         seed = 909L,
     )
 
+    /**
+     * Stable rectangular course for matcher excursion/rematch and backward-motion
+     * replay. The start/finish anchor is the first point and the recorded direction
+     * follows the bottom edge eastward.
+     */
+    fun courseMatchReferenceLine(): TrackReferenceLine = referenceLine(
+        0.0 to 0.0,
+        120.0 to 0.0,
+        120.0 to 80.0,
+        0.0 to 80.0,
+    )
+
+    /**
+     * Thin parallel-sided loop whose center is equally close to two non-adjacent
+     * straights. The single sample must be treated as ambiguous, not guessed.
+     */
+    fun courseMatchAmbiguityReferenceLine(): TrackReferenceLine = referenceLine(
+        0.0 to 0.0,
+        120.0 to 0.0,
+        120.0 to 8.0,
+        0.0 to 8.0,
+    )
+
+    fun courseMatchAmbiguity(): List<LocationSample> = listOf(
+        courseMatchSample(elapsedMillis = 0L, eastMeters = 60.0, northMeters = 4.0),
+    )
+
+    /** Matched -> off-course -> matched, with timestamps/speed suitable for rematch continuity. */
+    fun courseMatchRecovery(): List<LocationSample> = listOf(
+        courseMatchSample(elapsedMillis = 0L, eastMeters = 10.0, northMeters = 0.0),
+        courseMatchSample(elapsedMillis = 1_000L, eastMeters = 20.0, northMeters = 0.0),
+        courseMatchSample(elapsedMillis = 2_000L, eastMeters = 20.0, northMeters = -80.0),
+        courseMatchSample(elapsedMillis = 3_000L, eastMeters = 30.0, northMeters = 0.0),
+    )
+
+    /** Forward progress followed by real backward movement on the same course segment. */
+    fun courseMatchBackward(): List<LocationSample> = listOf(
+        courseMatchSample(elapsedMillis = 0L, eastMeters = 20.0, northMeters = 0.0),
+        courseMatchSample(elapsedMillis = 1_000L, eastMeters = 30.0, northMeters = 0.0),
+        courseMatchSample(elapsedMillis = 2_000L, eastMeters = 25.0, northMeters = 0.0),
+    )
+
+    private fun referenceLine(vararg localMeters: Pair<Double, Double>): TrackReferenceLine =
+        TrackReferenceLine(
+            points = localMeters.map { (east, north) ->
+                GeoPointDto(latitude = lat(north), longitude = lon(east))
+            },
+            isClosed = true,
+        )
+
+    private fun courseMatchSample(
+        elapsedMillis: Long,
+        eastMeters: Double,
+        northMeters: Double,
+        accuracyMeters: Double = CLEAN_ACCURACY_M,
+        speedMetersPerSecond: Double = 10.0,
+        source: LocationSource = LocationSource.Simulated,
+    ): LocationSample = LocationSample(
+        elapsedMillis = elapsedMillis,
+        latitude = lat(northMeters),
+        longitude = lon(eastMeters),
+        horizontalAccuracyMeters = accuracyMeters,
+        speedMetersPerSecond = speedMetersPerSecond,
+        headingDegrees = 90.0,
+        altitudeMeters = ALTITUDE_M,
+        source = source,
+    )
+
     private fun ovalVariablePaceSession(
         loopMillis: List<Long>,
         accuracyBase: Double = CLEAN_ACCURACY_M,
@@ -364,6 +437,24 @@ object GpsFixtureLibrary {
             name = "Variable-pace ghost UAT",
             description = "Five simulated oval laps with slower, faster, and same-session new-best pacing for live ghost delta UAT.",
             sessions = listOf(variablePaceGhostUat()),
+        )
+        COURSE_MATCH_AMBIGUITY -> GpsFixtureScenario(
+            id = id,
+            name = "Course-match ambiguity",
+            description = "A sample equally close to two non-adjacent parallel course segments.",
+            sessions = listOf(courseMatchAmbiguity()),
+        )
+        COURSE_MATCH_RECOVERY -> GpsFixtureScenario(
+            id = id,
+            name = "Course-match recovery",
+            description = "Matched samples around a temporary off-course excursion and automatic rematch.",
+            sessions = listOf(courseMatchRecovery()),
+        )
+        COURSE_MATCH_BACKWARD -> GpsFixtureScenario(
+            id = id,
+            name = "Course-match backward movement",
+            description = "Forward then backward movement on the same course segment without pausing timing.",
+            sessions = listOf(courseMatchBackward()),
         )
         else -> throw IllegalArgumentException("Unknown GPS fixture scenario id: $id")
     }
