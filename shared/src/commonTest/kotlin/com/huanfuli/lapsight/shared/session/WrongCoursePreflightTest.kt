@@ -107,6 +107,16 @@ class WrongCoursePreflightTest {
                 ),
             ).reason,
         )
+        assertEquals(
+            CoursePreflightUnavailableReason.NonFiniteGeometry,
+            assertIs<CoursePreflightResult.Unavailable>(
+                preflight.evaluate(
+                    referenceLine = GpsFixtureLibrary.wrongCourseNonFiniteReferenceLine(),
+                    latestFix = GpsFixtureLibrary.wrongCoursePitPaddock(),
+                    nowElapsedMillis = 20_000L,
+                ),
+            ).reason,
+        )
 
         val oversized = TrackReferenceLine(
             points = List(CourseGeometryThresholds.Default.maxPathPoints + 1) { index ->

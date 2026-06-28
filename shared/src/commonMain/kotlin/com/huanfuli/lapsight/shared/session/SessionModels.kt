@@ -77,6 +77,67 @@ data class GpsQualitySummary(
     val source: LocationSource,
 )
 
+/** Persisted one-time pre-Timing course-distance outcome (D-22, D-23). */
+@Serializable
+enum class CoursePreflightDisposition {
+    NotChecked,
+    Ready,
+    Unavailable,
+    Blocked,
+    Overridden,
+}
+
+/**
+ * Immutable evidence of the wrong-course preflight used to start a session.
+ *
+ * A legacy session defaults to [CoursePreflightDisposition.NotChecked]. A
+ * clearly-far result is never persisted into an active session unless the user
+ * explicitly chooses the override, in which case [overrideUsed] is true and the
+ * disposition is [CoursePreflightDisposition.Overridden].
+ */
+@Serializable
+data class CoursePreflightSnapshot(
+    val disposition: CoursePreflightDisposition,
+    val overrideUsed: Boolean = false,
+    val distanceMeters: Double? = null,
+    val conservativeDistanceMeters: Double? = null,
+    val thresholdMeters: Double? = null,
+    val unavailableReason: CoursePreflightUnavailableReason? = null,
+) {
+    companion object {
+        fun notChecked(): CoursePreflightSnapshot = CoursePreflightSnapshot(
+            disposition = CoursePreflightDisposition.NotChecked,
+        )
+
+        fun from(
+            result: CoursePreflightResult,
+            overrideUsed: Boolean = false,
+        ): CoursePreflightSnapshot = when (result) {
+            is CoursePreflightResult.Ready -> CoursePreflightSnapshot(
+                disposition = CoursePreflightDisposition.Ready,
+                distanceMeters = result.distanceMeters,
+                conservativeDistanceMeters = result.conservativeDistanceMeters,
+                thresholdMeters = result.thresholdMeters,
+            )
+            is CoursePreflightResult.Blocked -> CoursePreflightSnapshot(
+                disposition = if (overrideUsed) {
+                    CoursePreflightDisposition.Overridden
+                } else {
+                    CoursePreflightDisposition.Blocked
+                },
+                overrideUsed = overrideUsed,
+                distanceMeters = result.distanceMeters,
+                conservativeDistanceMeters = result.conservativeDistanceMeters,
+                thresholdMeters = result.thresholdMeters,
+            )
+            is CoursePreflightResult.Unavailable -> CoursePreflightSnapshot(
+                disposition = CoursePreflightDisposition.Unavailable,
+                unavailableReason = result.reason,
+            )
+        }
+    }
+}
+
 /** Maps a domain [LocationSample] to its serializable DTO. */
 fun LocationSample.toDto(): LocationSampleDto = LocationSampleDto(
     elapsedMillis = elapsedMillis,
@@ -245,6 +306,11 @@ data class TimingSession(
     val courseCompatibilityKey: CourseCompatibilityKey = GhostCompatibility
         .migratedV1Key(trackId = trackId, isSimulated = source.isSimulated)
         .copy(direction = direction),
+    /**
+     * One-time whole-course preflight evidence captured before Timing starts.
+     * This metadata never participates in active lap validity or Ghost matching.
+     */
+    val coursePreflight: CoursePreflightSnapshot = CoursePreflightSnapshot.notChecked(),
 )
 
 /**

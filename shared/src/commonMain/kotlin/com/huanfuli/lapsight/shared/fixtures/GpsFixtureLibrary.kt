@@ -298,6 +298,63 @@ object GpsFixtureLibrary {
         courseMatchSample(elapsedMillis = 2_000L, eastMeters = 25.0, northMeters = 0.0),
     )
 
+    /**
+     * Rectangle used by whole-course preflight. The pit fixture is closest to
+     * the implicit last-to-first segment, proving that the entire closed loop is
+     * considered instead of only start/finish or listed forward segments.
+     */
+    fun wrongCourseReferenceLine(): TrackReferenceLine = referenceLine(
+        0.0 to 0.0,
+        120.0 to 0.0,
+        120.0 to 80.0,
+        0.0 to 80.0,
+    )
+
+    /** Pit/paddock position 30 m outside the closing west side of the course. */
+    fun wrongCoursePitPaddock(): LocationSample = courseMatchSample(
+        elapsedMillis = 20_000L,
+        eastMeters = -30.0,
+        northMeters = 40.0,
+    )
+
+    /** Clearly different course position, well beyond the conservative block threshold. */
+    fun wrongCourseFarCourse(): LocationSample = courseMatchSample(
+        elapsedMillis = 20_000L,
+        eastMeters = -1_000.0,
+        northMeters = 40.0,
+    )
+
+    /** Raw distance exceeds 250 m, but 60 m accuracy uncertainty makes it non-blocking. */
+    fun wrongCourseAccuracyMargin(): LocationSample = courseMatchSample(
+        elapsedMillis = 20_000L,
+        eastMeters = -300.0,
+        northMeters = 40.0,
+        accuracyMeters = 60.0,
+    )
+
+    /** Fix older than the 15-second preflight freshness window at 20,001 ms. */
+    fun wrongCourseStale(): LocationSample = courseMatchSample(
+        elapsedMillis = 5_000L,
+        eastMeters = -30.0,
+        northMeters = 40.0,
+    )
+
+    /** Too few vertices to form a complete closed course. */
+    fun wrongCourseMalformedReferenceLine(): TrackReferenceLine = referenceLine(
+        0.0 to 0.0,
+        120.0 to 0.0,
+    )
+
+    /** Non-finite geometry must be rejected before any segment scan. */
+    fun wrongCourseNonFiniteReferenceLine(): TrackReferenceLine = TrackReferenceLine(
+        points = listOf(
+            GeoPointDto(latitude = BASE_LAT, longitude = BASE_LON),
+            GeoPointDto(latitude = Double.NaN, longitude = BASE_LON),
+            GeoPointDto(latitude = BASE_LAT, longitude = BASE_LON + 0.001),
+        ),
+        isClosed = true,
+    )
+
     private fun referenceLine(vararg localMeters: Pair<Double, Double>): TrackReferenceLine =
         TrackReferenceLine(
             points = localMeters.map { (east, north) ->
