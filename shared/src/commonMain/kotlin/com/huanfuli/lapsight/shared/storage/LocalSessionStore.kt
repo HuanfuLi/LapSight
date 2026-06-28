@@ -6,7 +6,9 @@ import com.huanfuli.lapsight.shared.session.GhostCandidate
 import com.huanfuli.lapsight.shared.session.GhostReferencePayloadV1
 import com.huanfuli.lapsight.shared.session.TimingSession
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
+import com.huanfuli.lapsight.shared.ghost.CourseCompatibilityKey
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
+import com.huanfuli.lapsight.shared.track.GhostReferencePayloadV2
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
@@ -92,6 +94,24 @@ interface LocalSessionStore {
     fun ghostCandidateForTrack(trackId: String): GhostCandidate?
 
     // --- Ghost reference laps (D-01..D-05, D-12, D-24) ---------------------
+
+    /**
+     * Loads the persisted full ghost reference lap for the exact [CourseCompatibilityKey].
+     *
+     * The key includes profile identity, geometry compatibility identity, selected Course
+     * Direction, and real/simulated source boundary, so Demo/Real, Recorded/Reverse,
+     * duplicates, and geometry changes cannot cross-bind. Implementations validate the
+     * request key before building a path and validate payload/request equality before
+     * returning [LoadResult.Loaded].
+     */
+    fun loadReferenceLap(key: CourseCompatibilityKey): LoadResult<GhostReferencePayloadV2>
+
+    /**
+     * Persists [payload] under its exact [CourseCompatibilityKey]. The source flag inside
+     * [GhostReferencePayloadV2.source] must match `payload.compatibilityKey.isSimulated`;
+     * otherwise the save is rejected before any payload can contaminate another slot.
+     */
+    fun saveReferenceLap(payload: GhostReferencePayloadV2, app: AppMetadata): SaveResult
 
     /**
      * Loads the persisted full ghost reference lap for [trackId] within the

@@ -1,6 +1,6 @@
 package com.huanfuli.lapsight.shared.session
 
-import com.huanfuli.lapsight.shared.LocationSource
+import com.huanfuli.lapsight.shared.ghost.CourseCompatibilityKey
 import com.huanfuli.lapsight.shared.ghost.DeltaUnavailableReason
 import com.huanfuli.lapsight.shared.ghost.GhostCompatibility
 import com.huanfuli.lapsight.shared.ghost.LiveDeltaSnapshot
@@ -12,8 +12,9 @@ import com.huanfuli.lapsight.shared.nowEpochMillis
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.CourseDirection
-import com.huanfuli.lapsight.shared.track.ReviewEntryType
+import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.Track
+import com.huanfuli.lapsight.shared.track.TrackProfileController
 
 /**
  * Plain-Kotlin controller for the formal timing-session lifecycle (D-13..D-20,
@@ -35,8 +36,10 @@ import com.huanfuli.lapsight.shared.track.Track
  * @param appMetadata captured on every save (D-25).
  * @param engineConfig lap-engine tuning; tests pass [LapEngineConfig.lenientForTests].
  * @param now clock used for ids/timestamps; injectable for deterministic tests.
- * @param sourceForTrack derives the [SourceMetadata] for a saved Track so the
- *   demo boundary stays explicit (D-42, D-43).
+ * @param sourceForTrack derives the active run [SourceMetadata]. Tests and future
+ *   platform providers inject the live provider source here so a real run on a
+ *   Demo-created Track remains real; the default preserves legacy Demo behavior
+ *   for current UI wiring until real providers are introduced (D-42, D-43).
  */
 class SessionController(
     private val store: LocalSessionStore,
@@ -95,11 +98,13 @@ class SessionController(
         if (track.startFinish == null) {
             return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
         }
-        // Resolve the persisted Course Direction for this Track and build the
-        // direction-specific course (D-18, D-21). Reverse flips the accepted approach
-        // side and Sector order; Recorded keeps the recorded orientation.
-        val direction = selectedDirectionFor(track.id)
-        val course = courseFromTrack(track.startFinish, track.sectors, direction)
+        val runSource = sourceForTrack(track)
+        // Resolve the persisted Course Direction / compatibility identity for this
+        // Track and build the direction-specific course (D-18, D-21). Reverse flips
+        // the accepted approach side and Sector order; Recorded keeps the recorded
+        // orientation. Source is the active run provider, not the Track marking source.
+        val courseIdentity = selectedCourseIdentityFor(track, runSource)
+        val course = courseFromTrack(track.startFinish, track.sectors, courseIdentity.direction)
             ?: return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
         val createdAt = now()
         val session = TimingSession(
@@ -107,10 +112,11 @@ class SessionController(
             trackId = track.id,
             trackName = track.name,
             createdAtEpochMillis = createdAt,
-            source = sourceForTrack(track),
+            source = runSource,
             startFinish = track.startFinish,
             sectors = track.sectors,
-            direction = direction,
+            direction = courseIdentity.direction,
+            courseCompatibilityKey = courseIdentity.compatibilityKey,
         )
         val rec = TimingSessionRecorder(
             session = session,
@@ -292,6 +298,28 @@ class SessionController(
      * (no selection, a different Track, corrupt) falls back to
      * [CourseDirection.Recorded] so a normal start is never blocked by selection state.
      */
+    private fun selectedCourseIdentityFor(track: Track, source: SourceMetadata): SelectedCourseIdentity {
+        val selected = TrackProfileController(store).resolveCurrent() as? CurrentProfileResolution.Selected
+        if (selected != null && selected.profile.profileId == track.id) {
+            return SelectedCourseIdentity(
+                direction = selected.direction,
+                compatibilityKey = CourseCompatibilityKey(
+                    profileId = selected.profile.profileId,
+                    geometryCompatibilityId = selected.revision.geometryCompatibilityId,
+                    direction = selected.direction,
+                    isSimulated = source.isSimulated,
+                ),
+            )
+        }
+        val direction = selectedDirectionFor(track.id)
+        return SelectedCourseIdentity(
+            direction = direction,
+            compatibilityKey = GhostCompatibility
+                .migratedV1Key(trackId = track.id, isSimulated = source.isSimulated)
+                .copy(direction = direction),
+        )
+    }
+
     private fun selectedDirectionFor(trackId: String): CourseDirection {
         val selection = (store.loadCurrentSelection() as? LoadResult.Loaded)?.value ?: return CourseDirection.Recorded
         return if (selection.profileId == trackId) selection.direction else CourseDirection.Recorded
@@ -302,15 +330,9 @@ class SessionController(
      * source boundary (D-01, D-04). A real session loads only the real reference;
      * a simulated session loads only the simulated reference.
      *
-     * Ghost loading is SUPPRESSED for any non-Recorded direction: the legacy
-     * per-Track reference is recorded-direction by construction, so a Reverse run
-     * must not consume it as its Ghost. Reference identity becomes direction-aware in
-     * Plan 05-10; until then Reverse simply runs without a Ghost (SC-04, D-19).
      */
     private fun loadReferenceFor(session: TimingSession): ReferenceLap? {
-        if (session.direction != CourseDirection.Recorded) return null
-        if (!usesLegacyReferenceSlot(session)) return null
-        val result = store.loadReferenceLap(session.trackId, session.source.isSimulated)
+        val result = store.loadReferenceLap(session.courseCompatibilityKey)
         return (result as? LoadResult.Loaded)?.value?.toReferenceLap()
     }
 
@@ -322,17 +344,16 @@ class SessionController(
      * (D-04, D-24).
      */
     private fun promoteReferenceFromPayload(payload: TimingSessionPayloadV1) {
-        if (!usesLegacyReferenceSlot(payload.session)) return
         val candidate = referenceFromPayload(payload) ?: return
         val existing = (
-            store.loadReferenceLap(payload.session.trackId, payload.session.source.isSimulated)
+            store.loadReferenceLap(payload.session.courseCompatibilityKey)
                 as? LoadResult.Loaded
             )?.value?.toReferenceLap()
         val best = ReferenceLapSelector.fasterOf(existing, candidate)
         // Only persist when the new lap is the strict winner (fasterOf prefers the
         // existing reference on ties), avoiding needless rewrites.
         if (best === candidate) {
-            store.saveReferenceLap(candidate.toReferencePayload(payload.session.source, appMetadata), appMetadata)
+            store.saveReferenceLap(candidate.toReferencePayloadV2(payload.session.source, appMetadata), appMetadata)
         }
     }
 
@@ -358,11 +379,10 @@ class SessionController(
         )
     }
 
-    private fun usesLegacyReferenceSlot(session: TimingSession): Boolean =
-        session.courseCompatibilityKey == GhostCompatibility.migratedV1Key(
-            trackId = session.trackId,
-            isSimulated = session.source.isSimulated,
-        )
+    private data class SelectedCourseIdentity(
+        val direction: CourseDirection,
+        val compatibilityKey: CourseCompatibilityKey,
+    )
 }
 
 /** Snapshot of the controller's active draft, rendered by the Drive UI. */

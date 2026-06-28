@@ -8,9 +8,11 @@ import com.huanfuli.lapsight.shared.session.LapDto
 import com.huanfuli.lapsight.shared.session.LocationSampleDto
 import com.huanfuli.lapsight.shared.session.SectorEventDto
 import com.huanfuli.lapsight.shared.session.SectorResultDto
-import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.session.TimingSession
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
+import com.huanfuli.lapsight.shared.ghost.CourseCompatibilityKey
+import com.huanfuli.lapsight.shared.ghost.CourseCompatibilityValidation
+import com.huanfuli.lapsight.shared.ghost.GhostCompatibility
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.ReviewIndex
 import com.huanfuli.lapsight.shared.track.ReviewIndexRow
@@ -342,10 +344,7 @@ class FileSessionStore(
             when (val decoded = SchemaMigrations.decodeGhostReference(readText(path))) {
                 is LoadResult.Loaded -> {
                     val payload = decoded.value
-                    writeAtomically(
-                        referencesV2Dir / "${referenceV2Name(payload)}.json",
-                        json.encodeToString(GhostReferencePayloadV2.serializer(), payload),
-                    )
+                    writeAtomically(referencePath(payload.compatibilityKey), json.encodeToString(GhostReferencePayloadV2.serializer(), payload))
                     referencesMigrated++
                 }
                 is LoadResult.Corrupt -> skipped += MigrationSkip(path.name, decoded.reason)
@@ -447,11 +446,72 @@ class FileSessionStore(
 
     private fun readText(path: Path): String = fileSystem.read(path) { readUtf8() }
 
-    /** Deterministic V2 reference filename: profile + direction + real/sim slot (D-04, D-19). */
-    private fun referenceV2Name(payload: GhostReferencePayloadV2): String {
-        val key = payload.compatibilityKey
+    override fun loadReferenceLap(key: CourseCompatibilityKey): LoadResult<GhostReferencePayloadV2> {
+        validateReferenceKey(key)?.let { return LoadResult.Corrupt(it) }
+        return load(referencePath(key)) { payload ->
+            validateReferencePayloadForRequest(payload, key)
+        }
+    }
+
+    override fun saveReferenceLap(payload: GhostReferencePayloadV2, app: AppMetadata): SaveResult {
+        validateReferencePayloadForRequest(payload, payload.compatibilityKey)?.let {
+            throw IllegalArgumentException(it)
+        }
+        val path = referencePath(payload.compatibilityKey)
+        writeAtomically(path, json.encodeToString(GhostReferencePayloadV2.serializer(), payload))
+        return SaveResult.Saved(trackPath = path.toString(), markingPath = path.toString())
+    }
+
+    private fun validateReferenceKey(key: CourseCompatibilityKey): String? = when (
+        val validation = GhostCompatibility.validateKey(key)
+    ) {
+        CourseCompatibilityValidation.Valid -> null
+        is CourseCompatibilityValidation.Invalid -> validation.reason
+    }
+
+    private fun validateReferencePayloadForRequest(
+        payload: GhostReferencePayloadV2,
+        requestKey: CourseCompatibilityKey,
+    ): String? {
+        validateReferenceKey(requestKey)?.let { return it }
+        return when {
+            payload.schemaVersion != SCHEMA_VERSION_V2 -> "unsupported schemaVersion ${payload.schemaVersion}"
+            payload.compatibilityKey != requestKey -> "compatibility key mismatch"
+            else -> when (val validation = GhostCompatibility.validateReferencePayload(payload)) {
+                CourseCompatibilityValidation.Valid -> when {
+                    !SchemaMigrations.isSafeId(payload.sessionId) -> "unsafe session id"
+                    payload.progressPoints.size < 2 -> "reference progress curve too short"
+                    else -> null
+                }
+                is CourseCompatibilityValidation.Invalid -> validation.reason
+            }
+        }
+    }
+
+    /** Exact V2 reference filename: profile + geometry compatibility + direction + source slot. */
+    private fun referencePath(key: CourseCompatibilityKey): Path =
+        referencesV2Dir / "${referenceV2Name(key)}.json"
+
+    private fun referenceV2Name(key: CourseCompatibilityKey): String {
         val slot = if (key.isSimulated) SIM_SLOT else REAL_SLOT
-        return "${key.profileId}__${key.direction.name}__$slot"
+        return listOf(
+            encodePathComponent(key.profileId),
+            encodePathComponent(key.geometryCompatibilityId),
+            key.direction.name,
+            slot,
+        ).joinToString("__")
+    }
+
+    private fun encodePathComponent(value: String): String = buildString {
+        value.forEach { ch ->
+            val safe = ch in 'a'..'z' || ch in 'A'..'Z' || ch in '0'..'9' || ch == '-' || ch == '_'
+            if (safe) {
+                append(ch)
+            } else {
+                append('~')
+                append(ch.code.toString(16).padStart(4, '0'))
+            }
+        }
     }
 
     private inline fun <reified T> load(path: Path, validate: (T) -> String?): LoadResult<T> {

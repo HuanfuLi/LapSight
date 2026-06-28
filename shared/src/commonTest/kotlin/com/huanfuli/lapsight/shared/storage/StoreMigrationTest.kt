@@ -109,7 +109,7 @@ class StoreMigrationTest {
         // V2 payloads written side-by-side.
         assertTrue(fs.exists(root / "profiles" / "track-legacy-1.json"))
         assertTrue(fs.exists(root / "sessions-v2" / "sess-legacy-1.json"))
-        assertTrue(fs.exists(root / "references-v2" / "track-legacy-1__Recorded__real.json"))
+        assertTrue(fs.exists(root / "references-v2" / "track-legacy-1__track-legacy-1~003ag1__Recorded__real.json"))
 
         // Every V1 original remains present AND still loads as V1 (D-13).
         assertTrue(fs.exists(root / "tracks" / "track-legacy-1.json"))

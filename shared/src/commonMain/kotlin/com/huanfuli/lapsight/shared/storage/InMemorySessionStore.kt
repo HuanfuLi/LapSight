@@ -10,6 +10,9 @@ import com.huanfuli.lapsight.shared.session.SectorEventDto
 import com.huanfuli.lapsight.shared.session.SectorResultDto
 import com.huanfuli.lapsight.shared.session.TimingSession
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
+import com.huanfuli.lapsight.shared.ghost.CourseCompatibilityKey
+import com.huanfuli.lapsight.shared.ghost.CourseCompatibilityValidation
+import com.huanfuli.lapsight.shared.ghost.GhostCompatibility
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.ReviewIndex
 import com.huanfuli.lapsight.shared.track.ReviewIndexRow
@@ -190,7 +193,7 @@ class InMemorySessionStore : LocalSessionStore {
     }
 
     override fun loadReferenceLap(trackId: String, isSimulated: Boolean): LoadResult<GhostReferencePayloadV1> {
-        val payload = references[referenceKey(trackId, isSimulated)] ?: return LoadResult.NotFound
+        val payload = references[legacyReferenceKey(trackId, isSimulated)] ?: return LoadResult.NotFound
         val problem = when {
             payload.schemaVersion != CURRENT_GHOST_REFERENCE_SCHEMA_VERSION ->
                 "unsupported schemaVersion ${payload.schemaVersion}"
@@ -204,9 +207,25 @@ class InMemorySessionStore : LocalSessionStore {
     }
 
     override fun saveReferenceLap(payload: GhostReferencePayloadV1, app: AppMetadata): SaveResult {
-        val key = referenceKey(payload.trackId, payload.source.isSimulated)
+        val key = legacyReferenceKey(payload.trackId, payload.source.isSimulated)
         references[key] = payload
         return SaveResult.Saved(trackPath = "references/$key.json", markingPath = "references/$key.json")
+    }
+
+    override fun loadReferenceLap(key: CourseCompatibilityKey): LoadResult<GhostReferencePayloadV2> {
+        validateReferenceKey(key)?.let { return LoadResult.Corrupt(it) }
+        val payload = referencesV2[referenceKey(key)] ?: return LoadResult.NotFound
+        val problem = validateReferencePayloadForRequest(payload, key)
+        return if (problem != null) LoadResult.Corrupt(problem) else LoadResult.Loaded(payload)
+    }
+
+    override fun saveReferenceLap(payload: GhostReferencePayloadV2, app: AppMetadata): SaveResult {
+        validateReferencePayloadForRequest(payload, payload.compatibilityKey)?.let {
+            throw IllegalArgumentException(it)
+        }
+        val key = referenceKey(payload.compatibilityKey)
+        referencesV2[key] = payload
+        return SaveResult.Saved(trackPath = "references-v2/$key.json", markingPath = "references-v2/$key.json")
     }
 
     // --- V2 course profiles + side-by-side migration (D-12..D-14) -----------
@@ -250,7 +269,7 @@ class InMemorySessionStore : LocalSessionStore {
             val text = FileSessionStore.canonicalJson.encodeToString(GhostReferencePayloadV1.serializer(), v1)
             when (val decoded = SchemaMigrations.decodeGhostReference(text)) {
                 is LoadResult.Loaded -> {
-                    referencesV2[key] = decoded.value
+                    referencesV2[referenceKey(decoded.value.compatibilityKey)] = decoded.value
                     referencesMigrated++
                 }
                 is LoadResult.Corrupt -> skipped += MigrationSkip(v1.trackId, decoded.reason)
@@ -305,8 +324,37 @@ class InMemorySessionStore : LocalSessionStore {
         currentSelection = null
     }
 
-    private fun referenceKey(trackId: String, isSimulated: Boolean): String =
+    private fun legacyReferenceKey(trackId: String, isSimulated: Boolean): String =
         "${trackId}__${if (isSimulated) "sim" else "real"}"
+
+    private fun referenceKey(key: CourseCompatibilityKey): String =
+        "${key.profileId}__${key.geometryCompatibilityId}__${key.direction.name}__${if (key.isSimulated) "sim" else "real"}"
+
+    private fun validateReferenceKey(key: CourseCompatibilityKey): String? = when (
+        val validation = GhostCompatibility.validateKey(key)
+    ) {
+        CourseCompatibilityValidation.Valid -> null
+        is CourseCompatibilityValidation.Invalid -> validation.reason
+    }
+
+    private fun validateReferencePayloadForRequest(
+        payload: GhostReferencePayloadV2,
+        requestKey: CourseCompatibilityKey,
+    ): String? {
+        validateReferenceKey(requestKey)?.let { return it }
+        return when {
+            payload.schemaVersion != SCHEMA_VERSION_V2 -> "unsupported schemaVersion ${payload.schemaVersion}"
+            payload.compatibilityKey != requestKey -> "compatibility key mismatch"
+            else -> when (val validation = GhostCompatibility.validateReferencePayload(payload)) {
+                CourseCompatibilityValidation.Valid -> when {
+                    !SchemaMigrations.isSafeId(payload.sessionId) -> "unsafe session id"
+                    payload.progressPoints.size < 2 -> "reference progress curve too short"
+                    else -> null
+                }
+                is CourseCompatibilityValidation.Invalid -> validation.reason
+            }
+        }
+    }
 
     private fun upsertRows(newRows: List<ReviewIndexRow>) {
         val keys = newRows.map { it.id to it.type }.toSet()
