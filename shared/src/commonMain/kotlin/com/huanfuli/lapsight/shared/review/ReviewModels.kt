@@ -89,6 +89,7 @@ data class TimingSessionReviewSummary(
     val source: LocationSource,
     val isDemo: Boolean,
     val newTrackBest: Boolean,
+    val coursePreflight: com.huanfuli.lapsight.shared.session.CoursePreflightSnapshot,
 )
 
 /**
@@ -150,6 +151,7 @@ object ReviewSummaries {
             source = payload.session.source.source,
             isDemo = payload.session.source.isSimulated,
             newTrackBest = newTrackBest,
+            coursePreflight = payload.session.coursePreflight,
         )
     }
 }

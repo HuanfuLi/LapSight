@@ -271,6 +271,14 @@ private fun TimingSessionReviewDetail(
                 fontWeight = FontWeight.Bold,
             )
         }
+        if (summary.coursePreflight.overrideUsed) {
+            Text(
+                text = "Far-course override applied at start.",
+                color = Color(0xFFFFD166),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
 
         // Trace section (D-36): render timing session trace.
         TimingTraceSection(
@@ -354,8 +362,8 @@ private fun TimingTraceSection(
 
     val samples = sessionPayload?.samples ?: emptyList()
     val refPoints = track?.referenceLine?.points ?: emptyList()
-    val startFinish = track?.startFinish ?: sessionPayload?.session?.startFinish
-    val sectors = track?.sectors ?: sessionPayload?.session?.sectors ?: emptyList()
+    val startFinish = sessionPayload?.session?.startFinish ?: track?.startFinish
+    val sectors = sessionPayload?.session?.sectors?.takeIf { it.isNotEmpty() } ?: track?.sectors ?: emptyList()
 
     if (samples.isEmpty() && refPoints.isEmpty()) {
         Text(

@@ -412,4 +412,43 @@ class ReviewSummaryTest {
         assertTrue(layerNames.any { it.contains("reference", ignoreCase = true) },
             "must include the reference line layer (D-35)")
     }
+
+    @Test
+    fun timingSessionReviewSummaryExposesOverrideEvidence() {
+        val snapshot = com.huanfuli.lapsight.shared.session.CoursePreflightSnapshot.from(
+            com.huanfuli.lapsight.shared.session.CoursePreflightResult.Blocked(
+                distanceMeters = 500.0,
+                conservativeDistanceMeters = 500.0,
+                thresholdMeters = 100.0,
+            ),
+            overrideUsed = true,
+        )
+        val payload = v1PayloadWithLegacyCumulativeSplits().let {
+            it.copy(session = it.session.copy(coursePreflight = snapshot))
+        }
+        store.saveTimingSession(payload, app)
+        val summary = ReviewSummaries.fromTimingSession(store, payload.session.id)
+        assertNotNull(summary)
+        assertTrue(summary.coursePreflight.overrideUsed, "Review summary must expose override evidence")
+    }
+
+    @Test
+    fun timingTraceLayersUseSessionSnapshotInsteadOfLatestTrackGeometry() {
+        val originalStartFinish = StartFinishLineDto(GeoPointDto(0.0, 0.0), GeoPointDto(1.0, 1.0))
+        val originalSectors = listOf(SectorLineDto("S1", "S1", 0, GeoPointDto(2.0, 2.0), GeoPointDto(3.0, 3.0)))
+        
+        val layers = buildTimingTraceLayers(
+            referenceLinePoints = listOf(GeoPointDto(0.0, 0.0), GeoPointDto(1.0, 1.0)),
+            sessionSamples = emptyList(),
+            startFinish = originalStartFinish,
+            sectors = originalSectors,
+            selectedLapStartMillis = null,
+            selectedLapEndMillis = null,
+            viewWidth = 400.0,
+            viewHeight = 300.0,
+        )
+        
+        val startFinishLayer = layers.firstOrNull { it.name.contains("start", ignoreCase = true) }
+        assertNotNull(startFinishLayer, "must have start/finish layer")
+    }
 }
