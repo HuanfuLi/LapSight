@@ -26,7 +26,7 @@ data class ReviewRowViewModel(
     val typeLabel: String
         get() = when (type) {
             ReviewEntryType.Track -> "Track"
-            ReviewEntryType.TrackMarking -> "Marking"
+            ReviewEntryType.TrackMarking -> "Raw capture"
             ReviewEntryType.TimingSession -> "Session"
         }
 }

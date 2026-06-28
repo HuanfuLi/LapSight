@@ -5,13 +5,19 @@ enum class SpeedUnit {
     MilesPerHour,
 }
 
+enum class ThemeMode {
+    System,
+    Dark,
+    Light,
+}
+
 data class DriveDisplaySettings(
     val speedUnit: SpeedUnit = SpeedUnit.KilometersPerHour,
     val fullscreenWhileTiming: Boolean = true,
-    val landscapeFullscreen: Boolean = true,
     val keepScreenAwakeWhileTiming: Boolean = true,
     val showSpeedTrace: Boolean = true,
     val showGpsDiagnostics: Boolean = true,
+    val themeMode: ThemeMode = ThemeMode.System,
 )
 
 interface DisplaySettingsStore {

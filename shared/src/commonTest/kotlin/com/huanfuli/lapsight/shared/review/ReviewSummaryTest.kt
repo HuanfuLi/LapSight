@@ -100,7 +100,7 @@ class ReviewSummaryTest {
         assertTrue(summary.sampleCount > 0, "review must show sample count")
         val quality = summary.gpsQuality
         assertEquals(summary.sampleCount, quality.sampleCount)
-        assertTrue(quality.source != null || quality.sampleCount >= 0, "GPS quality must summarize sources")
+        assertEquals(LocationSource.Simulated, quality.source, "GPS quality must summarize sources")
     }
 
     @Test
@@ -108,6 +108,10 @@ class ReviewSummaryTest {
         val summary = saveAndTimeRealSession()
 
         assertTrue(summary.sectorSplits.isNotEmpty(), "sector splits must be present")
+        assertTrue(
+            summary.sectorSplits.all { it.sectorName.startsWith("Sector ") },
+            "Review must show user-facing sector names instead of internal boundary ids",
+        )
         // Source/Demo badge: simulated sessions carry isDemo = true.
         assertTrue(summary.isDemo, "simulated session must carry the Demo/source badge (D-42, D-43)")
         assertEquals(LocationSource.Simulated, summary.source)
@@ -190,6 +194,11 @@ class ReviewSummaryTest {
             15_000L,
             summary.sectorSplits.first { it.sectorOrder == 0 }.splitMillis,
             "legacy cumulative split values are preserved unchanged",
+        )
+        assertEquals(
+            "Sector 1",
+            summary.sectorSplits.first { it.sectorOrder == 0 }.sectorName,
+            "legacy sessions without saved sector names use a user-facing fallback",
         )
     }
 
@@ -275,6 +284,8 @@ class ReviewSummaryTest {
             "must have a layer for the start/finish line (D-35)")
         assertTrue(layerNames.any { it.contains("sector", ignoreCase = true) },
             "must have a layer for sector lines (D-35)")
+        val sectorLayer = layers.first { it.name == "Sector 1" }
+        assertEquals(2, sectorLayer.points.size, "sector boundaries must render as separate line segments")
     }
 
     @Test
@@ -319,8 +330,29 @@ class ReviewSummaryTest {
             "must have a layer for the start/finish line (D-36)")
         assertTrue(layerNames.any { it.contains("sector", ignoreCase = true) },
             "must have a layer for sector lines (D-36)")
+        val sectorLayer = layers.first { it.name == "Sector 1" }
+        assertEquals(2, sectorLayer.points.size, "sector boundaries must not be connected into a polyline")
         assertTrue(layerNames.any { it.contains("highlight", ignoreCase = true) || it.contains("best") || it.contains("selected") },
             "must have a layer for the selected/best lap highlight hook (D-36)")
+    }
+
+    @Test
+    fun telemetrySeriesPreservesSamplesAndBuildsReplayDistanceAndSmoothedSpeed() {
+        val samples = GpsFixtureLibrary.cleanTenLoop().take(16).map { it.toDto() }
+
+        val telemetry = buildTelemetrySeries(samples)
+
+        assertEquals(samples.size, telemetry.size)
+        assertEquals(0.0, telemetry.first().distanceMeters)
+        assertEquals(samples[3].elapsedMillis, telemetry[3].elapsedMillis)
+        assertTrue(
+            telemetry.zipWithNext().all { (a, b) -> b.distanceMeters >= a.distanceMeters },
+            "replay distance must be monotonic",
+        )
+        assertTrue(
+            telemetry.any { it.smoothedSpeedMetersPerSecond != null },
+            "review replay needs chartable speed values",
+        )
     }
 
     @Test

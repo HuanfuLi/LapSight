@@ -19,6 +19,7 @@ import com.huanfuli.lapsight.shared.DriveDisplayController
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
 import com.huanfuli.lapsight.shared.OrientationController
 import com.huanfuli.lapsight.shared.SpeedUnit
+import com.huanfuli.lapsight.shared.ThemeMode
 import com.huanfuli.lapsight.shared.export.AndroidExportShareTarget
 import com.huanfuli.lapsight.shared.storage.StoragePaths
 
@@ -109,20 +110,25 @@ private class AndroidDisplaySettingsStore(
             )
         }.getOrDefault(SpeedUnit.KilometersPerHour),
         fullscreenWhileTiming = preferences.getBoolean("fullscreen_while_timing", true),
-        landscapeFullscreen = preferences.getBoolean("landscape_fullscreen", true),
         keepScreenAwakeWhileTiming = preferences.getBoolean("keep_screen_awake", true),
         showSpeedTrace = preferences.getBoolean("show_speed_trace", true),
         showGpsDiagnostics = preferences.getBoolean("show_gps_diagnostics", true),
+        themeMode = runCatching {
+            ThemeMode.valueOf(
+                preferences.getString("theme_mode", ThemeMode.System.name)
+                    ?: ThemeMode.System.name,
+            )
+        }.getOrDefault(ThemeMode.System),
     )
 
     override fun save(settings: DriveDisplaySettings) {
         preferences.edit()
             .putString("speed_unit", settings.speedUnit.name)
             .putBoolean("fullscreen_while_timing", settings.fullscreenWhileTiming)
-            .putBoolean("landscape_fullscreen", settings.landscapeFullscreen)
             .putBoolean("keep_screen_awake", settings.keepScreenAwakeWhileTiming)
             .putBoolean("show_speed_trace", settings.showSpeedTrace)
             .putBoolean("show_gps_diagnostics", settings.showGpsDiagnostics)
+            .putString("theme_mode", settings.themeMode.name)
             .apply()
     }
 }

@@ -39,11 +39,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.huanfuli.lapsight.shared.DashOrientation
-import com.huanfuli.lapsight.shared.DisplaySettingsStore
 import com.huanfuli.lapsight.shared.DriveDisplayController
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
 import com.huanfuli.lapsight.shared.OrientationController
 import com.huanfuli.lapsight.shared.SpeedUnit
+import com.huanfuli.lapsight.shared.ThemeMode
 import com.huanfuli.lapsight.shared.export.ExportShareTarget
 import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
 import com.huanfuli.lapsight.shared.session.DraftRecoveryAction
@@ -78,7 +78,8 @@ enum class AppTab { Drive, Review, Settings }
 fun AppShell(
     orientationController: OrientationController,
     driveDisplayController: DriveDisplayController,
-    displaySettingsStore: DisplaySettingsStore,
+    displaySettings: DriveDisplaySettings,
+    onDisplaySettingsChanged: (DriveDisplaySettings) -> Unit,
     sessionStore: LocalSessionStore = InMemorySessionStore(),
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
@@ -89,7 +90,6 @@ fun AppShell(
     var recoveryPrompt by remember { mutableStateOf<DraftRecoveryPrompt?>(null) }
     var confirmDiscardDraft by remember { mutableStateOf(false) }
     var driveTimingActive by remember { mutableStateOf(false) }
-    var displaySettings by remember { mutableStateOf(displaySettingsStore.load()) }
     var recoveryBusy by remember { mutableStateOf(false) }
     val uiScope = rememberCoroutineScope()
 
@@ -99,7 +99,7 @@ fun AppShell(
     }
 
     val driveFullscreen = tab == AppTab.Drive && (
-        (orientation == DashOrientation.Landscape && displaySettings.landscapeFullscreen) ||
+        orientation == DashOrientation.Landscape ||
             (driveTimingActive && displaySettings.fullscreenWhileTiming)
         )
     val showBottomNav = !driveFullscreen
@@ -139,7 +139,10 @@ fun AppShell(
                 title = { Text("Unfinished session found") },
                 text = { Text("You have a session that wasn't saved.") },
                 confirmButton = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         OutlinedButton(
                             onClick = {
                                 recoveryBusy = true
@@ -157,27 +160,32 @@ fun AppShell(
                                 }
                             },
                             enabled = !recoveryBusy,
+                            modifier = Modifier.fillMaxWidth(),
                         ) { Text("Resume") }
-                        OutlinedButton(
-                            onClick = {
-                                recoveryBusy = true
-                                uiScope.launch {
-                                    withContext(Dispatchers.Default) {
-                                        sessionController.handleRecoveryAction(
-                                            prompt,
-                                            DraftRecoveryAction.Save,
-                                        )
+                        if (DraftRecoveryAction.Save in prompt.availableActions) {
+                            OutlinedButton(
+                                onClick = {
+                                    recoveryBusy = true
+                                    uiScope.launch {
+                                        withContext(Dispatchers.Default) {
+                                            sessionController.handleRecoveryAction(
+                                                prompt,
+                                                DraftRecoveryAction.Save,
+                                            )
+                                        }
+                                        recoveryPrompt = null
+                                        recoveryBusy = false
+                                        savedVersion++
                                     }
-                                    recoveryPrompt = null
-                                    recoveryBusy = false
-                                    savedVersion++
-                                }
-                            },
-                            enabled = !recoveryBusy,
-                        ) { Text("Save") }
+                                },
+                                enabled = !recoveryBusy,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text("Save") }
+                        }
                         Button(
                             onClick = { confirmDiscardDraft = true },
                             enabled = !recoveryBusy,
+                            modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B6B)),
                         ) { Text("Discard") }
                     }
@@ -243,14 +251,12 @@ fun AppShell(
                 AppTab.Review -> ReviewScreen(
                     sessionStore = sessionStore,
                     savedVersion = savedVersion,
+                    displaySettings = displaySettings,
                     exportShareTarget = exportShareTarget,
                 )
                 AppTab.Settings -> SettingsScreen(
                     settings = displaySettings,
-                    onSettingsChanged = {
-                        displaySettings = it
-                        displaySettingsStore.save(it)
-                    },
+                    onSettingsChanged = onDisplaySettingsChanged,
                 )
             }
         }
@@ -262,8 +268,8 @@ private fun navItemColors() = NavigationBarItemDefaults.colors(
     selectedIconColor = MaterialTheme.colorScheme.primary,
     selectedTextColor = MaterialTheme.colorScheme.primary,
     indicatorColor = MaterialTheme.colorScheme.surface,
-    unselectedIconColor = Color(0xFF9AA8B8),
-    unselectedTextColor = Color(0xFF9AA8B8),
+    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
 )
 
 /**
@@ -291,7 +297,7 @@ private fun SettingsScreen(
         Spacer(Modifier.height(20.dp))
         Text(
             text = "SPEED UNIT",
-            color = Color(0xFF7E8DA0),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -316,19 +322,42 @@ private fun SettingsScreen(
                 modifier = Modifier.weight(1f),
             )
         }
-        HorizontalDivider(color = Color(0xFF263140))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Text(
+            text = "THEME",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ThemeButton(
+                label = "System",
+                selected = settings.themeMode == ThemeMode.System,
+                onClick = { onSettingsChanged(settings.copy(themeMode = ThemeMode.System)) },
+                modifier = Modifier.weight(1f),
+            )
+            ThemeButton(
+                label = "Dark",
+                selected = settings.themeMode == ThemeMode.Dark,
+                onClick = { onSettingsChanged(settings.copy(themeMode = ThemeMode.Dark)) },
+                modifier = Modifier.weight(1f),
+            )
+            ThemeButton(
+                label = "Light",
+                selected = settings.themeMode == ThemeMode.Light,
+                onClick = { onSettingsChanged(settings.copy(themeMode = ThemeMode.Light)) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         SettingToggleRow(
             label = "Fullscreen while timing",
             checked = settings.fullscreenWhileTiming,
             onCheckedChange = {
                 onSettingsChanged(settings.copy(fullscreenWhileTiming = it))
-            },
-        )
-        SettingToggleRow(
-            label = "Landscape fullscreen",
-            checked = settings.landscapeFullscreen,
-            onCheckedChange = {
-                onSettingsChanged(settings.copy(landscapeFullscreen = it))
             },
         )
         SettingToggleRow(
@@ -338,7 +367,7 @@ private fun SettingsScreen(
                 onSettingsChanged(settings.copy(keepScreenAwakeWhileTiming = it))
             },
         )
-        HorizontalDivider(color = Color(0xFF263140))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         SettingToggleRow(
             label = "Speed trace",
             checked = settings.showSpeedTrace,
@@ -365,6 +394,24 @@ private fun SettingsScreen(
 
 @Composable
 private fun UnitButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (selected) {
+        Button(onClick = onClick, modifier = modifier) {
+            Text(label)
+        }
+    } else {
+        OutlinedButton(onClick = onClick, modifier = modifier) {
+            Text(label)
+        }
+    }
+}
+
+@Composable
+private fun ThemeButton(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,

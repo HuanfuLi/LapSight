@@ -17,3 +17,16 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+
+# Local validation and device-capture artifacts
+/.planning/evidence/
+/captures/
+/*.png
+/*.jpg
+/*.jpeg
+/screen*.xml
+/window_dump*.xml
+/logcat*.txt
+*.log
+*.xlsx
+*.xls

@@ -3,20 +3,20 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 05-13-PLAN.md
-last_updated: "2026-06-28T03:37:23.363Z"
+stopped_at: Phase 5 post-execution Android hardening UAT complete
+last_updated: "2026-06-28T08:10:57.556Z"
 progress:
   total_phases: 8
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 29
-  completed_plans: 28
-  percent: 50
+  completed_plans: 29
+  percent: 63
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5 execution complete. Ready for UAT.
+**Current Status:** Phase 5 execution and Android hardening UAT complete. Phase 5.1 has not started.
 
 ## Project Reference
 
@@ -26,12 +26,14 @@ See: `.planning/PROJECT.md`
 
 ## Current Focus
 
-**Phase 5 IN PROGRESS — Track Setup and Course Profiles**
+**Interphase hardening — after Phase 5, before Phase 5.1**
 
-Plan 05-13 added conservative whole-course preflight, the explicit wrong-course override,
-and persisted override evidence without coupling preflight to active timing.
+Phase 5 course-profile work is implemented. A post-execution Android hardening pass fixed
+blocking usability issues in Drive, Review, recovery, theme handling, and telemetry replay.
 
-Next step: Verify Phase 5 using 05-UAT.md.
+Next step: review or commit the hardening changes, then start Phase 5.1 field-validation
+planning. Do not begin paid/real-world field validation until the hardening changes are
+accepted.
 
 ## Working Assumptions
 
@@ -45,8 +47,9 @@ Next step: Verify Phase 5 using 05-UAT.md.
 
 ## Next Command Candidates
 
-- Perform UAT against `.planning/phases/05-track-setup-and-course-profiles/05-UAT.md`.
-- Complete Phase 5 milestone summary.
+- Review or commit the Phase 5 hardening changes.
+- Start `.planning/phases/05.1-mvp-field-validation-and-hardening-gate/` when ready.
+- Complete Phase 5 milestone summary if a formal archive is needed.
 
 ## Review Checklist
 
@@ -63,6 +66,7 @@ Next step: Verify Phase 5 using 05-UAT.md.
 - [x] Phase 4 verified via UAT.
 - [x] Phase 5 planned (14 plans).
 - [x] Phase 5 executed (14/14 plans complete).
+- [x] Phase 5 Android hardening UAT completed before Phase 5.1.
 
 ## Phase 3 Completion Summary
 
@@ -96,11 +100,15 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
 ## Phase 5 Execution Summary
 
-- Plans 05-01 through 05-13 are complete.
-- Plan 05-14 remains.
+- Plans 05-01 through 05-14 are complete.
+- A post-execution hardening pass addressed field-test blockers discovered before Phase 5.1.
 - `CourseCompatibilityKey(profileId, geometryCompatibilityId, direction, isSimulated)` remains the exact Ghost persistence/session identity.
 - Course matching is independent from `LapEngine`; unmatched samples display `--` and rematch automatically.
 - Wrong-course preflight blocks only trustworthy accuracy-adjusted distances over 250 m; explicit override starts normal Timing and persists evidence.
+- Drive now resets the feed at formal timing start, uses a perpendicular start/finish boundary for closed-path captures, and no longer stalls the first lap display around 1.994 s.
+- Landscape timing always enters fullscreen; the old optional landscape-fullscreen setting has been removed to avoid trapping controls behind system navigation.
+- Review is grouped into Sessions, Tracks, and Raw captures; session rows use timestamps instead of copied track names, and timing details include telemetry chart/replay.
+- Theme mode supports System, Dark, and Light.
 
 ## Recent Decisions
 
@@ -111,6 +119,7 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Only a trustworthy accuracy-adjusted whole-course distance over 250 m produces a wrong-course block; unavailable evidence remains non-blocking.
 - Wrong-course override consumes the captured profile revision, direction, source, course, and block without rerunning preflight.
 - Plan 05-13 preserves the exact compatibility key and keeps preflight outside `LapEngine` and matcher behavior.
+- Phase 5.1 remains a validation/hardening gate, not a new feature phase. Telemetry replay added in hardening is scoped to reviewing saved session data already captured by the phone app.
 
 ## Performance Metrics
 
@@ -121,10 +130,10 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
 ## Session Continuity
 
-**Last session:** 2026-06-28T01:52:28.310Z
-**Stopped At:** Completed 05-13-PLAN.md
+**Last session:** 2026-06-28T08:10:57.556Z
+**Stopped At:** Phase 5 post-execution Android hardening UAT complete
 **Resume File:** None
 
 ---
 
-*Last updated: 2026-06-28 after Plan 05-13*
+*Last updated: 2026-06-28 after Phase 5 hardening UAT*

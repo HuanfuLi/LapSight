@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -82,20 +83,20 @@ fun TrackEditorScreen(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF0B0F14))
+            .background(MaterialTheme.colorScheme.surface)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
             text = "Edit course",
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 20.sp,
         )
         // Closed-course / private-track safety language stays visible on the editor.
         Text(
             text = "Closed-course use only. Edits never move recorded GPS data — you set " +
                 "start/finish and Sector positions along the saved trace.",
-            color = Color(0xFF9AA8B8),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
         )
 
@@ -131,7 +132,7 @@ fun TrackEditorScreen(
         if (editor.startFinishProgress == null) {
             Text(
                 text = "Tap the trace to place the start/finish line.",
-                color = Color(0xFF7E8DA0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
         }
@@ -143,7 +144,7 @@ fun TrackEditorScreen(
         ) {
             Text(
                 text = "Sector timing",
-                color = Color(0xFFCED7E2),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 12.dp),
             )
@@ -160,7 +161,7 @@ fun TrackEditorScreen(
                 ) { Text("-") }
                 Text(
                     text = "${editor.sectorCount} Sectors",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 15.sp,
                     modifier = Modifier.padding(top = 12.dp),
                 )
@@ -171,7 +172,7 @@ fun TrackEditorScreen(
             }
             Text(
                 text = "Drag a Sector handle to move that boundary along the trace.",
-                color = Color(0xFF7E8DA0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
         }
@@ -224,7 +225,7 @@ private fun TrackEditorCanvas(
             .fillMaxWidth()
             .heightIn(min = 240.dp, max = 360.dp)
             .height(300.dp)
-            .background(Color(0xFF101722)),
+            .background(MaterialTheme.colorScheme.background),
     ) {
         if (viewport == null) return@Box
 

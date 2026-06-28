@@ -11,9 +11,12 @@ import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.storage.LoadResult
+import com.huanfuli.lapsight.shared.lap.GeoPoint
+import com.huanfuli.lapsight.shared.lap.LocalProjection
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.TrackReferenceLine
+import kotlin.math.hypot
 
 /**
  * Review summary types for saved TimingSessions (SESS-02, D-32).
@@ -93,6 +96,45 @@ data class TimingSessionReviewSummary(
 )
 
 /**
+ * One replayable telemetry sample derived from a saved timing session's raw GPS.
+ *
+ * The raw payload already persists the source samples; this model gives Review a
+ * stable, testable shape for charts and replay without changing the lap engine.
+ */
+data class ReviewTelemetryPoint(
+    val elapsedMillis: Long,
+    val distanceMeters: Double,
+    val speedMetersPerSecond: Double?,
+    val smoothedSpeedMetersPerSecond: Double?,
+    val horizontalAccuracyMeters: Double?,
+)
+
+fun buildTelemetrySeries(samples: List<LocationSampleDto>): List<ReviewTelemetryPoint> {
+    if (samples.isEmpty()) return emptyList()
+    val first = samples.first()
+    val projection = LocalProjection(GeoPoint(first.latitude, first.longitude))
+    val locals = samples.map { projection.toLocal(GeoPoint(it.latitude, it.longitude)) }
+    val distances = MutableList(samples.size) { 0.0 }
+    for (i in 1 until samples.size) {
+        val prev = locals[i - 1]
+        val cur = locals[i]
+        distances[i] = distances[i - 1] + hypot(cur.x - prev.x, cur.y - prev.y)
+    }
+    return samples.mapIndexed { index, sample ->
+        val window = samples
+            .subList((index - 2).coerceAtLeast(0), (index + 3).coerceAtMost(samples.size))
+            .mapNotNull { it.speedMetersPerSecond }
+        ReviewTelemetryPoint(
+            elapsedMillis = sample.elapsedMillis,
+            distanceMeters = distances[index],
+            speedMetersPerSecond = sample.speedMetersPerSecond,
+            smoothedSpeedMetersPerSecond = if (window.isEmpty()) null else window.sum() / window.size,
+            horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
+        )
+    }
+}
+
+/**
  * Derives a [TimingSessionReviewSummary] from a saved timing-session payload in
  * the local-first store. Returns null when the session is missing/corrupt.
  */
@@ -108,10 +150,13 @@ object ReviewSummaries {
     fun fromPayload(store: LocalSessionStore, payload: TimingSessionPayloadV1): TimingSessionReviewSummary {
         val laps = payload.laps.map { ReviewLapRow(it.lapNumber, it.durationMillis) }
         val bestLap = payload.laps.minByOrNull { it.durationMillis }?.durationMillis
+        val sectorNamesById = payload.session.sectors.associate { it.id to it.name }
+        fun sectorLabel(id: String, order: Int): String =
+            sectorNamesById[id]?.takeIf { it.isNotBlank() } ?: "Sector ${order + 1}"
         val sectors = payload.sectorEvents.map {
             ReviewSectorSplit(
                 sectorId = it.sectorId,
-                sectorName = it.sectorId,
+                sectorName = sectorLabel(it.sectorId, it.sectorOrder),
                 sectorOrder = it.sectorOrder,
                 lapNumber = it.lapNumber,
                 splitMillis = it.splitMillis,
@@ -122,7 +167,7 @@ object ReviewSummaries {
         val completeSectors = payload.sectorResults.map {
             ReviewCompleteSector(
                 sectorId = it.sectorId,
-                sectorName = it.sectorId,
+                sectorName = sectorLabel(it.sectorId, it.sectorOrder),
                 sectorOrder = it.sectorOrder,
                 lapNumber = it.lapNumber,
                 startedAtMillis = it.startedAtMillis,
@@ -253,8 +298,11 @@ fun buildTrackTraceLayers(
         val sectorStarts = if (startFinish != null) 2 else 0
         if (sectors.isNotEmpty() && linePoints.size > sectorStarts) {
             val sectorPoints = linePoints.drop(sectorStarts)
-            if (sectorPoints.size >= 2) {
-                layers += layer("Sector lines", 0xFFFFD166, 2f, false, sectorPoints)
+            sectors.forEachIndexed { index, sector ->
+                val points = sectorPoints.drop(index * 2).take(2)
+                if (points.size == 2) {
+                    layers += layer(sector.name.ifBlank { "Sector ${sector.order + 1}" }, 0xFFFFD166, 2f, false, points)
+                }
             }
         }
         idx++
@@ -359,8 +407,11 @@ fun buildTimingTraceLayers(
         val sectorStarts = if (startFinish != null) 2 else 0
         if (sectors.isNotEmpty() && linePoints.size > sectorStarts) {
             val sectorPoints = linePoints.drop(sectorStarts)
-            if (sectorPoints.size >= 2) {
-                layers += layer("Sector lines", 0xFFFFD166, 2f, false, sectorPoints)
+            sectors.forEachIndexed { index, sector ->
+                val points = sectorPoints.drop(index * 2).take(2)
+                if (points.size == 2) {
+                    layers += layer(sector.name.ifBlank { "Sector ${sector.order + 1}" }, 0xFFFFD166, 2f, false, points)
+                }
             }
         }
         idx++

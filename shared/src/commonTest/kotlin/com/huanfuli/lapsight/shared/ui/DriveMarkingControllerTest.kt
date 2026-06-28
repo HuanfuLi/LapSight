@@ -7,9 +7,13 @@ import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.session.SessionControllerTest.TestTrackFactory
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.SchemaMigrations
+import com.huanfuli.lapsight.shared.track.ClosedReferencePath
+import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.CourseGeometryBuilder
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtractor
+import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackReviewDecision
@@ -17,6 +21,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -118,6 +123,51 @@ class DriveMarkingControllerTest {
         assertEquals("track-1700000000000", snap.timingReadyTrackId)
         assertEquals("Demo Track", snap.timingReadyTrackName)
         assertEquals("Demo Track", snap.currentTrackName)
+    }
+
+    @Test
+    fun confirmStartFinishUsesPerpendicularClosedPathBoundary() {
+        val controller = controller()
+
+        controller.beginMarking()
+        controller.captureSamples(2400)
+        controller.stopMarking()
+
+        val reviewBefore = controller.snapshot().reviewState
+        assertNotNull(reviewBefore)
+        val referenceLine = reviewBefore.extraction.referenceLine
+        assertNotNull(referenceLine)
+        val oldPathSegmentLine = StartFinishLineDto(
+            pointA = referenceLine.points[0],
+            pointB = referenceLine.points[1],
+        )
+
+        controller.confirmStartFinish()
+
+        val startFinish = controller.snapshot().reviewState?.startFinish
+        assertNotNull(startFinish)
+        val path = ClosedReferencePath.fromReferenceLine(referenceLine)
+        assertTrue(path is ClosedReferencePathResult.Loaded)
+        val expected = CourseGeometryBuilder.buildStartFinishLine(path.path, progress = 0.0)
+        assertEquals(expected, startFinish)
+        assertNotEquals(oldPathSegmentLine, startFinish, "timing line must not be the first path segment")
+        assertEquals(1, CourseGeometryBuilder.pathCrossingCount(path.path, progress = 0.0))
+    }
+
+    @Test
+    fun restartFeedForTimingRewindsTheProviderAndClearsProbeSamples() {
+        val controller = controller()
+
+        controller.beginMarking()
+        controller.captureSamples(32)
+        assertTrue(controller.snapshot().feedSampleCount > 1)
+
+        controller.restartFeedForTiming()
+        val firstTimingSample = controller.tick()
+
+        assertEquals(GpsFixtureLibrary.cleanTenLoop().first(), firstTimingSample)
+        assertEquals(1, controller.snapshot().feedSampleCount)
+        assertTrue(controller.snapshot().isDemoFeedRunning)
     }
 
     // D-01 / D-03: a persisted explicit selection resolves on a fresh controller, and

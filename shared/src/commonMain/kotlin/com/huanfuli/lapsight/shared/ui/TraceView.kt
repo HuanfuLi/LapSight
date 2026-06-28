@@ -2,8 +2,9 @@ package com.huanfuli.lapsight.shared.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -45,14 +46,15 @@ fun TraceView(
     if (layers.isEmpty()) return
 
     val density = LocalDensity.current
+    val height = if (maxHeight < minHeight) minHeight else maxHeight
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = minHeight, max = maxHeight),
+            .height(height),
     ) {
         val canvasWidth = maxWidth
-        val canvasHeight = maxHeight
+        val canvasHeight = height
 
         if (canvasWidth.value <= 0f || canvasHeight.value <= 0f) return@BoxWithConstraints
 
@@ -61,8 +63,7 @@ fun TraceView(
 
         Canvas(
             modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = minHeight, max = maxHeight),
+                .fillMaxSize(),
         ) {
             for (layer in layers) {
                 if (layer.points.size < 2) continue

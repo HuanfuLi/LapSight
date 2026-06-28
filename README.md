@@ -1,90 +1,104 @@
 # LapSight
 
-LapSight is a phone-first lap timing and ghost delta app for karting, track driving, and cycling. It is built with Kotlin Multiplatform and Compose Multiplatform. Phase 1 delivered a simulator-backed GPS probe dash; Phase 2 adds a clean-room shared lap engine with sector timing, driven from deterministic replay data.
+LapSight is a phone-first lap timing and ghost-delta app for karting, track driving, and cycling. The phone companion app is the source of truth for GPS samples, track profiles, timing state, saved sessions, review data, and future Meta glasses HUD output.
 
-The phone app is the source of truth for GPS, timing state, session data, and future Meta Display Glasses HUD output.
+LapSight is not a generic fitness tracker. It is being built as a mounted-phone timing instrument for closed-course and private-track use.
 
 ## Current Status
 
-Implemented in Phase 1:
+The app has completed the Phase 5 course-profile and usability hardening pass. The Android app is runnable and has been validated on device with the simulator-backed feed.
 
-- Kotlin Multiplatform project structure.
-- Android app entry point.
-- iOS Xcode app entry point.
-- Shared Compose Multiplatform UI.
-- Simulator-backed GPS probe state.
-- Closed-course and GPS accuracy messaging.
+Implemented:
 
-Implemented in Phase 2:
-
-- Clean-room shared lap engine (start/finish line crossing detection).
-- Local equirectangular meter projection around a session origin.
-- Segment-crossing geometry with interpolated crossing timestamps.
-- Direction, minimum-lap-time, cooldown, speed, and accuracy filters.
-- Sector-line model, sector crossing detection, and per-lap split timing.
-- Deterministic replay runner and synthetic fixtures (covered by tests).
-- Mounted-phone dash showing current/last/best lap, lap count, speed, accuracy, and compact sector splits.
-
-Lap timing is still **simulator/replay-backed**: the dash advances a deterministic replay through the engine. Real GPS providers will feed the same engine in a later phase without changing lap logic or UI.
+- Kotlin Multiplatform shared domain logic.
+- Compose Multiplatform UI shared by Android and iOS.
+- Clean-room lap engine with start/finish crossing, sector timing, lap filters, and deterministic replay tests.
+- Local-first storage for track captures, V2 course profiles, timing sessions, ghost references, and exports.
+- Track setup workflow with closed reference path, start/finish boundary, sectors, profile revisions, duplicate/rename/archive, and wrong-course preflight.
+- Mounted-phone Drive UI with portrait and landscape timing surfaces, live lap state, speed trace, GPS diagnostics, and recovery for unfinished sessions.
+- Ghost lap and delta-to-best support gated by exact course compatibility.
+- Review UI grouped by sessions, tracks, and raw captures, with telemetry chart/replay, trace rendering, and JSON/GPX export.
+- Theme settings for System, Dark, and Light modes, plus unit and display preferences.
 
 Not implemented yet:
 
-- Real Android Fused Location Provider.
-- Real iOS Core Location provider.
-- Session persistence, review, and export.
-- Ghost lap / delta-to-best.
-- Maps, external GNSS, and the Meta glasses HUD bridge.
+- Live Android Fused Location Provider feed.
+- Live iOS Core Location feed.
+- Runtime permission UX beyond manifest/plist declarations.
+- Field-tested GPS smoothing and telemetry quality tuning.
+- External GNSS support.
+- Meta glasses HUD bridge.
+
+## Real GPS Status
+
+The app currently declares Android and iOS location permissions, but the Drive screen still uses a simulator/replay-backed `LocationSampleProvider`. This is intentional up to the current phase: the lap engine, storage, review, and UI were hardened against deterministic data before real-world field testing.
+
+The next implementation step is to replace the simulator provider at the platform boundary:
+
+- Android: stream Fused Location Provider fixes into shared `LocationSample` values.
+- iOS: stream Core Location fixes into the same shared model.
+- Keep lap engine logic independent from platform APIs.
+- Preserve replay-based tests so algorithmic behavior remains verifiable.
+- Clearly label simulated versus real phone GPS sessions in storage and Review.
 
 ## Project Structure
 
 ```text
 LapSight/
-├─ androidApp/   Android application package and activity entry point
+├─ androidApp/   Android application package, manifest, and activity entry point
 ├─ iosApp/       Xcode project and SwiftUI entry point
-├─ shared/       Shared KMP models, state, tests, and Compose UI
-└─ .planning/    GSD project docs, requirements, and roadmap
+├─ shared/       Shared KMP domain logic, Compose UI, storage, and tests
+└─ .planning/    Project context, requirements, roadmap, phase plans, and state
 ```
 
-## Running
+## Build And Test
 
-Android:
+Android debug build:
 
 ```powershell
 .\gradlew.bat :androidApp:assembleDebug
 ```
 
-iOS:
-
-Open `iosApp/` in Xcode on macOS and run the `iosApp` target.
-
-Shared checks:
+Install on a connected Android device:
 
 ```powershell
-.\gradlew.bat :shared:check
+.\gradlew.bat :androidApp:installDebug
 ```
 
-## Environment Notes
+Shared tests:
+
+```powershell
+.\gradlew.bat :shared:allTests
+```
+
+Full local verification used for the latest hardening pass:
+
+```powershell
+.\gradlew.bat :shared:allTests :androidApp:assembleDebug
+```
+
+iOS:
+
+Open `iosApp/` in Xcode on macOS and run the `iosApp` target. iOS runtime verification requires macOS and a simulator or physical iOS device.
+
+## Development Notes
 
 - Android builds require an Android SDK configured through `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or `local.properties`.
-- iOS builds require macOS and Xcode.
-- Phase 1 can run from simulated GPS samples. Real phone GPS provider wiring is the next implementation step.
+- The shared lap engine must remain independent from UI and platform location APIs.
+- Algorithmic behavior should be covered with synthetic or recorded replay data.
+- Local device screenshots, window dumps, logcat files, spreadsheets, and `.planning/evidence/` captures are ignored by Git.
 
 ## Safety Positioning
 
-LapSight is intended for closed courses, karting tracks, private test areas, and training contexts. It should not encourage public-road racing. Phone GPS is not racing-grade timing equipment; the app surfaces GPS quality so users can judge whether data is usable.
+LapSight is intended for closed courses, karting tracks, private test areas, and training contexts. It must not be positioned for public-road racing.
+
+The app should remain passive while moving. Users should configure sessions while stopped, mount the phone securely, and treat phone GPS as approximate telemetry rather than racing-grade timing equipment.
 
 ## Planning Docs
 
 - Project context: `.planning/PROJECT.md`
 - Requirements: `.planning/REQUIREMENTS.md`
 - Roadmap: `.planning/ROADMAP.md`
-- Phase 1 plan: `.planning/phases/01-mobile-walking-skeleton-gps-probe/01-PLAN.md`
-- Phase 2 plan: `.planning/phases/02-clean-room-lap-engine-v0/02-PLAN.md`
-- Phase 2 verification: `.planning/phases/02-clean-room-lap-engine-v0/02-VERIFICATION.md`
-
-## Sources
-
-- Kotlin Multiplatform: https://kotlinlang.org/docs/multiplatform/
-- Compose Multiplatform: https://kotlinlang.org/docs/compose-multiplatform-and-jetpack-compose.html
-- Android KMP plugin: https://developer.android.com/kotlin/multiplatform/plugin
-- KMP wizard template: https://github.com/Kotlin/kmp-wizard
+- Current state: `.planning/STATE.md`
+- Stack research: `.planning/research/STACK.md`
+- Lap engine research: `.planning/research/LAP_ENGINE.md`

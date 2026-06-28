@@ -11,6 +11,9 @@ import com.huanfuli.lapsight.shared.session.toDto
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.ClosedReferencePath
+import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
+import com.huanfuli.lapsight.shared.track.CourseGeometryBuilder
 import com.huanfuli.lapsight.shared.track.CreateProfileResult
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
@@ -277,17 +280,17 @@ class DriveMarkingController(
     }
 
     /**
-     * Place a start/finish line from the first two points of the extracted
-     * reference line, confirming it for timing (D-11, D-19). Only meaningful
-     * while reviewing a save-ready capture.
+     * Place a perpendicular start/finish line at the start of the extracted closed
+     * reference path, confirming it for timing (D-11, D-19). Only meaningful while
+     * reviewing a save-ready capture.
      */
     fun confirmStartFinish() {
         val review = reviewState ?: return
         if (!review.canSave) return
         val ref = review.extraction.referenceLine ?: return
-        if (ref.points.size < 2) return
         if (review.startFinish != null) return
-        reviewState = review.copy(startFinish = StartFinishLineDto(ref.points[0], ref.points[1]))
+        val startFinish = defaultStartFinishLine(ref) ?: return
+        reviewState = review.copy(startFinish = startFinish)
     }
 
     /**
@@ -354,6 +357,17 @@ class DriveMarkingController(
         phase = DriveMarkingPhase.Idle
     }
 
+    /**
+     * Restart the demo feed from a clean phase for a formal timing run. The current
+     * app wiring uses a replay provider, so timing should not inherit the arbitrary
+     * sample index left by marking/review UAT.
+     */
+    fun restartFeedForTiming() {
+        provider.reset()
+        feedSamples.clear()
+        provider.start()
+    }
+
     /** Set the user-entered track name for the next save. */
     fun setTrackName(name: String) {
         trackNameOverride = name.ifBlank { null }
@@ -386,6 +400,13 @@ class DriveMarkingController(
                 }
             }
     }
+
+    private fun defaultStartFinishLine(referenceLine: com.huanfuli.lapsight.shared.track.TrackReferenceLine): StartFinishLineDto? =
+        when (val path = ClosedReferencePath.fromReferenceLine(referenceLine)) {
+            is ClosedReferencePathResult.Loaded ->
+                CourseGeometryBuilder.buildStartFinishLine(path.path, progress = 0.0)
+            is ClosedReferencePathResult.Rejected -> null
+        }
 }
 
 /**

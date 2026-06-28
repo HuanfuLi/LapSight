@@ -179,7 +179,7 @@ fun DriveScreen(
                     onClick = {
                         when (val result = sessionController.overrideWrongCourseAndStart()) {
                             is StartTimingResult.Started -> {
-                                if (!provider.isRunning) provider.start()
+                                controller.restartFeedForTiming()
                                 wrongCourseBlock = null
                                 startTimingBlockedMessage = null
                                 timingActive = true
@@ -332,10 +332,10 @@ fun DriveScreen(
                                 )
                             ) {
                                 is StartTimingResult.Started -> {
-                                    // If the user starts timing from a cold Drive
-                                    // screen, begin the provider without resetting
-                                    // any already-running demo feed.
-                                    if (!provider.isRunning) provider.start()
+                                    // The demo provider should start a timing run
+                                    // from a clean replay phase, not from whatever
+                                    // marking/review sample index was left behind.
+                                    controller.restartFeedForTiming()
                                     startTimingBlockedMessage = null
                                     timingActive = true
                                     timingSnapshot = sessionController.snapshot()
@@ -550,7 +550,7 @@ private fun TimingRunSurface(
             if (lastLapMillisSeen != null) {
                 val now = com.huanfuli.lapsight.shared.nowEpochMillis()
                 val delta = now - lastUpdateEpoch
-                if (delta in 0..2000) {
+                if (delta >= 0) {
                     displayMillis = lastLapMillisSeen!! + delta
                 }
             }
@@ -709,7 +709,7 @@ private fun PrimaryTimingReadouts(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = "CURRENT LAP",
-            color = Color(0xFF7E8DA0),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -735,14 +735,14 @@ private fun PrimaryTimingReadouts(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "SPEED",
-                    color = Color(0xFF7E8DA0),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = speedLabel,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = if (compact) 34.sp else 40.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1,
@@ -750,7 +750,7 @@ private fun PrimaryTimingReadouts(
                     )
                     Text(
                         text = speedUnit,
-                        color = Color(0xFF9AA8B8),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         maxLines = 1,
                         modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
@@ -807,7 +807,7 @@ private fun TelemetryCell(
         Column(modifier = Modifier.fillMaxSize()) {
             Text(
                 text = metric.label,
-                color = Color(0xFF7E8DA0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = if (compact) 9.sp else 10.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -816,7 +816,7 @@ private fun TelemetryCell(
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = metric.value,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = if (compact) 15.sp else 18.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -825,7 +825,7 @@ private fun TelemetryCell(
                 if (metric.unit.isNotEmpty()) {
                     Text(
                         text = metric.unit,
-                        color = Color(0xFF9AA8B8),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 9.sp,
                         modifier = Modifier.padding(start = 3.dp, bottom = 2.dp),
                     )
@@ -840,6 +840,8 @@ private fun SpeedTrace(
     samples: List<Float>,
     modifier: Modifier = Modifier,
 ) {
+    val axisColor = MaterialTheme.colorScheme.outlineVariant
+    val lineColor = MaterialTheme.colorScheme.primary
     Canvas(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
@@ -847,7 +849,7 @@ private fun SpeedTrace(
             .padding(8.dp),
     ) {
         drawLine(
-            color = Color(0xFF263140),
+            color = axisColor,
             start = androidx.compose.ui.geometry.Offset(0f, size.height),
             end = androidx.compose.ui.geometry.Offset(size.width, size.height),
             strokeWidth = 1f,
@@ -857,7 +859,7 @@ private fun SpeedTrace(
         val xStep = size.width / (samples.size - 1)
         samples.zipWithNext().forEachIndexed { index, pair ->
             drawLine(
-                color = Color(0xFF62E3FF),
+                color = lineColor,
                 start = androidx.compose.ui.geometry.Offset(
                     x = index * xStep,
                     y = size.height - (pair.first / maxSpeed * size.height),
@@ -921,7 +923,7 @@ private fun DeltaReadout(
 ) {
     Text(
         text = "DELTA",
-        color = Color(0xFF7E8DA0),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontSize = if (compact) 10.sp else 11.sp,
         fontWeight = FontWeight.Bold,
     )
@@ -1014,14 +1016,14 @@ private fun MetricCard(
         Column(Modifier.padding(if (compact) 12.dp else 16.dp)) {
             Text(
                 text = label.uppercase(),
-                color = Color(0xFF7E8DA0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = if (compact) 10.sp else 11.sp,
                 fontWeight = FontWeight.Bold,
             )
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = value,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = when {
                         emphasized && compact -> 40.sp
                         emphasized -> 52.sp
@@ -1034,7 +1036,7 @@ private fun MetricCard(
                     Spacer(Modifier.width(6.dp))
                     Text(
                         text = unit,
-                        color = Color(0xFF9AA8B8),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = when {
                             emphasized && compact -> 16.sp
                             emphasized -> 18.sp
@@ -1279,13 +1281,17 @@ private fun TrackSelectorSection(
         ) {
             Text(
                 text = "CURRENT TRACK",
-                color = Color(0xFF7E8DA0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = if (compact) 10.sp else 11.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 text = snapshot.currentTrackName ?: "No track selected",
-                color = if (snapshot.currentTrackName != null) Color.White else Color(0xFFFFD166),
+                color = if (snapshot.currentTrackName != null) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    Color(0xFFFFD166)
+                },
                 fontSize = if (compact) 16.sp else 18.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -1300,7 +1306,7 @@ private fun TrackSelectorSection(
             if (snapshot.selectableProfiles.isEmpty()) {
                 Text(
                     text = "No saved tracks yet. Mark a track to create your first one.",
-                    color = Color(0xFF7E8DA0),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = if (compact) 11.sp else 13.sp,
                     lineHeight = if (compact) 15.sp else 17.sp,
                 )
@@ -1341,7 +1347,7 @@ private fun DirectionSelectorSection(
         ) {
             Text(
                 text = "COURSE DIRECTION",
-                color = Color(0xFF7E8DA0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = if (compact) 10.sp else 11.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -1381,7 +1387,7 @@ private fun DirectionChip(
         OutlinedButton(
             onClick = onClick,
             modifier = modifier,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFCED7E2)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
         ) {
             Text(label)
         }
@@ -1477,12 +1483,12 @@ internal fun TrackReviewContent(
             }
             Text(
                 text = "Loops detected: ${review.extraction.detectedLoopCount} · accepted: ${review.extraction.acceptedLoopCount} · rejected: ${review.extraction.rejectedLoopCount}",
-                color = Color(0xFF9AA8B8),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
             Text(
                 text = "Samples: ${review.rawSampleCount} · degraded: ${review.quality.degradedSampleCount}",
-                color = Color(0xFF9AA8B8),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
             // Start/finish editing state (D-11, D-19). A confirmed start/finish
@@ -1501,7 +1507,7 @@ internal fun TrackReviewContent(
             // Marking is continuous capture, NOT lap timing — no lap times shown (D-08).
             Text(
                 text = "Marking capture does not produce lap times.",
-                color = Color(0xFF7E8DA0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
 
@@ -1543,7 +1549,7 @@ internal fun TrackReviewContent(
                 OutlinedButton(
                     onClick = { confirmReRecord = true },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFCED7E2)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
                 ) { Text("Re-record") }
                 OutlinedButton(
                     onClick = { confirmDiscard = true },

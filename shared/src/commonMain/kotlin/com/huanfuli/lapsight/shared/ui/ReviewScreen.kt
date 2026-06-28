@@ -1,5 +1,6 @@
 package com.huanfuli.lapsight.shared.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,9 +19,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,9 +35,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.huanfuli.lapsight.shared.DriveDisplaySettings
+import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.lap.formatLapTime
 import com.huanfuli.lapsight.shared.export.ExportArtifact
 import com.huanfuli.lapsight.shared.export.ExportFailedException
@@ -45,12 +51,15 @@ import com.huanfuli.lapsight.shared.export.ExportShareTarget
 import com.huanfuli.lapsight.shared.export.GpxExportService
 import com.huanfuli.lapsight.shared.export.JsonExportService
 import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
+import com.huanfuli.lapsight.shared.review.ReviewTelemetryPoint
 import com.huanfuli.lapsight.shared.review.ReviewSummaries
 import com.huanfuli.lapsight.shared.review.TimingSessionReviewSummary
+import com.huanfuli.lapsight.shared.review.buildTelemetrySeries
 import com.huanfuli.lapsight.shared.review.buildTimingTraceLayers
 import com.huanfuli.lapsight.shared.review.buildTrackTraceLayers
 import com.huanfuli.lapsight.shared.nowEpochMillis
 import com.huanfuli.lapsight.shared.session.AppMetadata
+import com.huanfuli.lapsight.shared.session.LocationSampleDto
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.AppendRevisionResult
@@ -65,6 +74,7 @@ import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackProfile
 import com.huanfuli.lapsight.shared.track.TrackProfileController
+import kotlin.math.max
 
 /**
  * Review tab (D-27, D-28): lists saved Tracks and marking entries from the
@@ -79,6 +89,7 @@ import com.huanfuli.lapsight.shared.track.TrackProfileController
 fun ReviewScreen(
     sessionStore: LocalSessionStore,
     savedVersion: Long,
+    displaySettings: DriveDisplaySettings,
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
     var rows by remember { mutableStateOf(ReviewListState.from(sessionStore.readIndex())) }
@@ -94,6 +105,10 @@ fun ReviewScreen(
         return
     }
 
+    val sessions = rows.filter { it.type == ReviewEntryType.TimingSession }
+    val tracks = rows.filter { it.type == ReviewEntryType.Track }
+    val rawCaptures = rows.filter { it.type == ReviewEntryType.TrackMarking }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -101,17 +116,59 @@ fun ReviewScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        items(rows) { row ->
-            ReviewRow(
-                row = row,
-                expanded = selectedId == row.id,
-                onClick = {
-                    selectedId = if (selectedId == row.id) null else row.id
-                },
-                sessionStore = sessionStore,
-                exportShareTarget = exportShareTarget,
-            )
-        }
+        reviewSection("Sessions", sessions, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget)
+        reviewSection("Tracks", tracks, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget)
+        reviewSection("Raw captures", rawCaptures, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget)
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.reviewSection(
+    title: String,
+    rows: List<ReviewRowViewModel>,
+    selectedId: String?,
+    onSelectedChanged: (String?) -> Unit,
+    sessionStore: LocalSessionStore,
+    displaySettings: DriveDisplaySettings,
+    exportShareTarget: ExportShareTarget,
+) {
+    if (rows.isEmpty()) return
+    item {
+        ReviewSectionHeader(title, rows.size)
+    }
+    items(rows) { row ->
+        val key = "${row.type.name}:${row.id}"
+        ReviewRow(
+            row = row,
+            expanded = selectedId == key,
+            onClick = {
+                onSelectedChanged(if (selectedId == key) null else key)
+            },
+            sessionStore = sessionStore,
+            displaySettings = displaySettings,
+            exportShareTarget = exportShareTarget,
+        )
+    }
+}
+
+@Composable
+private fun ReviewSectionHeader(title: String, count: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title.uppercase(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = count.toString(),
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -136,7 +193,7 @@ private fun EmptyState() {
             Spacer(Modifier.height(12.dp))
             Text(
                 text = "Mark a track, then start a timing session. Saved tracks and sessions show up here.",
-                color = Color(0xFFCED7E2),
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 16.sp,
                 lineHeight = 22.sp,
             )
@@ -150,6 +207,7 @@ private fun ReviewRow(
     expanded: Boolean,
     onClick: () -> Unit,
     sessionStore: LocalSessionStore,
+    displaySettings: DriveDisplaySettings,
     exportShareTarget: ExportShareTarget,
 ) {
     Card(
@@ -165,8 +223,8 @@ private fun ReviewRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = row.name.ifBlank { "Untitled ${row.typeLabel}" },
-                    color = Color.White,
+                    text = row.displayTitle(),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
@@ -175,19 +233,24 @@ private fun ReviewRow(
             }
             Text(
                 text = "${row.typeLabel} · ${row.sourceLabel}",
-                color = Color(0xFF9AA8B8),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
             )
             if (expanded) {
                 if (row.type == ReviewEntryType.TimingSession) {
-                    TimingSessionReviewDetail(row.id, sessionStore, exportShareTarget)
+                    TimingSessionReviewDetail(row.id, sessionStore, displaySettings, exportShareTarget)
                 } else {
                     RowDetail(row, sessionStore, exportShareTarget)
                 }
             }
         }
     }
+}
+
+private fun ReviewRowViewModel.displayTitle(): String = when (type) {
+    ReviewEntryType.TimingSession -> "Session ${formatEpochMillis(createdAtEpochMillis)}"
+    else -> name.ifBlank { "Untitled ${typeLabel}" }
 }
 
 /**
@@ -199,6 +262,7 @@ private fun ReviewRow(
 private fun TimingSessionReviewDetail(
     sessionId: String,
     sessionStore: LocalSessionStore,
+    displaySettings: DriveDisplaySettings,
     exportShareTarget: ExportShareTarget,
 ) {
     val summary = remember(sessionId) { ReviewSummaries.fromTimingSession(sessionStore, sessionId) }
@@ -210,6 +274,9 @@ private fun TimingSessionReviewDetail(
             )
             return
         }
+    val sessionPayload = remember(sessionId) {
+        (sessionStore.loadTimingSession(sessionId) as? LoadResult.Loaded<com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1>)?.value
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (summary.isDemo) ReviewDemoBadge()
@@ -230,14 +297,14 @@ private fun TimingSessionReviewDetail(
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "Laps",
-                color = Color(0xFF7E8DA0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
             )
             summary.laps.forEach { lap ->
                 Text(
                     text = "Lap ${lap.lapNumber}: ${lap.durationMillis.formatLapTime()}",
-                    color = Color(0xFFCED7E2),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp,
                 )
             }
@@ -246,14 +313,14 @@ private fun TimingSessionReviewDetail(
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "Sector splits",
-                color = Color(0xFF7E8DA0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
             )
             summary.sectorSplits.forEach { sector ->
                 Text(
                     text = "${sector.sectorName} (L${sector.lapNumber}): ${sector.splitMillis.formatLapTime()}",
-                    color = Color(0xFFCED7E2),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp,
                 )
             }
@@ -263,6 +330,7 @@ private fun TimingSessionReviewDetail(
             "Avg accuracy",
             summary.gpsQuality.averageAccuracyMeters?.let { "${it.toInt()} m" } ?: "--",
         )
+        TelemetryReplaySection(sessionPayload?.samples ?: emptyList(), displaySettings.speedUnit)
         if (summary.isDemo) {
             Text(
                 text = "Simulated data — not live history.",
@@ -291,8 +359,13 @@ private fun TimingSessionReviewDetail(
         // Export actions (D-40): explicit button taps on Timing Session detail.
         Spacer(Modifier.height(8.dp))
         var exportMessage by remember { mutableStateOf<String?>(null) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = {
                 exportMessage = try {
                     val bytes = JsonExportService(sessionStore).exportTimingSession(sessionId)
                     val fileName = ExportFileNames.forTimingSession(
@@ -311,7 +384,9 @@ private fun TimingSessionReviewDetail(
                     "Export failed. Check device storage and try again."
                 }
             }) { Text("Export JSON") }
-            OutlinedButton(onClick = {
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = {
                 exportMessage = try {
                     val bytes = GpxExportService(sessionStore).exportTimingSession(sessionId)
                     val fileName = ExportFileNames.forTimingSession(
@@ -337,6 +412,148 @@ private fun TimingSessionReviewDetail(
                 color = if (msg.startsWith("Exported")) Color(0xFF8CFF9B) else Color(0xFFFF6B6B),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TelemetryReplaySection(
+    samples: List<LocationSampleDto>,
+    speedUnit: SpeedUnit,
+) {
+    val telemetry = remember(samples) { buildTelemetrySeries(samples) }
+    if (telemetry.isEmpty()) {
+        Text(
+            text = "Telemetry unavailable.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+        )
+        return
+    }
+
+    var selectedIndex by remember(telemetry.size) { mutableStateOf(0) }
+    var playing by remember(telemetry.size) { mutableStateOf(false) }
+    val lastIndex = telemetry.lastIndex
+    val safeSelectedIndex = selectedIndex.coerceIn(0, lastIndex)
+
+    LaunchedEffect(playing, telemetry.size) {
+        while (playing && telemetry.size > 1) {
+            kotlinx.coroutines.delay(250)
+            if (selectedIndex >= lastIndex) {
+                playing = false
+            } else {
+                selectedIndex += 1
+            }
+        }
+    }
+
+    val selected = telemetry[safeSelectedIndex]
+    val speedMultiplier = when (speedUnit) {
+        SpeedUnit.KilometersPerHour -> 3.6
+        SpeedUnit.MilesPerHour -> 2.2369362921
+    }
+    val speedUnitLabel = when (speedUnit) {
+        SpeedUnit.KilometersPerHour -> "km/h"
+        SpeedUnit.MilesPerHour -> "mph"
+    }
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "Telemetry replay",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+    )
+    SpeedTelemetryChart(
+        points = telemetry,
+        selectedIndex = safeSelectedIndex,
+        modifier = Modifier.fillMaxWidth().height(120.dp),
+    )
+    if (lastIndex > 0) {
+        Slider(
+            value = safeSelectedIndex.toFloat(),
+            onValueChange = {
+                selectedIndex = it.toInt().coerceIn(0, lastIndex)
+                playing = false
+            },
+            valueRange = 0f..lastIndex.toFloat(),
+        )
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Button(
+            onClick = { playing = !playing },
+            modifier = Modifier.weight(1f),
+        ) { Text(if (playing) "Pause" else "Play") }
+        OutlinedButton(
+            onClick = {
+                selectedIndex = 0
+                playing = false
+            },
+            modifier = Modifier.weight(1f),
+        ) { Text("Restart") }
+    }
+    DetailLine("Time", selected.elapsedMillis.formatLapTime())
+    DetailLine(
+        "Speed",
+        "${formatOneDecimalReview((selected.smoothedSpeedMetersPerSecond ?: selected.speedMetersPerSecond ?: 0.0) * speedMultiplier)} $speedUnitLabel",
+    )
+    DetailLine("Distance", "${formatOneDecimalReview(selected.distanceMeters)} m")
+    DetailLine("Accuracy", selected.horizontalAccuracyMeters?.let { "${it.toInt()} m" } ?: "--")
+}
+
+@Composable
+private fun SpeedTelemetryChart(
+    points: List<ReviewTelemetryPoint>,
+    selectedIndex: Int,
+    modifier: Modifier = Modifier,
+) {
+    val lineColor = MaterialTheme.colorScheme.primary
+    val axisColor = MaterialTheme.colorScheme.outlineVariant
+    val cursorColor = MaterialTheme.colorScheme.secondary
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
+    Canvas(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(surfaceColor)
+            .padding(8.dp),
+    ) {
+        drawLine(
+            color = axisColor,
+            start = androidx.compose.ui.geometry.Offset(0f, size.height),
+            end = androidx.compose.ui.geometry.Offset(size.width, size.height),
+            strokeWidth = 1f,
+        )
+        if (points.size >= 2) {
+            val speeds = points.map {
+                (it.smoothedSpeedMetersPerSecond ?: it.speedMetersPerSecond ?: 0.0).toFloat()
+            }
+            val maxSpeed = max(1f, speeds.maxOrNull() ?: 1f)
+            val xStep = size.width / (points.size - 1)
+            speeds.zipWithNext().forEachIndexed { index, pair ->
+                drawLine(
+                    color = lineColor,
+                    start = androidx.compose.ui.geometry.Offset(
+                        x = index * xStep,
+                        y = size.height - (pair.first / maxSpeed * size.height),
+                    ),
+                    end = androidx.compose.ui.geometry.Offset(
+                        x = (index + 1) * xStep,
+                        y = size.height - (pair.second / maxSpeed * size.height),
+                    ),
+                    strokeWidth = 3f,
+                    cap = StrokeCap.Round,
+                )
+            }
+            val x = selectedIndex.coerceIn(0, points.lastIndex) * xStep
+            drawLine(
+                color = cursorColor,
+                start = androidx.compose.ui.geometry.Offset(x, 0f),
+                end = androidx.compose.ui.geometry.Offset(x, size.height),
+                strokeWidth = 2f,
             )
         }
     }
@@ -368,19 +585,17 @@ private fun TimingTraceSection(
     if (samples.isEmpty() && refPoints.isEmpty()) {
         Text(
             text = "Trace data unavailable.",
-            color = Color(0xFF7E8DA0),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
         )
         return
     }
 
-    // Determine best lap time range for highlight.
-    val bestLapStart: Long? = null
-    val bestLapEnd: Long? = null
-    // For now, highlight is derived from bestLapMillis by finding the matching
-    // lap in the payload. We use null to avoid complex time-range calculations.
-    val selectedStart: Long? = bestLapStart
-    val selectedEnd: Long? = bestLapEnd
+    val bestLap = bestLapMillis?.let { best ->
+        sessionPayload?.laps?.firstOrNull { it.durationMillis == best }
+    }
+    val selectedStart: Long? = bestLap?.startMillis
+    val selectedEnd: Long? = bestLap?.endMillis
 
     val layers = buildTimingTraceLayers(
         referenceLinePoints = refPoints,
@@ -397,7 +612,7 @@ private fun TimingTraceSection(
         Spacer(Modifier.height(8.dp))
         Text(
             text = "Trace",
-            color = Color(0xFF7E8DA0),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -470,7 +685,7 @@ private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore, 
                     val store = sessionStore
                     val bytes = JsonExportService(store).exportTrack(row.id)
                     val name = ExportFileNames.forTrack(
-                        row.name, row.createdAtEpochMillis ?: 0L
+                        row.name, row.createdAtEpochMillis
                     )
                     val artifact = ExportArtifact(name, "application/json", bytes)
                     when (exportShareTarget.share(artifact)) {
@@ -535,7 +750,7 @@ private fun TrackTraceSection(
     if (samples.isEmpty() && referenceLine?.points.isNullOrEmpty()) {
         Text(
             text = "Trace data unavailable.",
-            color = Color(0xFF7E8DA0),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
         )
         return
@@ -560,7 +775,7 @@ private fun TrackTraceSection(
         Spacer(Modifier.height(8.dp))
         Text(
             text = "Trace",
-            color = Color(0xFF7E8DA0),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -585,7 +800,7 @@ private fun ProfileLifecycleSection(trackId: String, sessionStore: LocalSessionS
     Spacer(Modifier.height(8.dp))
     Text(
         text = "Profile",
-        color = Color(0xFF7E8DA0),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
     )
@@ -649,7 +864,7 @@ private fun EditCourseSection(trackId: String, sessionStore: LocalSessionStore) 
         Spacer(Modifier.height(6.dp))
         Text(
             text = "Course editing unavailable for this entry.",
-            color = Color(0xFF7E8DA0),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
         )
         return
@@ -658,7 +873,7 @@ private fun EditCourseSection(trackId: String, sessionStore: LocalSessionStore) 
     Spacer(Modifier.height(8.dp))
     Text(
         text = "Revision history",
-        color = Color(0xFF7E8DA0),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
     )
@@ -667,7 +882,7 @@ private fun EditCourseSection(trackId: String, sessionStore: LocalSessionStore) 
         Text(
             text = "Rev ${revision.ordinal} · ${formatEpochMillis(revision.createdAtEpochMillis)} · " +
                 if (ready) "timing-ready" else "needs start/finish",
-            color = Color(0xFFCED7E2),
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 13.sp,
         )
     }
@@ -845,17 +1060,21 @@ private fun nowEpochMillisSafeUi(): Long = try {
 
 @Composable
 private fun DetailLine(label: String, value: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         Text(
             text = label,
-            color = Color(0xFF7E8DA0),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
-            modifier = Modifier.width(72.dp),
+            modifier = Modifier.width(96.dp),
         )
         Text(
             text = value,
-            color = Color(0xFFCED7E2),
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 13.sp,
+            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -895,6 +1114,11 @@ private fun formatEpochMillis(epochMillis: Long): String {
     val dd = d.toString().padStart(2, '0')
     val mm2 = m.toString().padStart(2, '0')
     return "$y-$mm2-$dd $hh:$mm"
+}
+
+private fun formatOneDecimalReview(value: Double): String {
+    val scaled = (value * 10.0).toInt()
+    return "${scaled / 10}.${scaled % 10}"
 }
 
 private fun gregorianFromEpochDays(daysSinceEpoch: Long): Triple<Int, Int, Int> {
