@@ -36,6 +36,10 @@ object ReferenceLapSelector {
         isSimulated: Boolean,
         maxHorizontalAccuracyMeters: Double =
             ProgressCurveBuilder.DEFAULT_MAX_HORIZONTAL_ACCURACY_METERS,
+        compatibilityKey: CourseCompatibilityKey = GhostCompatibility.migratedV1Key(
+            trackId = trackId,
+            isSimulated = isSimulated,
+        ),
     ): ReferenceLap? {
         val window = allSamples.filter {
             it.elapsedMillis in lap.startMillis..lap.endMillis
@@ -52,6 +56,7 @@ object ReferenceLapSelector {
             isSimulated = isSimulated,
             rawSamples = window,
             progressCurve = curve,
+            compatibilityKey = compatibilityKey,
         )
     }
 
@@ -63,6 +68,7 @@ object ReferenceLapSelector {
     fun fasterOf(current: ReferenceLap?, candidate: ReferenceLap?): ReferenceLap? {
         if (current == null) return candidate
         if (candidate == null) return current
+        if (!GhostCompatibility.isSameSlot(current.compatibilityKey, candidate.compatibilityKey)) return current
         return if (candidate.durationMillis < current.durationMillis) candidate else current
     }
 }

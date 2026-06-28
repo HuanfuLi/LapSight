@@ -92,6 +92,10 @@ data class ProgressCurve(
  * @param isSimulated true for demo/simulated laps, which must stay isolated from
  *        real Track ghost calculations (D-04). Kept as a simple flag here; the
  *        richer source metadata and persistence belong to a later storage plan.
+ * @param compatibilityKey full profile/geometry/direction/source identity used
+ *        to decide whether another reference may be compared or reused (D-15,
+ *        D-16, D-18, D-19). V1 Track-scoped references receive a deterministic
+ *        Recorded-only migrated key.
  */
 data class ReferenceLap(
     val trackId: String,
@@ -101,6 +105,10 @@ data class ReferenceLap(
     val isSimulated: Boolean,
     val rawSamples: List<LocationSample>,
     val progressCurve: ProgressCurve,
+    val compatibilityKey: CourseCompatibilityKey = GhostCompatibility.migratedV1Key(
+        trackId = trackId,
+        isSimulated = isSimulated,
+    ),
 )
 
 /** Why a progress curve could not be built from raw lap samples (T-04-01). */

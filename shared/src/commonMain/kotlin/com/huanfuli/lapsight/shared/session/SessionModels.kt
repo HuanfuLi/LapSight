@@ -2,8 +2,11 @@ package com.huanfuli.lapsight.shared.session
 
 import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.LocationSource
+import com.huanfuli.lapsight.shared.ghost.CourseCompatibilityKey
+import com.huanfuli.lapsight.shared.ghost.CourseCompatibilityValidation
 import com.huanfuli.lapsight.shared.ghost.DeltaDisplayState
 import com.huanfuli.lapsight.shared.ghost.DeltaUnavailableReason
+import com.huanfuli.lapsight.shared.ghost.GhostCompatibility
 import com.huanfuli.lapsight.shared.ghost.LiveDeltaSnapshot
 import com.huanfuli.lapsight.shared.ghost.ProgressCurve
 import com.huanfuli.lapsight.shared.ghost.ProgressPoint
@@ -12,6 +15,7 @@ import com.huanfuli.lapsight.shared.lap.LapEvent
 import com.huanfuli.lapsight.shared.lap.SectorEvent
 import com.huanfuli.lapsight.shared.lap.SectorResult
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.GhostReferencePayloadV2
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import kotlinx.serialization.Serializable
@@ -231,6 +235,16 @@ data class TimingSession(
      * Ghost compatibility never confuse it with the recorded direction (D-19, SC-04).
      */
     val direction: CourseDirection = CourseDirection.Recorded,
+    /**
+     * Full reference/Ghost compatibility slot implied by this historical session.
+     *
+     * V1 sessions decode into the deterministic migrated Recorded key. Newer callers
+     * may supply a profile/revision-derived key; selection never uses [trackId] or
+     * exact revision id alone for Ghost comparison (D-15/D-19).
+     */
+    val courseCompatibilityKey: CourseCompatibilityKey = GhostCompatibility
+        .migratedV1Key(trackId = trackId, isSimulated = source.isSimulated)
+        .copy(direction = direction),
 )
 
 /**
@@ -478,6 +492,30 @@ fun ReferenceLap.toReferencePayload(source: SourceMetadata, app: AppMetadata): G
         app = app,
     )
 
+/**
+ * Maps a domain [ReferenceLap] to a V2 payload keyed by the full compatibility
+ * slot. The source flag must agree with [ReferenceLap.compatibilityKey] so a
+ * real lookup can never consume a simulated payload (T-05-21).
+ */
+fun ReferenceLap.toReferencePayloadV2(source: SourceMetadata, app: AppMetadata): GhostReferencePayloadV2 {
+    val payload = GhostReferencePayloadV2(
+        compatibilityKey = compatibilityKey,
+        sessionId = sessionId,
+        lapNumber = lapNumber,
+        durationMillis = durationMillis,
+        source = source,
+        totalDistanceMeters = progressCurve.totalDistanceMeters,
+        samples = rawSamples.map { it.toDto() },
+        progressPoints = progressCurve.points.map { it.toDto() },
+        app = app,
+    )
+    when (val validation = GhostCompatibility.validateReferencePayload(payload)) {
+        CourseCompatibilityValidation.Valid -> Unit
+        is CourseCompatibilityValidation.Invalid -> throw IllegalArgumentException(validation.reason)
+    }
+    return payload
+}
+
 /** Maps a persisted [GhostReferencePayloadV1] back to the domain [ReferenceLap]. */
 fun GhostReferencePayloadV1.toReferenceLap(): ReferenceLap = ReferenceLap(
     trackId = trackId,
@@ -490,4 +528,23 @@ fun GhostReferencePayloadV1.toReferenceLap(): ReferenceLap = ReferenceLap(
         totalDistanceMeters = totalDistanceMeters,
         points = progressPoints.map { it.toModel() },
     ),
+    compatibilityKey = GhostCompatibility.migratedV1Key(
+        trackId = trackId,
+        isSimulated = source.isSimulated,
+    ),
+)
+
+/** Maps a persisted V2 reference payload back to the domain [ReferenceLap]. */
+fun GhostReferencePayloadV2.toReferenceLap(): ReferenceLap = ReferenceLap(
+    trackId = compatibilityKey.profileId,
+    sessionId = sessionId,
+    lapNumber = lapNumber,
+    durationMillis = durationMillis,
+    isSimulated = compatibilityKey.isSimulated,
+    rawSamples = samples.map { it.toModel() },
+    progressCurve = ProgressCurve(
+        totalDistanceMeters = totalDistanceMeters,
+        points = progressPoints.map { it.toModel() },
+    ),
+    compatibilityKey = compatibilityKey,
 )

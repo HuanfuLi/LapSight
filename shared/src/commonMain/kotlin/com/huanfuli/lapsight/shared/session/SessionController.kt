@@ -2,6 +2,7 @@ package com.huanfuli.lapsight.shared.session
 
 import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.ghost.DeltaUnavailableReason
+import com.huanfuli.lapsight.shared.ghost.GhostCompatibility
 import com.huanfuli.lapsight.shared.ghost.LiveDeltaSnapshot
 import com.huanfuli.lapsight.shared.ghost.ReferenceLap
 import com.huanfuli.lapsight.shared.ghost.ReferenceLapSelector
@@ -308,6 +309,7 @@ class SessionController(
      */
     private fun loadReferenceFor(session: TimingSession): ReferenceLap? {
         if (session.direction != CourseDirection.Recorded) return null
+        if (!usesLegacyReferenceSlot(session)) return null
         val result = store.loadReferenceLap(session.trackId, session.source.isSimulated)
         return (result as? LoadResult.Loaded)?.value?.toReferenceLap()
     }
@@ -320,6 +322,7 @@ class SessionController(
      * (D-04, D-24).
      */
     private fun promoteReferenceFromPayload(payload: TimingSessionPayloadV1) {
+        if (!usesLegacyReferenceSlot(payload.session)) return
         val candidate = referenceFromPayload(payload) ?: return
         val existing = (
             store.loadReferenceLap(payload.session.trackId, payload.session.source.isSimulated)
@@ -351,8 +354,15 @@ class SessionController(
             ),
             allSamples = samples,
             isSimulated = payload.session.source.isSimulated,
+            compatibilityKey = payload.session.courseCompatibilityKey,
         )
     }
+
+    private fun usesLegacyReferenceSlot(session: TimingSession): Boolean =
+        session.courseCompatibilityKey == GhostCompatibility.migratedV1Key(
+            trackId = session.trackId,
+            isSimulated = session.source.isSimulated,
+        )
 }
 
 /** Snapshot of the controller's active draft, rendered by the Drive UI. */

@@ -4,8 +4,9 @@ import com.huanfuli.lapsight.shared.session.GhostReferencePayloadV1
 import com.huanfuli.lapsight.shared.session.LocationSampleDto
 import com.huanfuli.lapsight.shared.session.ProgressPointDto
 import com.huanfuli.lapsight.shared.session.TimingSessionPayloadV1
+import com.huanfuli.lapsight.shared.ghost.CourseCompatibilityValidation
+import com.huanfuli.lapsight.shared.ghost.GhostCompatibility
 import com.huanfuli.lapsight.shared.track.CourseDirection
-import com.huanfuli.lapsight.shared.track.CourseCompatibilityKey
 import com.huanfuli.lapsight.shared.track.CourseSetup
 import com.huanfuli.lapsight.shared.track.CourseSnapshot
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
@@ -285,10 +286,8 @@ object SchemaMigrations {
      * simulated reference (D-04, D-19).
      */
     fun migrateGhostReference(payload: GhostReferencePayloadV1): GhostReferencePayloadV2 = GhostReferencePayloadV2(
-        compatibilityKey = CourseCompatibilityKey(
-            profileId = payload.trackId,
-            geometryCompatibilityId = migratedGeometryCompatibilityId(payload.trackId),
-            direction = CourseDirection.Recorded,
+        compatibilityKey = GhostCompatibility.migratedV1Key(
+            trackId = payload.trackId,
             isSimulated = payload.source.isSimulated,
         ),
         sessionId = payload.sessionId,
@@ -397,8 +396,10 @@ object SchemaMigrations {
 
     private fun validateGhostV2(payload: GhostReferencePayloadV2): String? {
         val key = payload.compatibilityKey
-        if (!isSafeId(key.profileId)) return "unsafe profile id"
-        if (key.geometryCompatibilityId.isBlank()) return "missing geometry compatibility id"
+        when (val compatibility = GhostCompatibility.validateReferencePayload(payload)) {
+            CourseCompatibilityValidation.Valid -> Unit
+            is CourseCompatibilityValidation.Invalid -> return compatibility.reason
+        }
         if (!isSafeId(payload.sessionId)) return "unsafe session id"
         if (payload.progressPoints.size < 2) return "reference progress curve too short"
         if (payload.progressPoints.size > MAX_GEO_POINTS) return "reference progress curve too large"

@@ -224,6 +224,7 @@ class TimingSessionRecorder(
                     isSimulated = session.source.isSimulated,
                     maxHorizontalAccuracyMeters = config.maxHorizontalAccuracyMeters
                         ?: com.huanfuli.lapsight.shared.ghost.ProgressCurveBuilder.DEFAULT_MAX_HORIZONTAL_ACCURACY_METERS,
+                    compatibilityKey = session.courseCompatibilityKey,
                 )
                 if (candidate != null) {
                     val updated = ReferenceLapSelector.fasterOf(activeReference, candidate)
