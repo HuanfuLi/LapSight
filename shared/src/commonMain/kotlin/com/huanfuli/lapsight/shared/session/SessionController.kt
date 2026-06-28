@@ -125,6 +125,7 @@ class SessionController(
             store = store,
             app = appMetadata,
             initialReference = loadReferenceFor(session),
+            referenceLine = track.referenceLine,
         )
         this.session = session
         this.recorder = rec
@@ -228,6 +229,7 @@ class SessionController(
                         store = store,
                         app = appMetadata,
                         initialReference = loadReferenceFor(payload.session),
+                        referenceLine = track.referenceLine,
                     )
                     // Replay the already-captured samples so the in-memory engine
                     // state catches up to the persisted draft. Replaying through

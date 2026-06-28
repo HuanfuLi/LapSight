@@ -353,7 +353,9 @@ class TimingGhostIntegrationTest {
         controller.startTiming(track.id)
         val recorder = controller.recorderForTest()!!
 
-        val samples = ReplayFixtures.multiLapLoop(listOf(40_000L, 32_000L))
+        val samples = ReplayFixtures.multiLapLoop(listOf(40_000L, 32_000L)).map {
+            it.copy(source = LocationSource.PhoneGps)
+        }
         val deltasDuringLap1 = mutableListOf<LiveDeltaSnapshot>()
         var sawAvailableAfterLap1 = false
 
@@ -538,7 +540,9 @@ class TimingGhostIntegrationTest {
         var afterExcursion: LiveDeltaSnapshot? = null
         var referenceKeyBeforeExcursion: CourseCompatibilityKey? = null
         var referenceKeyAfterExcursion: CourseCompatibilityKey? = null
-        val excursionFixtureIndex = 360
+        // Timing begins mid-loop, so the first completed reference is available
+        // only after fixture index 480. Inject midway through the following lap.
+        val excursionFixtureIndex = 600
         repeat(provider.sampleCount - preTimingSamples) { offset ->
             val fixtureIndex = preTimingSamples + offset
             val providerSample = assertNotNull(

@@ -1,6 +1,11 @@
 package com.huanfuli.lapsight.shared.ghost
 
 import com.huanfuli.lapsight.shared.LocationSample
+import com.huanfuli.lapsight.shared.session.GeoPointDto
+import com.huanfuli.lapsight.shared.track.ClosedReferencePath
+import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
+import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.TrackReferenceLine
 
 /**
  * Pure realtime live-delta engine (D-08/D-09/D-10).
@@ -24,10 +29,12 @@ import com.huanfuli.lapsight.shared.LocationSample
 class LiveDeltaEngine(
     private val maxHorizontalAccuracyMeters: Double =
         ProgressCurveBuilder.DEFAULT_MAX_HORIZONTAL_ACCURACY_METERS,
-    private val courseMatcher: CourseProgressMatcher? = null,
+    courseMatcher: CourseProgressMatcher? = null,
 ) {
 
     private var reference: ReferenceLap? = null
+    private val configuredCourseMatcher: CourseProgressMatcher? = courseMatcher
+    private var activeCourseMatcher: CourseProgressMatcher? = configuredCourseMatcher
 
     private var lapActive: Boolean = false
     private var lapStartMillis: Long? = null
@@ -41,6 +48,7 @@ class LiveDeltaEngine(
     /** Load (or clear) the reference lap used as the ghost target. */
     fun setReference(reference: ReferenceLap?) {
         this.reference = reference
+        activeCourseMatcher = configuredCourseMatcher ?: reference?.let(::legacyRecordedMatcher)
     }
 
     /**
@@ -51,7 +59,7 @@ class LiveDeltaEngine(
         lapActive = true
         lapStartMillis = null
         sampleCount = 0
-        courseMatcher?.reset()
+        activeCourseMatcher?.reset()
         snapshot = LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.InsufficientCurrentSamples)
     }
 
@@ -91,7 +99,7 @@ class LiveDeltaEngine(
         }
         sampleCount++
 
-        val match = courseMatcher?.match(sample, ref.compatibilityKey)
+        val match = activeCourseMatcher?.match(sample, ref.compatibilityKey)
             ?: return emit(LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.UnmatchedProgress))
         if (match is CourseMatchResult.Unmatched) {
             return emit(LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.UnmatchedProgress))
@@ -123,5 +131,37 @@ class LiveDeltaEngine(
     private fun emit(next: LiveDeltaSnapshot): LiveDeltaSnapshot {
         snapshot = next
         return next
+    }
+
+    /**
+     * Legacy Recorded references may predate a persisted TrackReferenceLine. Use
+     * their exact-key raw lap as a bounded closed path rather than reintroducing
+     * traveled-distance accumulation. Reverse requires explicit recorded-orientation
+     * course geometry so direction cannot be inverted twice.
+     */
+    private fun legacyRecordedMatcher(reference: ReferenceLap): CourseProgressMatcher? {
+        if (reference.compatibilityKey.direction != CourseDirection.Recorded) return null
+        val line = TrackReferenceLine(
+            points = reference.rawSamples.map {
+                GeoPointDto(latitude = it.latitude, longitude = it.longitude)
+            },
+            isClosed = true,
+        )
+        val path = when (val result = ClosedReferencePath.fromReferenceLine(line)) {
+            is ClosedReferencePathResult.Loaded -> result.path
+            is ClosedReferencePathResult.Rejected -> return null
+        }
+        val first = reference.rawSamples.firstOrNull() ?: return null
+        val startProgress = path.projectGeo(
+            GeoPointDto(latitude = first.latitude, longitude = first.longitude),
+        ).progressMeters
+        return CourseProgressMatcher(
+            path = path,
+            startFinishProgressMeters = startProgress,
+            compatibilityKey = reference.compatibilityKey,
+            thresholds = CourseProgressMatcherThresholds(
+                maxHorizontalAccuracyMeters = maxHorizontalAccuracyMeters,
+            ),
+        )
     }
 }

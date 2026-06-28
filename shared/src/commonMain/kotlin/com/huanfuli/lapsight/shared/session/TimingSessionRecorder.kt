@@ -3,6 +3,8 @@ package com.huanfuli.lapsight.shared.session
 import com.huanfuli.lapsight.shared.GpsQualitySummary
 import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.ghost.DeltaDisplayState
+import com.huanfuli.lapsight.shared.ghost.CourseProgressMatcher
+import com.huanfuli.lapsight.shared.ghost.CourseProgressMatcherThresholds
 import com.huanfuli.lapsight.shared.ghost.LiveDeltaEngine
 import com.huanfuli.lapsight.shared.ghost.LiveDeltaSnapshot
 import com.huanfuli.lapsight.shared.ghost.ReferenceLap
@@ -17,9 +19,12 @@ import com.huanfuli.lapsight.shared.lap.SectorResult
 import com.huanfuli.lapsight.shared.lap.StartFinishLine
 import com.huanfuli.lapsight.shared.lap.GeoPoint
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.ClosedReferencePath
+import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
 import com.huanfuli.lapsight.shared.track.CourseGeometryBuilder
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
+import com.huanfuli.lapsight.shared.track.TrackReferenceLine
 
 /**
  * Maps a serializable [StartFinishLineDto] to the lap-domain [StartFinishLine].
@@ -110,6 +115,7 @@ class TimingSessionRecorder(
     private val store: com.huanfuli.lapsight.shared.storage.LocalSessionStore,
     private val app: AppMetadata,
     initialReference: ReferenceLap? = null,
+    referenceLine: TrackReferenceLine? = null,
     private val onCheckpoint: () -> Unit = {},
 ) {
     private val engine = LapEngine(course, config)
@@ -126,9 +132,32 @@ class TimingSessionRecorder(
     private var lastTimingState = engine.state
     private var totalDurationMillis: Long = 0L
 
+    private val courseMatcher = referenceLine?.let { line ->
+        val path = when (val result = ClosedReferencePath.fromReferenceLine(line)) {
+            is ClosedReferencePathResult.Loaded -> result.path
+            is ClosedReferencePathResult.Rejected -> null
+        }
+        path?.let {
+            val midpoint = GeoPointDto(
+                latitude = (session.startFinish.pointA.latitude + session.startFinish.pointB.latitude) / 2.0,
+                longitude = (session.startFinish.pointA.longitude + session.startFinish.pointB.longitude) / 2.0,
+            )
+            CourseProgressMatcher(
+                path = it,
+                startFinishProgressMeters = it.projectGeo(midpoint).progressMeters,
+                compatibilityKey = session.courseCompatibilityKey,
+                thresholds = CourseProgressMatcherThresholds(
+                    maxHorizontalAccuracyMeters = config.maxHorizontalAccuracyMeters
+                        ?: com.huanfuli.lapsight.shared.ghost.ProgressCurveBuilder.DEFAULT_MAX_HORIZONTAL_ACCURACY_METERS,
+                ),
+            )
+        }
+    }
+
     private val deltaEngine = LiveDeltaEngine(
         maxHorizontalAccuracyMeters = config.maxHorizontalAccuracyMeters
             ?: com.huanfuli.lapsight.shared.ghost.ProgressCurveBuilder.DEFAULT_MAX_HORIZONTAL_ACCURACY_METERS,
+        courseMatcher = courseMatcher,
     )
 
     /**

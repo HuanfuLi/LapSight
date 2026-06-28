@@ -200,8 +200,13 @@ class ClosedReferencePath private constructor(
         }
         // Second pass: nearest candidate on a segment NOT adjacent to the best one.
         var runnerUpDist = Double.POSITIVE_INFINITY
+        val localNeighborhoodMeters = thresholds.minCyclicSpacing(perimeter)
         for (j in 0 until n) {
-            if (isAdjacent(bestSeg, j, n)) continue
+            if (isAdjacent(bestSeg, j, n) ||
+                isWithinLocalArcNeighborhood(bestSeg, j, localNeighborhoodMeters)
+            ) {
+                continue
+            }
             val a = points[j]
             val b = points[(j + 1) % n]
             val t = projectionParameter(point, a, b)
@@ -244,6 +249,23 @@ class ClosedReferencePath private constructor(
             if (cum[seg + 1] - cum[seg] > EPSILON) return seg
         }
         return start
+    }
+
+    /**
+     * Dense reference lines have several nearby segments that are one continuous
+     * local curve, not competing hairpin/parallel candidates. Exclude a bounded
+     * arc-length neighborhood around the best segment before declaring ambiguity.
+     */
+    private fun isWithinLocalArcNeighborhood(
+        bestSegment: Int,
+        candidateSegment: Int,
+        neighborhoodMeters: Double,
+    ): Boolean {
+        val bestMidpoint = (cum[bestSegment] + cum[bestSegment + 1]) / 2.0
+        val candidateMidpoint = (cum[candidateSegment] + cum[candidateSegment + 1]) / 2.0
+        val raw = kotlin.math.abs(bestMidpoint - candidateMidpoint)
+        val cyclic = minOf(raw, perimeter - raw)
+        return cyclic <= neighborhoodMeters
     }
 
     companion object {
