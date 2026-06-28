@@ -330,7 +330,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 14/14 plans executed
+**Plans:** 15/15 plans complete
 
 Plans:
 
