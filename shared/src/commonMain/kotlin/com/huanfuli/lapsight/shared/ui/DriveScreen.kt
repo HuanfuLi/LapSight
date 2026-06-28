@@ -51,6 +51,7 @@ import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.session.StartTimingResult
 import com.huanfuli.lapsight.shared.session.TimingRunSnapshot
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
+import com.huanfuli.lapsight.shared.track.CourseDirection
 import kotlinx.coroutines.delay
 
 /**
@@ -210,6 +211,11 @@ fun DriveScreen(
             startTimingBlockedMessage = null
             snapshot = controller.snapshot()
         },
+        onSelectDirection = { direction ->
+            // Pre-Timing Recorded/Reverse choice over the current Track (D-18).
+            controller.selectDirection(direction)
+            snapshot = controller.snapshot()
+        },
         onPrimaryAction = {
             when (snapshot.phase) {
                 DriveMarkingPhase.Idle -> {
@@ -280,6 +286,7 @@ private fun DriveSurface(
     onToggleOrientation: () -> Unit,
     onToggleDemoFeed: () -> Unit,
     onSelectProfile: (String) -> Unit,
+    onSelectDirection: (CourseDirection) -> Unit,
     onPrimaryAction: () -> Unit,
     onStopTiming: () -> Unit,
     timingActive: Boolean,
@@ -342,6 +349,7 @@ private fun DriveSurface(
                     onToggleOrientation = onToggleOrientation,
                     onToggleDemoFeed = onToggleDemoFeed,
                     onSelectProfile = onSelectProfile,
+                    onSelectDirection = onSelectDirection,
                     onPrimaryAction = onPrimaryAction,
                     modifier = Modifier.weight(0.9f),
                     compact = isCompactLandscape,
@@ -365,6 +373,7 @@ private fun DriveSurface(
                     onToggleOrientation = onToggleOrientation,
                     onToggleDemoFeed = onToggleDemoFeed,
                     onSelectProfile = onSelectProfile,
+                    onSelectDirection = onSelectDirection,
                     onPrimaryAction = onPrimaryAction,
                     modifier = Modifier.fillMaxWidth(),
                     startTimingBlockedMessage = startTimingBlockedMessage,
@@ -696,6 +705,7 @@ private fun ControlPanel(
     onToggleOrientation: () -> Unit,
     onToggleDemoFeed: () -> Unit,
     onSelectProfile: (String) -> Unit,
+    onSelectDirection: (CourseDirection) -> Unit,
     onPrimaryAction: () -> Unit,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
@@ -738,6 +748,16 @@ private fun ControlPanel(
                     onSelectProfile = onSelectProfile,
                     compact = compact,
                 )
+                if (snapshot.canStartTiming) {
+                    // Pre-Timing Recorded/Reverse selector over the SAME revision (D-18).
+                    // It is shown only on the stationary Drive surface, never the moving
+                    // fullscreen timing dash (safety), and never auto-recommends a direction.
+                    DirectionSelectorSection(
+                        selected = snapshot.selectedDirection,
+                        onSelectDirection = onSelectDirection,
+                        compact = compact,
+                    )
+                }
                 if (snapshot.canStartTiming) {
                     // Saved track with confirmed start/finish exists: Start Timing
                     // drives the formal session lifecycle (D-19, SESS-01).
@@ -856,6 +876,78 @@ private fun TrackSelectorSection(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Compact pre-Timing Course Direction selector (D-18).
+ *
+ * Lets the user run the SAME saved revision either in the Recorded direction or its
+ * Reverse without re-marking the Track. The choice is explicit (two segmented
+ * buttons, the active one highlighted) with no automatic recommendation, and it is
+ * rendered only on the stationary Drive surface — never on the moving fullscreen
+ * timing dash (safety).
+ */
+@Composable
+private fun DirectionSelectorSection(
+    selected: CourseDirection,
+    onSelectDirection: (CourseDirection) -> Unit,
+    compact: Boolean = false,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            Modifier.padding(if (compact) 12.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+        ) {
+            Text(
+                text = "COURSE DIRECTION",
+                color = Color(0xFF7E8DA0),
+                fontSize = if (compact) 10.sp else 11.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
+                DirectionChip(
+                    label = "Recorded",
+                    active = selected == CourseDirection.Recorded,
+                    onClick = { onSelectDirection(CourseDirection.Recorded) },
+                    modifier = Modifier.weight(1f),
+                    compact = compact,
+                )
+                DirectionChip(
+                    label = "Reverse",
+                    active = selected == CourseDirection.Reverse,
+                    onClick = { onSelectDirection(CourseDirection.Reverse) },
+                    modifier = Modifier.weight(1f),
+                    compact = compact,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DirectionChip(
+    label: String,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
+    if (active) {
+        Button(onClick = onClick, modifier = modifier) {
+            Text((if (active) "✓ " else "") + label)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFCED7E2)),
+        ) {
+            Text(label)
         }
     }
 }

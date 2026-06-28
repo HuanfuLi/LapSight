@@ -7,6 +7,7 @@ import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.session.SessionControllerTest.TestTrackFactory
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.SchemaMigrations
+import com.huanfuli.lapsight.shared.track.CourseDirection
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtractor
 import com.huanfuli.lapsight.shared.track.Track
@@ -201,6 +202,28 @@ class DriveMarkingControllerTest {
         assertNull(snap.timingReadyTrackId)
         // Only the active profile is selectable.
         assertEquals(listOf("track-active"), snap.selectableProfiles.map { it.profileId })
+    }
+
+    // SC-03 / D-18: the pre-Timing selector exposes the selected Course Direction and
+    // persists an explicit Recorded/Reverse choice against the current Track.
+    @Test
+    fun selectDirectionPersistsRecordedReverseChoiceForCurrentTrack() {
+        val track = TestTrackFactory.savedTrackWithStartFinish()
+            .copy(id = "track-dir", name = "Direction Track", createdAtEpochMillis = 1_000L)
+        seedProfile(track, select = true)
+
+        val controller = controller()
+        // A freshly selected Track defaults to its Recorded direction (D-18).
+        assertEquals(CourseDirection.Recorded, controller.snapshot().selectedDirection)
+
+        // Choosing Reverse updates ONLY the direction, keeping the same Track selected.
+        controller.selectDirection(CourseDirection.Reverse)
+        val snap = controller.snapshot()
+        assertEquals(CourseDirection.Reverse, snap.selectedDirection)
+        assertEquals(track.id, snap.timingReadyTrackId, "direction change must not drop the Track")
+
+        // The choice survives a relaunch-equivalent fresh controller over the same store.
+        assertEquals(CourseDirection.Reverse, controller().snapshot().selectedDirection)
     }
 
     @Test
