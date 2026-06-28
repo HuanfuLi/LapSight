@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 8/14 plans executed
+**Plans:** 9/14 plans executed
 
 Plans:
 
@@ -202,7 +202,7 @@ Plans:
 
 **Wave 8** *(blocked on both Wave 7 plans)*
 
-- [ ] 05-09-PLAN.md - Course Direction (Recorded/Reverse) and turnaround integrity
+- [x] 05-09-PLAN.md - Course Direction (Recorded/Reverse) and turnaround integrity
 
 **Wave 9** *(blocked on Wave 8)*
 
