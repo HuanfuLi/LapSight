@@ -519,6 +519,7 @@ private fun nowEpochMillisSafe(): Long = try {
 fun isSafeProfileName(name: String): Boolean {
     val trimmed = name.trim()
     return trimmed.isNotBlank() &&
+        trimmed.length in 1..50 &&
         !trimmed.contains('/') &&
         !trimmed.contains('\\') &&
         !trimmed.contains("..") &&
