@@ -161,13 +161,176 @@ Plans:
 ## Milestone 2: Track Usability and Accuracy Expansion
 
 ### Phase 5: Track Setup and Course Profiles
+# Roadmap: LapSight
+
+**Created:** 2026-06-25
+**Mode:** Vertical MVP
+
+## Milestone 1: Phone Companion MVP
+
+Build the phone-first product that proves live GPS capture, lap timing, local session storage, and ghost delta. Do not build the Meta glasses app until the phone companion can produce reliable timing state.
+
+### Phase 1: Mobile Walking Skeleton + GPS Probe
+
+**Goal:** As a track user, I want to launch LapSight on Android/iOS and see live GPS quality in a mounted-phone dash, so that I can verify the app can collect usable timing data before lap detection exists.
+**Mode:** mvp
+
+**Requirements:** PLAT-01, PLAT-02, PLAT-03, PLAT-04, PLAT-05, GPS-01, GPS-02, GPS-03, GPS-04, SAFE-01, SAFE-02, SAFE-03, ARCH-01, ARCH-03, ARCH-04
+
+**Success Criteria:**
+
+1. Android and iOS apps build from the same repository.
+2. Live dash shows speed, GPS accuracy, update rate, and permission/fix state.
+3. Portrait and landscape layouts are usable without redesigning the information hierarchy.
+4. A session can collect timestamped GPS samples in memory or temporary storage.
+5. The app clearly states closed-course use and GPS accuracy limits.
+
+**Implementation Notes:**
+
+- Use Kotlin Multiplatform for shared state/models.
+- Use Compose Multiplatform for the initial shared UI unless a platform blocker appears.
+- Use Android Fused Location Provider and iOS Core Location behind a shared `LocationSampleProvider` interface.
+- Keep the first UI intentionally small: live speed, accuracy, Hz/update interval, elapsed time, sample count, start/stop.
+
+### Phase 2: Clean-Room Lap Engine V0
+
+**Goal:** As a track user, I want LapSight to detect laps from GPS crossing a start/finish line, so that I can see current, last, and best lap timing during a session.
+**Mode:** mvp
+
+**Requirements:** GPS-05, LAP-01, LAP-02, LAP-03, LAP-04, LAP-05, LAP-06, LAP-07, SAFE-04, ARCH-02
+
+**Success Criteria:**
+
+1. User can define a start/finish line using two points or current position plus heading.
+2. Lap engine detects segment crossing between consecutive GPS samples.
+3. Crossing timestamp is interpolated and stable under replay.
+4. False positives are reduced by minimum lap time, speed, direction, cooldown, and accuracy filters.
+5. Live dash shows current lap, last lap, best lap, lap count, and speed.
+6. Live dash shows compact sector split information from sector-line detection.
+7. Engine tests cover geometry, crossing, interpolation, filters, sector detection, and replay fixtures.
+
+**Implementation Notes:**
+
+- Do not copy DovesLapTimer code; reproduce behavior from first principles and tests.
+- Convert GPS samples to a local meter coordinate space near the session origin for geometry.
+- Treat start/finish as a line segment/corridor, not a single point.
+- Treat sector lines as first-class timing lines in Phase 2, including data model, detection, tests, and compact live UI.
+- Use synthetic replay fixtures before testing on a real track.
+
+### Phase 3: Local Sessions, Review, and Export
+
+**Goal:** As a track user, I want to save and review sessions after driving/riding, so that I can inspect laps and reuse the data for debugging or future analysis.
+**Mode:** mvp
+
+**Requirements:** SESS-01, SESS-02, SESS-03, SESS-04, SESS-05
+
+**Plans:** 8/8 plans executed
+
+Plans:
+**Wave 1**
+
+- [x] 03-01-PLAN.md - Simulated GPS feed and fixture-backed Drive slice
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 03-02-PLAN.md - Blocking package verification gate
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 03-03-PLAN.md - Versioned local storage foundation (deps, schema, file store)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 03-04-PLAN.md - Reference-line extraction domain and Track Review state
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 03-05-PLAN.md - Three-tab shell, Mark New Track, and Track Review UI
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [x] 03-06-PLAN.md - Timing session drafts, save/discard, and review summaries
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [x] 03-07-PLAN.md - Offline vector trace review
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [x] 03-08-PLAN.md - Explicit JSON and GPX export with platform share handoff
+
+**Success Criteria:**
+
+1. User can start, stop, save, discard, and reopen a session.
+2. Session review shows lap list, best lap, total duration, sample count, and GPS quality summary.
+3. Session review shows a basic track trace.
+4. JSON export preserves full samples, laps, start/finish line, and app metadata.
+5. GPX or equivalent GPS export works for external tools.
+
+**Implementation Notes:**
+
+- Prefer local-first storage.
+- Keep schema versioned from the first saved format.
+- Export should support future web/PWA analysis tools and future glasses bridge debugging.
+
+### Phase 4: Ghost Lap + Live Delta
+
+**Goal:** As a track user, I want to compare my current lap against a saved best lap, so that I can see whether I am ahead or behind without waiting until the lap ends.
+**Mode:** mvp
+
+**Requirements:** GHOST-01, GHOST-02, GHOST-03, GHOST-04
+
+**Plans:** 4/4 plans complete
+
+Plans:
+**Wave 1**
+
+- [x] 04-01-PLAN.md - Ghost progress-curve and live-delta domain
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 04-02-PLAN.md - Reference-lap storage and timing-session integration
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 04-03-PLAN.md - Minimal mounted-phone live delta UI
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 04-04-PLAN.md - Variable-pace simulator, UAT, and roadmap reminder
+
+**Success Criteria:**
+
+1. User can save/select a reference lap.
+2. Engine calculates current progress distance along the lap.
+3. Engine calculates delta against the reference lap at equivalent progress distance.
+4. Live dash shows ahead/behind delta with clear color/state and minimal text.
+5. Reference lap data persists across sessions.
+
+**Implementation Notes:**
+
+- Use distance-normalized matching before attempting coordinate-nearest matching.
+- Keep ghost visualization simple in v1: delta number and ahead/behind state are more important than a map animation.
+- Later map ghost can reuse the same reference-lap model.
+- Keep ghost math in shared Kotlin and independent from Compose/platform APIs.
+- Preserve simulated-vs-real reference isolation.
+
+## Post-MVP Backlog / Reminders
+
+- Build telemetry charts and analysis from Phase 4 progress curves after the MVP is complete: speed trace, delta-over-distance graph, braking/acceleration zones, sector delta chart, lap comparison overlays, and exportable telemetry data.
+- Add map ghost animation only after the phone app produces reliable timing/reference state.
+- Revisit coordinate-nearest or map-matched ghost comparison after distance-normalized matching is validated on real tracks.
+
+## Milestone 2: Track Usability and Accuracy Expansion
+
+### Phase 5: Track Setup and Course Profiles
 
 **Goal:** As a repeat track user, I want to save start/finish and course configuration, so that I do not have to reconfigure every session.
 **Mode:** mvp
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 13/14 plans executed
+**Plans:** 14/14 plans executed
 
 Plans:
 
@@ -222,7 +385,7 @@ Plans:
 
 **Wave 13** *(blocked on Wave 12)*
 
-- [ ] 05-14-PLAN.md - Review override evidence and Phase 5 UAT gates
+- [x] 05-14-PLAN.md - Review override evidence and Phase 5 UAT gates
 
 **Success Criteria:**
 

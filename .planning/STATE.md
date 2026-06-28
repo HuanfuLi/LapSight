@@ -3,20 +3,20 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 05-13-PLAN.md
-last_updated: "2026-06-28T01:52:28.333Z"
+stopped_at: Completed 05-14-PLAN.md
+last_updated: "2026-06-28T02:05:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 28
-  completed_plans: 27
-  percent: 96
+  completed_plans: 28
+  percent: 100
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5 execution in progress (13/14 plans complete).
+**Current Status:** Phase 5 execution complete. Ready for UAT.
 
 ## Project Reference
 
@@ -31,7 +31,7 @@ See: `.planning/PROJECT.md`
 Plan 05-13 added conservative whole-course preflight, the explicit wrong-course override,
 and persisted override evidence without coupling preflight to active timing.
 
-Next step: Execute 05-14-PLAN.md (Review override evidence and Phase 5 UAT gates).
+Next step: Verify Phase 5 using 05-UAT.md.
 
 ## Working Assumptions
 
@@ -45,8 +45,8 @@ Next step: Execute 05-14-PLAN.md (Review override evidence and Phase 5 UAT gates
 
 ## Next Command Candidates
 
-- Execute `.planning/phases/05-track-setup-and-course-profiles/05-14-PLAN.md`.
-- After 05-14, run Phase 5 verification; do not mark Phase 5 complete before the final plan executes.
+- Perform UAT against `.planning/phases/05-track-setup-and-course-profiles/05-UAT.md`.
+- Complete Phase 5 milestone summary.
 
 ## Review Checklist
 
@@ -62,7 +62,7 @@ Next step: Execute 05-14-PLAN.md (Review override evidence and Phase 5 UAT gates
 - [x] Phase 4 executed (4/4 plans, shared checks and Android debug build pass).
 - [x] Phase 4 verified via UAT.
 - [x] Phase 5 planned (14 plans).
-- [ ] Phase 5 executed (13/14 plans complete).
+- [x] Phase 5 executed (14/14 plans complete).
 
 ## Phase 3 Completion Summary
 
