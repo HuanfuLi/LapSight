@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 12/14 plans executed
+**Plans:** 13/14 plans executed
 
 Plans:
 
@@ -218,7 +218,7 @@ Plans:
 
 **Wave 12** *(blocked on Wave 11)*
 
-- [ ] 05-13-PLAN.md - Wrong-course preflight, override, and vertical integration
+- [x] 05-13-PLAN.md - Wrong-course preflight, override, and vertical integration
 
 **Wave 13** *(blocked on Wave 12)*
 
