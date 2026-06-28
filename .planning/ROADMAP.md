@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 10/14 plans executed
+**Plans:** 11/14 plans executed
 
 Plans:
 
@@ -210,7 +210,7 @@ Plans:
 
 **Wave 10** *(blocked on Wave 9)*
 
-- [ ] 05-11-PLAN.md - Exact-key reference persistence and provider provenance
+- [x] 05-11-PLAN.md - Exact-key reference persistence and provider provenance
 
 **Wave 11** *(blocked on Wave 10)*
 
