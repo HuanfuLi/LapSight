@@ -16,12 +16,17 @@ import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.ClosedReferencePath
+import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
+import com.huanfuli.lapsight.shared.track.CourseGeometryBuilder
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.GhostReferencePayloadV2
+import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import com.huanfuli.lapsight.shared.track.TrackProfileController
+import com.huanfuli.lapsight.shared.track.TrackReferenceLine
 import okio.Buffer
 import okio.FileHandle
 import okio.FileMetadata
@@ -88,6 +93,33 @@ class TimingGhostIntegrationTest {
         val samples = GpsFixtureLibrary.scenario(GpsFixtureLibrary.VARIABLE_PACE_GHOST_UAT).samples
         val anchor = samples.maxByOrNull { it.latitude } ?: error("variable-pace fixture must not be empty")
         val halfLineDegrees = 35.0 / 111_320.0
+        val referenceLine = TrackReferenceLine(
+            points = samples.take(240).map { GeoPointDto(it.latitude, it.longitude) },
+            isClosed = true,
+        )
+        val path = assertIs<ClosedReferencePathResult.Loaded>(
+            ClosedReferencePath.fromReferenceLine(referenceLine),
+        ).path
+        val startProgress = path.projectGeo(GeoPointDto(anchor.latitude, anchor.longitude)).progressMeters
+        val sectors = CourseGeometryBuilder.equalBoundaryProgresses(
+            path = path,
+            startFinishProgress = startProgress,
+            sectorCount = 3,
+        ).mapIndexed { index, progress ->
+            val boundary = CourseGeometryBuilder.buildBoundary(
+                path = path,
+                id = CourseGeometryBuilder.boundaryId(index + 1),
+                order = index,
+                progress = progress,
+            )
+            SectorLineDto(
+                id = boundary.id,
+                name = "Sector ${index + 1}",
+                order = boundary.order,
+                pointA = boundary.pointA,
+                pointB = boundary.pointB,
+            )
+        }
         val track = Track(
             id = "track-variable-pace-ghost-uat-${source.name.lowercase()}",
             name = "Variable Pace Ghost UAT ${source.name}",
@@ -98,7 +130,7 @@ class TimingGhostIntegrationTest {
                 isSimulated = source == LocationSource.Simulated,
                 label = if (source == LocationSource.Simulated) "Demo" else null,
             ),
-            referenceLine = null,
+            referenceLine = referenceLine,
             startFinish = StartFinishLineDto(
                 pointA = GeoPointDto(
                     latitude = anchor.latitude - halfLineDegrees,
@@ -109,7 +141,7 @@ class TimingGhostIntegrationTest {
                     longitude = anchor.longitude,
                 ),
             ),
-            sectors = emptyList(),
+            sectors = sectors,
         )
         val marking = TrackMarkingSession(
             id = track.sourceMarkingSessionId ?: "mark-${track.id}",
@@ -501,9 +533,39 @@ class TimingGhostIntegrationTest {
         val referenceDurationByLapCount = mutableMapOf<Int, Long>()
         var sawPositiveDelta = false
         var sawNegativeDelta = false
-        repeat(provider.sampleCount - preTimingSamples) {
-            val sample = assertNotNull(provider.nextSample(), "provider must keep emitting during timing")
+        var beforeExcursion: LiveDeltaSnapshot? = null
+        var duringExcursion: LiveDeltaSnapshot? = null
+        var afterExcursion: LiveDeltaSnapshot? = null
+        var referenceKeyBeforeExcursion: CourseCompatibilityKey? = null
+        var referenceKeyAfterExcursion: CourseCompatibilityKey? = null
+        val excursionFixtureIndex = 360
+        repeat(provider.sampleCount - preTimingSamples) { offset ->
+            val fixtureIndex = preTimingSamples + offset
+            val providerSample = assertNotNull(
+                provider.nextSample(),
+                "provider must keep emitting during timing",
+            )
+            val sample = if (fixtureIndex == excursionFixtureIndex) {
+                providerSample.copy(
+                    latitude = providerSample.latitude - 120.0 / 111_320.0,
+                    longitude = providerSample.longitude + 120.0 / 85_500.0,
+                )
+            } else {
+                providerSample
+            }
             controller.ingestSample(sample)
+
+            when (fixtureIndex) {
+                excursionFixtureIndex - 1 -> {
+                    beforeExcursion = controller.liveDelta()
+                    referenceKeyBeforeExcursion = controller.activeReference()?.compatibilityKey
+                }
+                excursionFixtureIndex -> duringExcursion = controller.liveDelta()
+                excursionFixtureIndex + 1 -> {
+                    afterExcursion = controller.liveDelta()
+                    referenceKeyAfterExcursion = controller.activeReference()?.compatibilityKey
+                }
+            }
 
             when (val delta = controller.liveDelta()) {
                 is LiveDeltaSnapshot.Available -> {
@@ -522,6 +584,27 @@ class TimingGhostIntegrationTest {
         assertTrue(
             controller.timingRunSnapshot().lapCount >= 4,
             "starting timing after the feed has begun should still produce completed laps",
+        )
+        assertIs<LiveDeltaSnapshot.Available>(beforeExcursion)
+        assertEquals(
+            DeltaUnavailableReason.UnmatchedProgress,
+            assertIs<LiveDeltaSnapshot.Unavailable>(duringExcursion).reason,
+        )
+        assertIs<LiveDeltaSnapshot.Available>(afterExcursion)
+        assertEquals(referenceKeyBeforeExcursion, referenceKeyAfterExcursion)
+        assertEquals(keyFor(track, isSimulated = true), referenceKeyAfterExcursion)
+        assertEquals(
+            provider.sampleCount - preTimingSamples,
+            controller.timingRunSnapshot().checkpointedSampleCount,
+            "matcher suppression must not drop raw samples",
+        )
+        assertTrue(
+            controller.timingRunSnapshot().sessionElapsedMillis > 100_000L,
+            "elapsed timing must continue through the unmatched interval",
+        )
+        assertTrue(
+            assertNotNull(controller.recorderForTest()).sectorResultCount >= 9,
+            "complete Sector processing must continue through the unmatched interval",
         )
         assertEquals(
             27_000L,
