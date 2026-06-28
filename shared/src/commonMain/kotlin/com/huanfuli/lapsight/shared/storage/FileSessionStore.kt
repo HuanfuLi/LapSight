@@ -374,6 +374,20 @@ class FileSessionStore(
                 json.encodeToString(ProfileIndex.serializer(), index.copy(profileIds = index.profileIds + profile.profileId)),
             )
         }
+        val updated = upsertRows(
+            readIndex(),
+            listOf(
+                ReviewIndexRow(
+                    id = profile.profileId,
+                    type = ReviewEntryType.Track,
+                    name = profile.name,
+                    createdAtEpochMillis = profile.createdAtEpochMillis,
+                    source = profile.source,
+                    payloadPath = "$PROFILES_DIR/${profile.profileId}.json",
+                )
+            )
+        )
+        writeAtomically(indexPath, json.encodeToString(updated))
         return SaveResult.Saved(trackPath = path.toString(), markingPath = profilesIndexPath.toString())
     }
 

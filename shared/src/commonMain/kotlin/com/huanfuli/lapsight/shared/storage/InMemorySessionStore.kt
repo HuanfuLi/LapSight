@@ -287,6 +287,18 @@ class InMemorySessionStore : LocalSessionStore {
         require(SchemaMigrations.isSafeId(profile.profileId)) { "unsafe profile id" }
         profiles[profile.profileId] = profile
         if (profile.profileId !in profileIndex) profileIndex += profile.profileId
+        upsertRows(
+            listOf(
+                ReviewIndexRow(
+                    id = profile.profileId,
+                    type = ReviewEntryType.Track,
+                    name = profile.name,
+                    createdAtEpochMillis = profile.createdAtEpochMillis,
+                    source = profile.source,
+                    payloadPath = "profiles/${profile.profileId}.json",
+                )
+            )
+        )
         return SaveResult.Saved(
             trackPath = "profiles/${profile.profileId}.json",
             markingPath = "profiles-index.json",
