@@ -511,7 +511,10 @@ private fun TrackTraceSection(
     val trackResult = remember(rowId) { sessionStore.loadTrack(rowId) }
     val track = (trackResult as? LoadResult.Loaded<TrackPayloadV1>)?.value?.track
 
-    val markingId = track?.sourceMarkingSessionId
+    val profileResult = remember(rowId) { sessionStore.loadProfile(rowId) }
+    val profile = (profileResult as? LoadResult.Loaded<TrackProfile>)?.value
+
+    val markingId = track?.sourceMarkingSessionId ?: profile?.latestRevision?.sourceMarkingSessionId
     val markingResult = remember(markingId) {
         markingId?.let { sessionStore.loadTrackMarking(it) }
     }
@@ -527,7 +530,9 @@ private fun TrackTraceSection(
         else -> emptyList()
     }
 
-    if (samples.isEmpty()) {
+    val referenceLine = track?.referenceLine ?: profile?.latestRevision?.referenceLine
+
+    if (samples.isEmpty() && referenceLine?.points.isNullOrEmpty()) {
         Text(
             text = "Trace data unavailable.",
             color = Color(0xFF7E8DA0),
@@ -536,11 +541,16 @@ private fun TrackTraceSection(
         return
     }
 
+    val startFinish = track?.startFinish ?: profile?.latestRevision?.courseSetup?.startFinish
+    val sectors = track?.sectors ?: profile?.latestRevision?.courseSetup?.boundaries?.map { 
+        com.huanfuli.lapsight.shared.track.SectorLineDto(id = it.id, name = "Sector ${it.order}", order = it.order, pointA = it.pointA, pointB = it.pointB)
+    } ?: emptyList()
+
     val layers = buildTrackTraceLayers(
         markingSamples = samples,
-        referenceLine = track?.referenceLine,
-        startFinish = track?.startFinish,
-        sectors = track?.sectors ?: emptyList(),
+        referenceLine = referenceLine,
+        startFinish = startFinish,
+        sectors = sectors,
         outlierSamples = emptyList(),
         viewWidth = 400.0,
         viewHeight = 300.0,
