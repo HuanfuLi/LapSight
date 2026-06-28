@@ -1,7 +1,12 @@
 package com.huanfuli.lapsight
 
+import android.content.Context
 import android.content.pm.ActivityInfo
+import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -9,7 +14,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.huanfuli.lapsight.shared.App
 import com.huanfuli.lapsight.shared.DashOrientation
+import com.huanfuli.lapsight.shared.DisplaySettingsStore
+import com.huanfuli.lapsight.shared.DriveDisplayController
+import com.huanfuli.lapsight.shared.DriveDisplaySettings
 import com.huanfuli.lapsight.shared.OrientationController
+import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.export.AndroidExportShareTarget
 import com.huanfuli.lapsight.shared.storage.StoragePaths
 
@@ -26,6 +35,39 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val driveDisplayController = object : DriveDisplayController {
+        override fun apply(fullscreen: Boolean, keepScreenAwake: Boolean) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.insetsController?.let { insets ->
+                    if (fullscreen) {
+                        insets.systemBarsBehavior =
+                            android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        insets.hide(WindowInsets.Type.systemBars())
+                    } else {
+                        insets.show(WindowInsets.Type.systemBars())
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = if (fullscreen) {
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                        View.SYSTEM_UI_FLAG_FULLSCREEN or
+                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                } else {
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                }
+            }
+            if (keepScreenAwake) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -34,10 +76,13 @@ class MainActivity : ComponentActivity() {
         StoragePaths.initialize(this)
 
         val shareTarget = AndroidExportShareTarget(this)
+        val displaySettingsStore = AndroidDisplaySettingsStore(this)
 
         setContent {
             App(
                 orientationController = orientationController,
+                driveDisplayController = driveDisplayController,
+                displaySettingsStore = displaySettingsStore,
                 sessionStore = StoragePaths.fileSessionStore(),
                 exportShareTarget = shareTarget,
             )
@@ -49,4 +94,35 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppAndroidPreview() {
     App()
+}
+
+private class AndroidDisplaySettingsStore(
+    activity: ComponentActivity,
+) : DisplaySettingsStore {
+    private val preferences = activity.getSharedPreferences("display_settings", Context.MODE_PRIVATE)
+
+    override fun load(): DriveDisplaySettings = DriveDisplaySettings(
+        speedUnit = runCatching {
+            SpeedUnit.valueOf(
+                preferences.getString("speed_unit", SpeedUnit.KilometersPerHour.name)
+                    ?: SpeedUnit.KilometersPerHour.name,
+            )
+        }.getOrDefault(SpeedUnit.KilometersPerHour),
+        fullscreenWhileTiming = preferences.getBoolean("fullscreen_while_timing", true),
+        landscapeFullscreen = preferences.getBoolean("landscape_fullscreen", true),
+        keepScreenAwakeWhileTiming = preferences.getBoolean("keep_screen_awake", true),
+        showSpeedTrace = preferences.getBoolean("show_speed_trace", true),
+        showGpsDiagnostics = preferences.getBoolean("show_gps_diagnostics", true),
+    )
+
+    override fun save(settings: DriveDisplaySettings) {
+        preferences.edit()
+            .putString("speed_unit", settings.speedUnit.name)
+            .putBoolean("fullscreen_while_timing", settings.fullscreenWhileTiming)
+            .putBoolean("landscape_fullscreen", settings.landscapeFullscreen)
+            .putBoolean("keep_screen_awake", settings.keepScreenAwakeWhileTiming)
+            .putBoolean("show_speed_trace", settings.showSpeedTrace)
+            .putBoolean("show_gps_diagnostics", settings.showGpsDiagnostics)
+            .apply()
+    }
 }

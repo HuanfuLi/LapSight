@@ -15,5 +15,8 @@ import com.huanfuli.lapsight.shared.storage.StoragePaths
  * `initialize` step is needed here.
  */
 fun MainViewController() = ComposeUIViewController {
-    App(sessionStore = StoragePaths.fileSessionStore())
+    App(
+        displaySettingsStore = IosDisplaySettingsStore(),
+        sessionStore = StoragePaths.fileSessionStore(),
+    )
 }

@@ -30,6 +30,8 @@ import com.huanfuli.lapsight.shared.ui.AppShell
 @Preview
 fun App(
     orientationController: OrientationController = NoOpOrientationController,
+    driveDisplayController: DriveDisplayController = NoOpDriveDisplayController,
+    displaySettingsStore: DisplaySettingsStore = InMemoryDisplaySettingsStore(),
     sessionStore: LocalSessionStore = InMemorySessionStore(),
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
@@ -43,6 +45,8 @@ fun App(
     ) {
         AppShell(
             orientationController = orientationController,
+            driveDisplayController = driveDisplayController,
+            displaySettingsStore = displaySettingsStore,
             sessionStore = sessionStore,
             exportShareTarget = exportShareTarget,
         )
