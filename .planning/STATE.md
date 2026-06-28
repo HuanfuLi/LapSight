@@ -2,20 +2,20 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
-last_updated: "2026-06-28T01:02:25.056Z"
+status: in_progress
+last_updated: "2026-06-28T01:31:06Z"
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 28
-  completed_plans: 25
-  percent: 50
+  completed_plans: 26
+  percent: 93
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5 context gathered. Ready to plan Phase 5.
+**Current Status:** Phase 5 execution in progress (12/14 plans complete).
 
 ## Project Reference
 
@@ -25,12 +25,12 @@ See: `.planning/PROJECT.md`
 
 ## Current Focus
 
-**Phase 5 READY — Track Setup and Course Profiles**
+**Phase 5 IN PROGRESS — Track Setup and Course Profiles**
 
-Phase 4 is complete and verified on-device.
-We are ready to begin Phase 5 to support persistent course profiles.
+Plan 05-12 replaced traveled-distance Ghost progress with direction-relative course matching.
+Matcher failure now suppresses only live delta while timing, sectors, raw capture, and same-session best updates continue.
 
-Next step: Run /gsd-plan-phase 5 using 05-CONTEXT.md.
+Next step: Execute 05-13-PLAN.md (wrong-course preflight, override, and vertical integration).
 
 ## Working Assumptions
 
@@ -44,8 +44,8 @@ Next step: Run /gsd-plan-phase 5 using 05-CONTEXT.md.
 
 ## Next Command Candidates
 
-- Run `/gsd-discuss-phase 5` to gather context for Track Setup.
-- Or `/gsd-plan-phase 5` to directly build the plans.
+- Execute `.planning/phases/05-track-setup-and-course-profiles/05-13-PLAN.md`.
+- After 05-14, run Phase 5 verification; do not mark Phase 5 complete before both remaining plans execute.
 
 ## Review Checklist
 
@@ -60,7 +60,8 @@ Next step: Run /gsd-plan-phase 5 using 05-CONTEXT.md.
 - [x] Phase 4 planned (4/4 plans, decision coverage 24/24).
 - [x] Phase 4 executed (4/4 plans, shared checks and Android debug build pass).
 - [x] Phase 4 verified via UAT.
-- [ ] Phase 5 planned.
+- [x] Phase 5 planned (14 plans).
+- [ ] Phase 5 executed (12/14 plans complete).
 
 ## Phase 3 Completion Summary
 
@@ -92,6 +93,32 @@ Requirements targeted: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
 Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
+## Phase 5 Execution Summary
+
+- Plans 05-01 through 05-12 are complete.
+- Plans 05-13 and 05-14 remain.
+- `CourseCompatibilityKey(profileId, geometryCompatibilityId, direction, isSimulated)` remains the exact Ghost persistence/session identity.
+- Course matching is independent from `LapEngine`; unmatched samples display `--` and rematch automatically.
+
+## Recent Decisions
+
+- Course matching requires full compatibility-key equality and matching provider provenance.
+- Live delta uses normalized direction-relative course progress, not accumulated traveled distance.
+- Dense local reference segments are excluded from nonlocal ambiguity competition.
+- Legacy Recorded references may derive a bounded path from their exact-key raw lap; Reverse fails closed without explicit recorded-orientation geometry.
+
+## Performance Metrics
+
+| Phase-Plan | Duration | Tasks | Files |
+|------------|----------|-------|-------|
+| 05-12 | 20min | 2 | 10 |
+
+## Session Continuity
+
+**Last session:** 2026-06-28T01:31:06Z
+**Stopped At:** Completed 05-12-PLAN.md
+**Resume File:** None
+
 ---
 
-*Last updated: 2026-06-26 after Phase 4 verified*
+*Last updated: 2026-06-28 after Plan 05-12*

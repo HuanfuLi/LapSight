@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 11/14 plans executed
+**Plans:** 12/14 plans executed
 
 Plans:
 
@@ -214,7 +214,7 @@ Plans:
 
 **Wave 11** *(blocked on Wave 10)*
 
-- [ ] 05-12-PLAN.md - Course-progress Ghost matcher and recovery
+- [x] 05-12-PLAN.md - Course-progress Ghost matcher and recovery
 
 **Wave 12** *(blocked on Wave 11)*
 
