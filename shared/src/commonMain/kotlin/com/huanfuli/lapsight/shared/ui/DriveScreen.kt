@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -16,7 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -44,12 +46,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
+import com.huanfuli.lapsight.shared.LocationFeedMode
+import com.huanfuli.lapsight.shared.LocationSampleProvider
 import com.huanfuli.lapsight.shared.OrientationController
-import com.huanfuli.lapsight.shared.SimulatedGpsProvider
+import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.ghost.DeltaTone
 import com.huanfuli.lapsight.shared.lap.formatLapTime
@@ -67,14 +72,15 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+private const val PHONE_GPS_PERMISSION_COPY =
+    "Allow location permission to use Phone GPS."
+
 /**
- * The Drive tab: demo GPS feed + Mark New Track capture + (Task 2) Track Review.
+ * The Drive tab: selected GPS feed + Mark New Track capture + Track Review.
  *
- * Owns a [DriveMarkingController] over a [SimulatedGpsProvider] and renders the
- * mounted-phone dash. While capturing, it polls the provider on a timer. The
- * orientation toggle is explicit and user-controlled only — never sensor-driven
- * (mounted-phone safety). Start Timing stays blocked until a saved Track has a
- * confirmed start/finish line (D-19); the timing run itself is Plan 03-06.
+ * Owns a [DriveMarkingController] over the injected [LocationSampleProvider] and
+ * renders the mounted-phone dash. Phone GPS and simulated replay therefore feed
+ * the same `LocationSample` stream into marking, timing, storage, and review.
  */
 @Composable
 fun DriveScreen(
@@ -86,11 +92,15 @@ fun DriveScreen(
     onTimingActiveChanged: (Boolean) -> Unit,
     requestedTimingActive: Boolean,
     displaySettings: DriveDisplaySettings,
+    locationFeedMode: LocationFeedMode,
+    locationProvider: LocationSampleProvider,
+    phoneGpsPermission: PhoneGpsPermissionState,
     sessionStore: LocalSessionStore,
     sessionController: SessionController,
 ) {
-    val provider = remember { SimulatedGpsProvider(scenarioId = com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary.VARIABLE_PACE_GHOST_UAT) }
-    val controller = remember { DriveMarkingController(provider = provider, store = sessionStore) }
+    val controller = remember(locationProvider, sessionStore) {
+        DriveMarkingController(provider = locationProvider, store = sessionStore)
+    }
     val uiScope = rememberCoroutineScope()
     val recorderMutex = remember { Mutex() }
     var snapshot by remember { mutableStateOf(controller.snapshot()) }
@@ -110,6 +120,16 @@ fun DriveScreen(
     var wrongCourseBlock by remember {
         mutableStateOf<StartTimingResult.WrongCourseBlocked?>(null)
     }
+    val ensureSelectedLocationFeedReady: () -> Boolean = {
+        if (locationFeedMode == LocationFeedMode.PhoneGps && !phoneGpsPermission.isGranted) {
+            startTimingBlockedMessage = PHONE_GPS_PERMISSION_COPY
+            phoneGpsPermission.requestPermission()
+            snapshot = controller.snapshot()
+            false
+        } else {
+            true
+        }
+    }
 
     // Apply the chosen orientation through the platform window lock (app-wide).
     LaunchedEffect(orientation) {
@@ -123,7 +143,7 @@ fun DriveScreen(
     LaunchedEffect(requestedTimingActive) {
         val restored = sessionController.timingRunSnapshot()
         if (requestedTimingActive && restored.isActive) {
-            if (!provider.isRunning) provider.start()
+            if (!locationProvider.isRunning) locationProvider.start()
             timingActive = true
             timingSnapshot = sessionController.snapshot()
             timingRun = restored
@@ -136,7 +156,7 @@ fun DriveScreen(
     // state left over from the Track Review save action.
     LaunchedEffect(Unit) {
         controller.refreshSavedTracks()
-        if (timingActive && !provider.isRunning) provider.start()
+        if (timingActive && !locationProvider.isRunning) locationProvider.start()
         snapshot = controller.snapshot()
     }
 
@@ -302,6 +322,8 @@ fun DriveScreen(
         snapshot = snapshot,
         orientation = orientation,
         displaySettings = displaySettings,
+        locationFeedMode = locationFeedMode,
+        phoneGpsPermission = phoneGpsPermission,
         onToggleOrientation = onToggleOrientation,
         onSelectProfile = { profileId ->
             // Explicit user selection only (D-02/D-03); the controller never auto-derives.
@@ -314,55 +336,62 @@ fun DriveScreen(
             controller.selectDirection(direction)
             snapshot = controller.snapshot()
         },
-        onPrimaryAction = {
-            when (snapshot.phase) {
-                DriveMarkingPhase.Idle -> {
-                    if (snapshot.canStartTiming && !timingActive) {
-                        // Start formal timing against the saved track (D-19).
-                        val trackId = snapshot.timingReadyTrackId
-                        if (trackId == null) {
-                            startTimingBlockedMessage = START_TIMING_BLOCKED_COPY
-                        } else {
-                            val latestGps = snapshot.latestSample
-                            when (
-                                val result = sessionController.startTiming(
-                                    trackId = trackId,
-                                    latestGps = latestGps,
-                                    preflightNowElapsedMillis = latestGps?.elapsedMillis ?: 0L,
-                                )
-                            ) {
-                                is StartTimingResult.Started -> {
-                                    // The demo provider should start a timing run
-                                    // from a clean replay phase, not from whatever
-                                    // marking/review sample index was left behind.
-                                    controller.restartFeedForTiming()
-                                    startTimingBlockedMessage = null
-                                    timingActive = true
-                                    timingSnapshot = sessionController.snapshot()
-                                    timingRun = sessionController.timingRunSnapshot()
-                                    snapshot = controller.snapshot()
-                                }
-                                is StartTimingResult.Blocked -> {
-                                    startTimingBlockedMessage = result.message
-                                    snapshot = controller.snapshot()
-                                }
-                                is StartTimingResult.WrongCourseBlocked -> {
-                                    wrongCourseBlock = result
-                                    startTimingBlockedMessage = result.message
-                                    snapshot = controller.snapshot()
-                                }
-                            }
-                        }
-                    } else {
+        onStartTiming = action@{
+            if (!ensureSelectedLocationFeedReady()) return@action
+            if (!snapshot.canStartTiming || timingActive) {
+                startTimingBlockedMessage = snapshot.startTimingBlockedReason
+                snapshot = controller.snapshot()
+                return@action
+            }
+            // Start formal timing against the saved track (D-19).
+            val trackId = snapshot.timingReadyTrackId
+            if (trackId == null) {
+                startTimingBlockedMessage = START_TIMING_BLOCKED_COPY
+            } else {
+                val latestGps = snapshot.latestSample
+                when (
+                    val result = sessionController.startTiming(
+                        trackId = trackId,
+                        latestGps = latestGps,
+                        preflightNowElapsedMillis = latestGps?.elapsedMillis ?: 0L,
+                    )
+                ) {
+                    is StartTimingResult.Started -> {
+                        // Timing starts from a clean feed session. For simulated
+                        // data this rewinds the replay; for phone GPS it clears
+                        // queued fixes and resets session-relative elapsed time.
+                        controller.restartFeedForTiming()
                         startTimingBlockedMessage = null
-                        controller.beginMarking()
+                        timingActive = true
+                        timingSnapshot = sessionController.snapshot()
+                        timingRun = sessionController.timingRunSnapshot()
+                        snapshot = controller.snapshot()
+                    }
+                    is StartTimingResult.Blocked -> {
+                        startTimingBlockedMessage = result.message
+                        snapshot = controller.snapshot()
+                    }
+                    is StartTimingResult.WrongCourseBlocked -> {
+                        wrongCourseBlock = result
+                        startTimingBlockedMessage = result.message
                         snapshot = controller.snapshot()
                     }
                 }
+            }
+        },
+        onBeginMarking = action@{
+            if (!ensureSelectedLocationFeedReady()) return@action
+            startTimingBlockedMessage = null
+            controller.beginMarking()
+            snapshot = controller.snapshot()
+        },
+        onStopMarking = {
+            when (snapshot.phase) {
                 DriveMarkingPhase.Capturing -> {
                     controller.stopMarking()
                     snapshot = controller.snapshot()
                 }
+                DriveMarkingPhase.Idle,
                 DriveMarkingPhase.Review -> {
                     // Track Review owns its own action buttons.
                 }
@@ -401,10 +430,14 @@ private fun DriveSurface(
     snapshot: DriveMarkingSnapshot,
     orientation: DashOrientation,
     displaySettings: DriveDisplaySettings,
+    locationFeedMode: LocationFeedMode,
+    phoneGpsPermission: PhoneGpsPermissionState,
     onToggleOrientation: () -> Unit,
     onSelectProfile: (String) -> Unit,
     onSelectDirection: (CourseDirection) -> Unit,
-    onPrimaryAction: () -> Unit,
+    onStartTiming: () -> Unit,
+    onBeginMarking: () -> Unit,
+    onStopMarking: () -> Unit,
     onStopTiming: () -> Unit,
     timingActive: Boolean,
     timingSnapshot: com.huanfuli.lapsight.shared.session.SessionControllerSnapshot?,
@@ -445,6 +478,7 @@ private fun DriveSurface(
                 timingRun = timingRun,
                 orientation = orientation,
                 displaySettings = displaySettings,
+                locationFeedMode = locationFeedMode,
                 onToggleOrientation = onToggleOrientation,
                 onStopTiming = onStopTiming,
                 isCompactLandscape = isCompactLandscape,
@@ -454,15 +488,17 @@ private fun DriveSurface(
         }
 
         if (isLandscape) {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                horizontalArrangement = Arrangement.spacedBy(if (isCompactLandscape) 12.dp else 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(if (isCompactLandscape) 8.dp else 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                GpsQualityPanel(
+                DriveStatusBar(
                     snapshot = snapshot,
                     displaySettings = displaySettings,
-                    modifier = Modifier.weight(1f),
+                    locationFeedMode = locationFeedMode,
+                    phoneGpsPermission = phoneGpsPermission,
+                    modifier = Modifier.fillMaxWidth(),
                     compact = isCompactLandscape,
                 )
                 ControlPanel(
@@ -471,8 +507,10 @@ private fun DriveSurface(
                     onToggleOrientation = onToggleOrientation,
                     onSelectProfile = onSelectProfile,
                     onSelectDirection = onSelectDirection,
-                    onPrimaryAction = onPrimaryAction,
-                    modifier = Modifier.weight(1.15f),
+                    onStartTiming = onStartTiming,
+                    onBeginMarking = onBeginMarking,
+                    onStopMarking = onStopMarking,
+                    modifier = Modifier.fillMaxWidth(),
                     compact = isCompactLandscape,
                     startTimingBlockedMessage = startTimingBlockedMessage,
                 )
@@ -483,12 +521,14 @@ private fun DriveSurface(
                     .fillMaxSize()
                     .padding(padding)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                GpsQualityPanel(
+                DriveStatusBar(
                     snapshot = snapshot,
                     displaySettings = displaySettings,
+                    locationFeedMode = locationFeedMode,
+                    phoneGpsPermission = phoneGpsPermission,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 ControlPanel(
@@ -497,7 +537,9 @@ private fun DriveSurface(
                     onToggleOrientation = onToggleOrientation,
                     onSelectProfile = onSelectProfile,
                     onSelectDirection = onSelectDirection,
-                    onPrimaryAction = onPrimaryAction,
+                    onStartTiming = onStartTiming,
+                    onBeginMarking = onBeginMarking,
+                    onStopMarking = onStopMarking,
                     modifier = Modifier.fillMaxWidth(),
                     startTimingBlockedMessage = startTimingBlockedMessage,
                 )
@@ -522,6 +564,7 @@ private fun TimingRunSurface(
     timingRun: TimingRunSnapshot,
     orientation: DashOrientation,
     displaySettings: DriveDisplaySettings,
+    locationFeedMode: LocationFeedMode,
     onToggleOrientation: () -> Unit,
     onStopTiming: () -> Unit,
     isCompactLandscape: Boolean,
@@ -581,7 +624,12 @@ private fun TimingRunSurface(
     } else {
         "--"
     }
+    val sourceLabel = when (locationFeedMode) {
+        LocationFeedMode.PhoneGps -> "PHONE"
+        LocationFeedMode.Simulated -> "SIM"
+    }
     val metrics = buildList {
+        add(TelemetryMetric("SOURCE", sourceLabel))
         add(TelemetryMetric("LAST", timingRun.lastLapMillis.formatLapTime()))
         add(TelemetryMetric("BEST", timingRun.bestLapMillis.formatLapTime()))
         add(TelemetryMetric("REFERENCE", timingRun.referenceLapMillis.formatLapTime()))
@@ -887,22 +935,30 @@ private fun TimingControls(
     ) {
         Button(
             onClick = onStopTiming,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).height(52.dp),
+            contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB8343A)),
         ) {
-            Text("STOP", fontWeight = FontWeight.Bold)
+            Icon(
+                imageVector = StopActionIcon,
+                contentDescription = "Stop timing",
+                modifier = Modifier.size(28.dp),
+            )
         }
         Button(
             onClick = onToggleOrientation,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).height(52.dp),
+            contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,
             ),
         ) {
-            Text(
-                if (orientation == DashOrientation.Portrait) "LANDSCAPE" else "PORTRAIT",
-                fontWeight = FontWeight.Bold,
+            Icon(
+                imageVector = RotateScreenIcon,
+                contentDescription =
+                    if (orientation == DashOrientation.Portrait) "Switch to landscape" else "Switch to portrait",
+                modifier = Modifier.size(28.dp),
             )
         }
     }
@@ -964,9 +1020,11 @@ internal fun DemoBadge(compact: Boolean = false) {
 }
 
 @Composable
-private fun GpsQualityPanel(
+private fun DriveStatusBar(
     snapshot: DriveMarkingSnapshot,
     displaySettings: DriveDisplaySettings,
+    locationFeedMode: LocationFeedMode,
+    phoneGpsPermission: PhoneGpsPermissionState,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -981,80 +1039,41 @@ private fun GpsQualityPanel(
     val speedLabel = snapshot.latestSample?.speedMetersPerSecond
         ?.let { (it * speedMultiplier).toInt().toString() }
         ?: "--"
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
-    ) {
-        MetricCard("Speed", speedLabel, speedUnit, emphasized = true, compact = compact)
-        Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)) {
-            MetricCard("Accuracy", snapshot.accuracyLabel, "m", Modifier.weight(1f), compact = compact)
-            MetricCard("Samples", snapshot.feedSampleCount.toString(), "", Modifier.weight(1f), compact = compact)
-            MetricCard(
-                "Rate",
-                snapshot.feedQuality?.averageUpdateRateHz?.let { formatOneDecimal(it) } ?: "--",
-                "Hz",
-                Modifier.weight(1f),
-                compact = compact,
-            )
-        }
+    val sourceLabel = when {
+        locationFeedMode == LocationFeedMode.PhoneGps && phoneGpsPermission.isGranted -> "GPS OK"
+        locationFeedMode == LocationFeedMode.PhoneGps -> "GPS NEEDED"
+        else -> "SIM"
     }
-}
-
-@Composable
-private fun MetricCard(
-    label: String,
-    value: String,
-    unit: String,
-    modifier: Modifier = Modifier,
-    emphasized: Boolean = false,
-    compact: Boolean = false,
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    val sourceColor = when {
+        locationFeedMode == LocationFeedMode.PhoneGps && phoneGpsPermission.isGranted -> Color(0xFF1F8F4D)
+        locationFeedMode == LocationFeedMode.PhoneGps -> Color(0xFFB26A00)
+        else -> Color(0xFFB26A00)
+    }
+    val rateLabel = snapshot.feedQuality?.averageUpdateRateHz?.let { formatOneDecimal(it) } ?: "--"
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+            .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 7.dp else 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(Modifier.padding(if (compact) 12.dp else 16.dp)) {
-            Text(
-                text = label.uppercase(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = if (compact) 10.sp else 11.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = value,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = when {
-                        emphasized && compact -> 40.sp
-                        emphasized -> 52.sp
-                        compact -> 22.sp
-                        else -> 28.sp
-                    },
-                    fontWeight = FontWeight.Black,
-                )
-                if (unit.isNotBlank()) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = unit,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = when {
-                            emphasized && compact -> 16.sp
-                            emphasized -> 18.sp
-                            compact -> 12.sp
-                            else -> 13.sp
-                        },
-                        modifier = Modifier.padding(
-                            bottom = when {
-                                emphasized && compact -> 8.dp
-                                emphasized -> 10.dp
-                                compact -> 4.dp
-                                else -> 5.dp
-                            },
-                        ),
-                    )
-                }
-            }
-        }
+        Text(
+            text = sourceLabel,
+            color = sourceColor,
+            fontSize = if (compact) 10.sp else 11.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1,
+        )
+        Text(
+            text = "$speedLabel $speedUnit · ${snapshot.accuracyLabel}m · ${snapshot.feedSampleCount} pts · ${rateLabel}Hz",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = if (compact) 10.sp else 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -1065,117 +1084,68 @@ private fun ControlPanel(
     onToggleOrientation: () -> Unit,
     onSelectProfile: (String) -> Unit,
     onSelectDirection: (CourseDirection) -> Unit,
-    onPrimaryAction: () -> Unit,
+    onStartTiming: () -> Unit,
+    onBeginMarking: () -> Unit,
+    onStopMarking: () -> Unit,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     startTimingBlockedMessage: String? = null,
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
     ) {
-        // Primary CTA + Start Timing are the same control slot. While Idle with
-        // no saved track: Mark New Track. While Capturing: Stop Marking. When a
-        // saved track exists (timing ready): Start Timing, blocked until a
-        // confirmed start/finish line exists (D-19).
         when (snapshot.phase) {
             DriveMarkingPhase.Capturing -> {
-                if (compact) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Button(onClick = onPrimaryAction, modifier = Modifier.weight(1f)) {
-                            Text("Stop Marking")
-                        }
-                        OrientationButton(
-                            orientation = orientation,
-                            onClick = onToggleOrientation,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                } else {
-                    Button(onClick = onPrimaryAction, modifier = Modifier.fillMaxWidth()) {
-                        Text("Stop Marking")
-                    }
-                }
+                DriveActionRow(
+                    primaryIcon = StopActionIcon,
+                    primaryDescription = "Stop marking",
+                    primaryContainerColor = Color(0xFFB8343A),
+                    primaryEnabled = true,
+                    onPrimary = onStopMarking,
+                    orientation = orientation,
+                    onToggleOrientation = onToggleOrientation,
+                    compact = compact,
+                )
             }
             DriveMarkingPhase.Review -> {
                 // Track Review owns its own actions; no primary CTA here.
             }
             DriveMarkingPhase.Idle -> {
-                // Compact current-Track selector (D-01, D-02): always states the
-                // selected Track or clearly states none, and offers a direct selection
-                // action so a blocked Timing routes to picking a Track (D-03). This is a
-                // pre-Timing control only; it is never shown on the moving fullscreen
-                // timing surface. No automatic newest/nearby recommendation (D-04).
                 TrackSelectorSection(
                     snapshot = snapshot,
                     onSelectProfile = onSelectProfile,
+                    onBeginMarking = onBeginMarking,
                     compact = compact,
                 )
                 if (snapshot.canStartTiming) {
-                    // Pre-Timing Recorded/Reverse selector over the SAME revision (D-18).
-                    // It is shown only on the stationary Drive surface, never the moving
-                    // fullscreen timing dash (safety), and never auto-recommends a direction.
                     DirectionSelectorSection(
                         selected = snapshot.selectedDirection,
                         onSelectDirection = onSelectDirection,
                         compact = compact,
                     )
                 }
-                if (snapshot.canStartTiming) {
-                    // Saved track with confirmed start/finish exists: Start Timing
-                    // drives the formal session lifecycle (D-19, SESS-01).
-                    if (compact) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Button(onClick = onPrimaryAction, modifier = Modifier.weight(1f)) {
-                                Text("Start Timing")
-                            }
-                            OrientationButton(
-                                orientation = orientation,
-                                onClick = onToggleOrientation,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    } else {
-                        Button(onClick = onPrimaryAction, modifier = Modifier.fillMaxWidth()) {
-                            Text("Start Timing")
-                        }
-                    }
-                    startTimingBlockedMessage?.let { message ->
-                        Text(
-                            text = message,
-                            color = Color(0xFFFFD166),
-                            fontSize = if (compact) 11.sp else 13.sp,
-                            lineHeight = if (compact) 15.sp else 17.sp,
-                        )
-                    }
-                } else {
-                    if (compact) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Button(onClick = onPrimaryAction, modifier = Modifier.weight(1f)) {
-                                Text("Mark New Track")
-                            }
-                            OrientationButton(
-                                orientation = orientation,
-                                onClick = onToggleOrientation,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    } else {
-                        Button(onClick = onPrimaryAction, modifier = Modifier.fillMaxWidth()) {
-                            Text("Mark New Track")
-                        }
-                    }
+                DriveActionRow(
+                    primaryIcon = PlayActionIcon,
+                    primaryDescription = "Start timing",
+                    primaryContainerColor = MaterialTheme.colorScheme.primary,
+                    primaryEnabled = snapshot.canStartTiming,
+                    onPrimary = onStartTiming,
+                    orientation = orientation,
+                    onToggleOrientation = onToggleOrientation,
+                    compact = compact,
+                )
+                if (!snapshot.canStartTiming && snapshot.needsTrackSelection) {
                     Text(
-                        text = START_TIMING_BLOCKED_COPY,
+                        text = "Choose a track to start timing.",
+                        color = Color(0xFFFFD166),
+                        fontSize = if (compact) 11.sp else 13.sp,
+                        lineHeight = if (compact) 15.sp else 17.sp,
+                    )
+                }
+                startTimingBlockedMessage?.let { message ->
+                    Text(
+                        text = message,
                         color = Color(0xFFFFD166),
                         fontSize = if (compact) 11.sp else 13.sp,
                         lineHeight = if (compact) 15.sp else 17.sp,
@@ -1183,33 +1153,71 @@ private fun ControlPanel(
                 }
             }
         }
+    }
+}
 
-        // Manual orientation toggle. Deliberately not sensor-driven.
-        if (!compact) {
-            OrientationButton(
-                orientation = orientation,
-                onClick = onToggleOrientation,
-                modifier = Modifier.fillMaxWidth(),
+@Composable
+private fun DriveActionRow(
+    primaryIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    primaryDescription: String,
+    primaryContainerColor: Color,
+    primaryEnabled: Boolean,
+    onPrimary: () -> Unit,
+    orientation: DashOrientation,
+    onToggleOrientation: () -> Unit,
+    compact: Boolean = false,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Button(
+            onClick = onPrimary,
+            enabled = primaryEnabled,
+            modifier = Modifier.weight(1f).height(if (compact) 48.dp else 54.dp),
+            contentPadding = PaddingValues(0.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = primaryContainerColor),
+        ) {
+            Icon(
+                imageVector = primaryIcon,
+                contentDescription = primaryDescription,
+                modifier = Modifier.size(if (compact) 24.dp else 28.dp),
+            )
+        }
+        Button(
+            onClick = onToggleOrientation,
+            modifier = Modifier.weight(1f).height(if (compact) 48.dp else 54.dp),
+            contentPadding = PaddingValues(0.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+        ) {
+            Icon(
+                imageVector = RotateScreenIcon,
+                contentDescription =
+                    if (orientation == DashOrientation.Portrait) "Switch to landscape" else "Switch to portrait",
+                modifier = Modifier.size(if (compact) 24.dp else 28.dp),
             )
         }
     }
 }
 
 @Composable
-private fun OrientationButton(
-    orientation: DashOrientation,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
+private fun PhoneGpsBadge(compact: Boolean = false) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, Color(0xFF8CFF9B), RoundedCornerShape(6.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
-        Text(if (orientation == DashOrientation.Portrait) "Landscape" else "Portrait")
+        Text(
+            text = "PHONE GPS — live",
+            color = Color(0xFF8CFF9B),
+            fontSize = if (compact) 11.sp else 13.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -1227,6 +1235,7 @@ private fun OrientationButton(
 private fun TrackSelectorSection(
     snapshot: DriveMarkingSnapshot,
     onSelectProfile: (String) -> Unit,
+    onBeginMarking: () -> Unit,
     compact: Boolean = false,
 ) {
     var showTrackPicker by remember { mutableStateOf(false) }
@@ -1243,24 +1252,42 @@ private fun TrackSelectorSection(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    snapshot.selectableProfiles.forEach { row ->
-                        val isCurrent = row.profileId == snapshot.timingReadyTrackId
-                        OutlinedButton(
-                            onClick = {
-                                onSelectProfile(row.profileId)
-                                showTrackPicker = false
-                            },
-                            enabled = row.isTimingReady && !isCurrent,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            val suffix = when {
-                                isCurrent -> " (current)"
-                                !row.isTimingReady -> " (needs start/finish)"
-                                else -> ""
+                    if (snapshot.selectableProfiles.isEmpty()) {
+                        Text(
+                            text = "No saved tracks yet.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp,
+                        )
+                    } else {
+                        snapshot.selectableProfiles.forEach { row ->
+                            val isCurrent = row.profileId == snapshot.timingReadyTrackId
+                            OutlinedButton(
+                                onClick = {
+                                    onSelectProfile(row.profileId)
+                                    showTrackPicker = false
+                                },
+                                enabled = row.isTimingReady && !isCurrent,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                val suffix = when {
+                                    isCurrent -> " (current)"
+                                    !row.isTimingReady -> " (needs start/finish)"
+                                    else -> ""
+                                }
+                                Text(row.name + suffix)
                             }
-                            Text(row.name + suffix)
                         }
                     }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showTrackPicker = false
+                        onBeginMarking()
+                    },
+                ) {
+                    Text("Mark New Track")
                 }
             },
             confirmButton = {
@@ -1271,53 +1298,43 @@ private fun TrackSelectorSection(
         )
     }
 
-    Card(
+    OutlinedButton(
+        onClick = { showTrackPicker = true },
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        contentPadding = PaddingValues(horizontal = if (compact) 12.dp else 14.dp, vertical = if (compact) 9.dp else 11.dp),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
     ) {
-        Column(
-            Modifier.padding(if (compact) 12.dp else 16.dp),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                text = "CURRENT TRACK",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = if (compact) 10.sp else 11.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = snapshot.currentTrackName ?: "No track selected",
-                color = if (snapshot.currentTrackName != null) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    Color(0xFFFFD166)
-                },
-                fontSize = if (compact) 16.sp else 18.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            if (snapshot.needsTrackSelection) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Select a track to start timing.",
-                    color = Color(0xFFFFD166),
-                    fontSize = if (compact) 11.sp else 13.sp,
-                    lineHeight = if (compact) 15.sp else 17.sp,
-                )
-            }
-            if (snapshot.selectableProfiles.isEmpty()) {
-                Text(
-                    text = "No saved tracks yet. Mark a track to create your first one.",
+                    text = "TRACK",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = if (compact) 11.sp else 13.sp,
-                    lineHeight = if (compact) 15.sp else 17.sp,
+                    fontSize = if (compact) 10.sp else 11.sp,
+                    fontWeight = FontWeight.Bold,
                 )
-            } else {
-                OutlinedButton(
-                    onClick = { showTrackPicker = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Choose track")
-                }
+                Text(
+                    text = snapshot.currentTrackName ?: "No track selected",
+                    color = if (snapshot.currentTrackName != null) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        Color(0xFFFFD166)
+                    },
+                    fontSize = if (compact) 15.sp else 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
+            Text(
+                text = ">",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = if (compact) 18.sp else 20.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
@@ -1337,37 +1354,37 @@ private fun DirectionSelectorSection(
     onSelectDirection: (CourseDirection) -> Unit,
     compact: Boolean = false,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+            .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 8.dp else 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(
-            Modifier.padding(if (compact) 12.dp else 16.dp),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
-        ) {
-            Text(
-                text = "COURSE DIRECTION",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = if (compact) 10.sp else 11.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
-                DirectionChip(
-                    label = "Recorded",
-                    active = selected == CourseDirection.Recorded,
-                    onClick = { onSelectDirection(CourseDirection.Recorded) },
-                    modifier = Modifier.weight(1f),
-                    compact = compact,
-                )
-                DirectionChip(
-                    label = "Reverse",
-                    active = selected == CourseDirection.Reverse,
-                    onClick = { onSelectDirection(CourseDirection.Reverse) },
-                    modifier = Modifier.weight(1f),
-                    compact = compact,
-                )
-            }
-        }
+        Text(
+            text = "DIRECTION",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = if (compact) 10.sp else 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(0.9f),
+        )
+        DirectionChip(
+            label = "Recorded",
+            active = selected == CourseDirection.Recorded,
+            onClick = { onSelectDirection(CourseDirection.Recorded) },
+            modifier = Modifier.weight(1f),
+            compact = compact,
+        )
+        DirectionChip(
+            label = "Reverse",
+            active = selected == CourseDirection.Reverse,
+            onClick = { onSelectDirection(CourseDirection.Reverse) },
+            modifier = Modifier.weight(1f),
+            compact = compact,
+        )
     }
 }
 
@@ -1380,13 +1397,18 @@ private fun DirectionChip(
     compact: Boolean = false,
 ) {
     if (active) {
-        Button(onClick = onClick, modifier = modifier) {
+        Button(
+            onClick = onClick,
+            modifier = modifier.height(if (compact) 36.dp else 40.dp),
+            contentPadding = PaddingValues(horizontal = if (compact) 8.dp else 10.dp, vertical = 0.dp),
+        ) {
             Text((if (active) "✓ " else "") + label)
         }
     } else {
         OutlinedButton(
             onClick = onClick,
-            modifier = modifier,
+            modifier = modifier.height(if (compact) 36.dp else 40.dp),
+            contentPadding = PaddingValues(horizontal = if (compact) 8.dp else 10.dp, vertical = 0.dp),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
         ) {
             Text(label)
@@ -1466,7 +1488,11 @@ internal fun TrackReviewContent(
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
             )
-            DemoBadge()
+            if (review.extraction.markingSession.source.isSimulated) {
+                DemoBadge()
+            } else {
+                PhoneGpsBadge()
+            }
             if (review.canSave) {
                 Text(
                     text = "Track ready. Set start/finish, then save.",

@@ -6,7 +6,7 @@ LapSight is not a generic fitness tracker. It is being built as a mounted-phone 
 
 ## Current Status
 
-The app has completed the Phase 5 course-profile and usability hardening pass. The Android app is runnable and has been validated on device with the simulator-backed feed.
+The app has completed the Phase 5 course-profile and usability hardening pass. The Android app is runnable, supports a switchable Phone GPS / Simulated feed, and has been build-validated with Android Fused Location Provider wired into the existing shared provider interface.
 
 Implemented:
 
@@ -19,27 +19,30 @@ Implemented:
 - Ghost lap and delta-to-best support gated by exact course compatibility.
 - Review UI grouped by sessions, tracks, and raw captures, with telemetry chart/replay, trace rendering, and JSON/GPX export.
 - Theme settings for System, Dark, and Light modes, plus unit and display preferences.
+- Android Fused Location Provider feed mapped into the same shared `LocationSampleProvider` and `LocationSample` model used by the simulator.
+- Runtime Android fine-location permission request path from the shared UI.
 
 Not implemented yet:
 
-- Live Android Fused Location Provider feed.
 - Live iOS Core Location feed.
-- Runtime permission UX beyond manifest/plist declarations.
 - Field-tested GPS smoothing and telemetry quality tuning.
 - External GNSS support.
 - Meta glasses HUD bridge.
 
 ## Real GPS Status
 
-The app currently declares Android and iOS location permissions, but the Drive screen still uses a simulator/replay-backed `LocationSampleProvider`. This is intentional up to the current phase: the lap engine, storage, review, and UI were hardened against deterministic data before real-world field testing.
+Android now injects an `AndroidFusedLocationSampleProvider` into the same shared `LocationSampleProvider` boundary as the deterministic simulator. The Drive and Settings UI can switch between:
 
-The next implementation step is to replace the simulator provider at the platform boundary:
+- `PhoneGps`: Android Fused Location Provider fixes, requiring precise location permission.
+- `Simulated`: deterministic replay fixtures for regression testing, demos, and offline UAT.
 
-- Android: stream Fused Location Provider fixes into shared `LocationSample` values.
-- iOS: stream Core Location fixes into the same shared model.
-- Keep lap engine logic independent from platform APIs.
+Both feeds produce the same shared `LocationSample` values and are persisted with explicit `LocationSource` provenance, so Review can distinguish real phone GPS sessions from simulated data.
+
+Remaining real-GPS work:
+
+- Validate Android Phone GPS outdoors on a closed course and tune smoothing/quality thresholds with recorded data.
+- Implement the iOS Core Location provider against the same shared interface.
 - Preserve replay-based tests so algorithmic behavior remains verifiable.
-- Clearly label simulated versus real phone GPS sessions in storage and Review.
 
 ## Project Structure
 

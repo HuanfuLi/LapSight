@@ -41,7 +41,10 @@ import androidx.compose.ui.unit.sp
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DriveDisplayController
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
+import com.huanfuli.lapsight.shared.LocationFeedMode
+import com.huanfuli.lapsight.shared.LocationSampleProvider
 import com.huanfuli.lapsight.shared.OrientationController
+import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.ThemeMode
 import com.huanfuli.lapsight.shared.export.ExportShareTarget
@@ -80,6 +83,9 @@ fun AppShell(
     driveDisplayController: DriveDisplayController,
     displaySettings: DriveDisplaySettings,
     onDisplaySettingsChanged: (DriveDisplaySettings) -> Unit,
+    simulatedGpsProvider: LocationSampleProvider,
+    phoneGpsProvider: LocationSampleProvider? = null,
+    phoneGpsPermission: PhoneGpsPermissionState = PhoneGpsPermissionState(),
     sessionStore: LocalSessionStore = InMemorySessionStore(),
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
@@ -91,6 +97,7 @@ fun AppShell(
     var confirmDiscardDraft by remember { mutableStateOf(false) }
     var driveTimingActive by remember { mutableStateOf(false) }
     var recoveryBusy by remember { mutableStateOf(false) }
+    var pendingPhoneGpsSelection by remember { mutableStateOf(false) }
     val uiScope = rememberCoroutineScope()
 
     // On launch, surface an unfinished draft recovery prompt (D-15).
@@ -103,6 +110,21 @@ fun AppShell(
             (driveTimingActive && displaySettings.fullscreenWhileTiming)
         )
     val showBottomNav = !driveFullscreen
+    val effectiveLocationFeedMode =
+        if (displaySettings.locationFeedMode == LocationFeedMode.PhoneGps && phoneGpsProvider != null) {
+            LocationFeedMode.PhoneGps
+        } else {
+            LocationFeedMode.Simulated
+        }
+    val activeLocationProvider =
+        if (effectiveLocationFeedMode == LocationFeedMode.PhoneGps) phoneGpsProvider!! else simulatedGpsProvider
+
+    LaunchedEffect(pendingPhoneGpsSelection, phoneGpsPermission.isGranted) {
+        if (pendingPhoneGpsSelection && phoneGpsPermission.isGranted) {
+            pendingPhoneGpsSelection = false
+            onDisplaySettingsChanged(displaySettings.copy(locationFeedMode = LocationFeedMode.PhoneGps))
+        }
+    }
 
     LaunchedEffect(driveFullscreen, driveTimingActive, displaySettings.keepScreenAwakeWhileTiming) {
         driveDisplayController.apply(
@@ -139,11 +161,11 @@ fun AppShell(
                 title = { Text("Unfinished session found") },
                 text = { Text("You have a session that wasn't saved.") },
                 confirmButton = {
-                    Column(
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.End,
                     ) {
-                        OutlinedButton(
+                        TextButton(
                             onClick = {
                                 recoveryBusy = true
                                 uiScope.launch {
@@ -160,10 +182,9 @@ fun AppShell(
                                 }
                             },
                             enabled = !recoveryBusy,
-                            modifier = Modifier.fillMaxWidth(),
                         ) { Text("Resume") }
                         if (DraftRecoveryAction.Save in prompt.availableActions) {
-                            OutlinedButton(
+                            TextButton(
                                 onClick = {
                                     recoveryBusy = true
                                     uiScope.launch {
@@ -179,14 +200,12 @@ fun AppShell(
                                     }
                                 },
                                 enabled = !recoveryBusy,
-                                modifier = Modifier.fillMaxWidth(),
                             ) { Text("Save") }
                         }
-                        Button(
+                        TextButton(
                             onClick = { confirmDiscardDraft = true },
                             enabled = !recoveryBusy,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B6B)),
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF6B6B)),
                         ) { Text("Discard") }
                     }
                 },
@@ -245,6 +264,9 @@ fun AppShell(
                     onTimingActiveChanged = { driveTimingActive = it },
                     requestedTimingActive = driveTimingActive,
                     displaySettings = displaySettings,
+                    locationFeedMode = effectiveLocationFeedMode,
+                    locationProvider = activeLocationProvider,
+                    phoneGpsPermission = phoneGpsPermission,
                     sessionStore = sessionStore,
                     sessionController = sessionController,
                 )
@@ -256,6 +278,13 @@ fun AppShell(
                 )
                 AppTab.Settings -> SettingsScreen(
                     settings = displaySettings,
+                    phoneGpsAvailable = phoneGpsProvider != null && phoneGpsPermission.isSupported,
+                    phoneGpsPermissionGranted = phoneGpsPermission.isGranted,
+                    locationFeedLocked = driveTimingActive,
+                    onRequestPhoneGps = {
+                        pendingPhoneGpsSelection = true
+                        phoneGpsPermission.requestPermission()
+                    },
                     onSettingsChanged = onDisplaySettingsChanged,
                 )
             }
@@ -279,8 +308,15 @@ private fun navItemColors() = NavigationBarItemDefaults.colors(
 @Composable
 private fun SettingsScreen(
     settings: DriveDisplaySettings,
+    phoneGpsAvailable: Boolean,
+    phoneGpsPermissionGranted: Boolean,
+    locationFeedLocked: Boolean,
+    onRequestPhoneGps: () -> Unit,
     onSettingsChanged: (DriveDisplaySettings) -> Unit,
 ) {
+    val effectiveLocationFeedMode =
+        if (phoneGpsAvailable) settings.locationFeedMode else LocationFeedMode.Simulated
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -320,6 +356,55 @@ private fun SettingsScreen(
                     onSettingsChanged(settings.copy(speedUnit = SpeedUnit.MilesPerHour))
                 },
                 modifier = Modifier.weight(1f),
+            )
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Text(
+            text = "LOCATION SOURCE",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SourceButton(
+                label = "Phone GPS",
+                selected = effectiveLocationFeedMode == LocationFeedMode.PhoneGps,
+                enabled = phoneGpsAvailable && !locationFeedLocked,
+                onClick = {
+                    if (phoneGpsPermissionGranted) {
+                        onSettingsChanged(settings.copy(locationFeedMode = LocationFeedMode.PhoneGps))
+                    } else {
+                        onRequestPhoneGps()
+                    }
+                },
+                modifier = Modifier.weight(1f),
+            )
+            SourceButton(
+                label = "Simulated",
+                selected = effectiveLocationFeedMode == LocationFeedMode.Simulated,
+                enabled = !locationFeedLocked,
+                onClick = {
+                    onSettingsChanged(settings.copy(locationFeedMode = LocationFeedMode.Simulated))
+                },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        val sourceNote = when {
+            locationFeedLocked -> "Location source is locked while timing is active."
+            !phoneGpsAvailable -> "Phone GPS is not wired on this platform yet."
+            settings.locationFeedMode == LocationFeedMode.PhoneGps && !phoneGpsPermissionGranted ->
+                "Allow location permission before using Phone GPS."
+            else -> null
+        }
+        sourceNote?.let {
+            Text(
+                text = it,
+                color = Color(0xFFFFD166),
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
             )
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -389,6 +474,25 @@ private fun SettingsScreen(
             fontSize = 13.sp,
             lineHeight = 18.sp,
         )
+    }
+}
+
+@Composable
+private fun SourceButton(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (selected) {
+        Button(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Text(label)
+        }
+    } else {
+        OutlinedButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Text(label)
+        }
     }
 }
 

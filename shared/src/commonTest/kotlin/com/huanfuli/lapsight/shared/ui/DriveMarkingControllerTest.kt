@@ -1,5 +1,7 @@
 package com.huanfuli.lapsight.shared.ui
 
+import com.huanfuli.lapsight.shared.LocationSample
+import com.huanfuli.lapsight.shared.LocationSampleProvider
 import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.SimulatedGpsProvider
 import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
@@ -170,6 +172,34 @@ class DriveMarkingControllerTest {
         assertTrue(controller.snapshot().isDemoFeedRunning)
     }
 
+    @Test
+    fun phoneGpsProviderPersistsPhoneGpsSourceThroughTheSameInterface() {
+        val phoneSamples = GpsFixtureLibrary.cleanTenLoop()
+            .map { it.copy(source = LocationSource.PhoneGps) }
+        val controller = DriveMarkingController(
+            provider = ListLocationSampleProvider(phoneSamples),
+            store = InMemorySessionStore(),
+            appMetadata = app,
+            now = { 1_700_000_000_100L },
+        )
+
+        controller.beginMarking()
+        controller.captureSamples(2400)
+        controller.stopMarking()
+
+        val review = controller.snapshot().reviewState
+        assertNotNull(review)
+        assertEquals(LocationSource.PhoneGps, review.extraction.markingSession.source.source)
+        assertFalse(review.extraction.markingSession.source.isSimulated)
+
+        controller.confirmStartFinish()
+        val track = controller.saveTrack()
+
+        assertNotNull(track)
+        assertEquals(LocationSource.PhoneGps, track.source.source)
+        assertFalse(track.source.isSimulated)
+    }
+
     // D-01 / D-03: a persisted explicit selection resolves on a fresh controller, and
     // a newer unselected profile NEVER becomes current (no newest-Track fallback).
     @Test
@@ -290,5 +320,46 @@ class DriveMarkingControllerTest {
         assertFalse(TrackReviewDecision.Save in review.availableDecisions)
         assertTrue(TrackReviewDecision.ReRecord in review.availableDecisions)
         assertTrue(TrackReviewDecision.Discard in review.availableDecisions)
+    }
+
+    private class ListLocationSampleProvider(
+        private val samples: List<LocationSample>,
+    ) : LocationSampleProvider {
+        private var index = 0
+        private var running = false
+        private val cycleMillis: Long = if (samples.size < 2) {
+            0L
+        } else {
+            val span = samples.last().elapsedMillis - samples.first().elapsedMillis
+            span + span / (samples.size - 1)
+        }
+
+        override val isRunning: Boolean
+            get() = running
+
+        override fun start() {
+            running = true
+        }
+
+        override fun stop() {
+            running = false
+        }
+
+        override fun reset() {
+            running = false
+            index = 0
+        }
+
+        override fun nextSample(): LocationSample? {
+            if (!running || samples.isEmpty()) return null
+            val base = samples[index % samples.size]
+            val completedCycles = index / samples.size
+            index++
+            return if (completedCycles == 0) {
+                base
+            } else {
+                base.copy(elapsedMillis = base.elapsedMillis + completedCycles * cycleMillis)
+            }
+        }
     }
 }

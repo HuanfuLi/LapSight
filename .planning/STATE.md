@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 5 post-execution Android hardening UAT complete
-last_updated: "2026-06-28T08:10:57.556Z"
+stopped_at: Android Phone GPS provider wired behind shared LocationSampleProvider
+last_updated: "2026-06-28T17:43:29.104Z"
 progress:
   total_phases: 8
   completed_phases: 5
@@ -16,7 +16,7 @@ progress:
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5 execution and Android hardening UAT complete. Phase 5.1 has not started.
+**Current Status:** Phase 5 execution and Android hardening UAT complete. Android Phone GPS is wired for pre-5.1 field prep. Phase 5.1 has not started.
 
 ## Project Reference
 
@@ -29,11 +29,12 @@ See: `.planning/PROJECT.md`
 **Interphase hardening — after Phase 5, before Phase 5.1**
 
 Phase 5 course-profile work is implemented. A post-execution Android hardening pass fixed
-blocking usability issues in Drive, Review, recovery, theme handling, and telemetry replay.
+blocking usability issues in Drive, Review, recovery, theme handling, telemetry replay,
+and Android Phone GPS provider wiring.
 
-Next step: review or commit the hardening changes, then start Phase 5.1 field-validation
-planning. Do not begin paid/real-world field validation until the hardening changes are
-accepted.
+Next step: perform an unlocked-device Android UAT of the Phone GPS / Simulated switch,
+then start Phase 5.1 field-validation planning. Do not begin paid/real-world field
+validation until the real GPS feed is checked outdoors.
 
 ## Working Assumptions
 
@@ -43,11 +44,13 @@ accepted.
 - Kotlin Multiplatform + Compose Multiplatform is the current preferred stack.
 - Lap engine must be clean-room and testable.
 - Open-source references are research inputs, not direct copy sources.
-- Phase 1 uses simulator-backed GPS probe state; real providers are next.
+- Android uses Fused Location Provider through the shared `LocationSampleProvider` boundary.
+- iOS still needs a Core Location provider through the same boundary.
 
 ## Next Command Candidates
 
-- Review or commit the Phase 5 hardening changes.
+- UAT Android Phone GPS on an unlocked device outdoors and save one real marking/session.
+- Review or commit the Android Phone GPS provider changes.
 - Start `.planning/phases/05.1-mvp-field-validation-and-hardening-gate/` when ready.
 - Complete Phase 5 milestone summary if a formal archive is needed.
 
@@ -67,6 +70,8 @@ accepted.
 - [x] Phase 5 planned (14 plans).
 - [x] Phase 5 executed (14/14 plans complete).
 - [x] Phase 5 Android hardening UAT completed before Phase 5.1.
+- [x] Android Fused Location Provider wired into shared `LocationSampleProvider`.
+- [ ] Android real GPS outdoor field sample captured and reviewed.
 
 ## Phase 3 Completion Summary
 
@@ -109,6 +114,8 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Landscape timing always enters fullscreen; the old optional landscape-fullscreen setting has been removed to avoid trapping controls behind system navigation.
 - Review is grouped into Sessions, Tracks, and Raw captures; session rows use timestamps instead of copied track names, and timing details include telemetry chart/replay.
 - Theme mode supports System, Dark, and Light.
+- Android Phone GPS and Simulated feeds now share the same `LocationSampleProvider` interface and `LocationSample` model, with Settings-based source switching.
+- Android precise location permission is requested from the shared UI path; no automatic fallback from Phone GPS to Simulated occurs.
 
 ## Recent Decisions
 
@@ -120,6 +127,7 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Wrong-course override consumes the captured profile revision, direction, source, course, and block without rerunning preflight.
 - Plan 05-13 preserves the exact compatibility key and keeps preflight outside `LapEngine` and matcher behavior.
 - Phase 5.1 remains a validation/hardening gate, not a new feature phase. Telemetry replay added in hardening is scoped to reviewing saved session data already captured by the phone app.
+- Real and simulated feeds must remain explicitly labeled and source-gated; simulated data must never silently stand in for a selected Phone GPS run.
 
 ## Performance Metrics
 
@@ -130,10 +138,10 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 
 ## Session Continuity
 
-**Last session:** 2026-06-28T08:10:57.556Z
-**Stopped At:** Phase 5 post-execution Android hardening UAT complete
+**Last session:** 2026-06-28T17:43:29.104Z
+**Stopped At:** Android Phone GPS provider wired behind shared LocationSampleProvider
 **Resume File:** None
 
 ---
 
-*Last updated: 2026-06-28 after Phase 5 hardening UAT*
+*Last updated: 2026-06-28 after Android Phone GPS provider wiring*

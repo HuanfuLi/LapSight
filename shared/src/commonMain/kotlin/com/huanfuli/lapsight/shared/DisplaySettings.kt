@@ -11,6 +11,17 @@ enum class ThemeMode {
     Light,
 }
 
+enum class LocationFeedMode {
+    PhoneGps,
+    Simulated,
+}
+
+data class PhoneGpsPermissionState(
+    val isSupported: Boolean = false,
+    val isGranted: Boolean = false,
+    val requestPermission: () -> Unit = {},
+)
+
 data class DriveDisplaySettings(
     val speedUnit: SpeedUnit = SpeedUnit.KilometersPerHour,
     val fullscreenWhileTiming: Boolean = true,
@@ -18,6 +29,7 @@ data class DriveDisplaySettings(
     val showSpeedTrace: Boolean = true,
     val showGpsDiagnostics: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.System,
+    val locationFeedMode: LocationFeedMode = LocationFeedMode.Simulated,
 )
 
 interface DisplaySettingsStore {

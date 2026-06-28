@@ -3,10 +3,10 @@ package com.huanfuli.lapsight.shared
 /**
  * The normal shared boundary for a stream of [LocationSample]s.
  *
- * This is the seam that track marking and timing flows consume. A simulated
- * feed ([SimulatedGpsProvider]) implements it today; real Android Fused
- * Location and iOS Core Location providers will implement the same contract
- * later without changing any business flow (D-03).
+ * This is the boundary that track marking and timing flows consume. Simulated
+ * replay, Android Fused Location, and iOS Core Location providers must all
+ * expose samples through this same contract so the lap engine, storage, review,
+ * and export flows never need provider-specific code.
  *
  * Implementations must keep feed lifecycle (`start`/`stop`/`reset`) independent
  * of any track-marking or timing-session state: starting the feed only produces
@@ -23,7 +23,7 @@ interface LocationSampleProvider {
     /** Stop emitting samples without losing the feed configuration. */
     fun stop()
 
-    /** Stop and rewind the feed to its beginning. */
+    /** Stop and clear provider-local feed state before a fresh capture/run. */
     fun reset()
 
     /**

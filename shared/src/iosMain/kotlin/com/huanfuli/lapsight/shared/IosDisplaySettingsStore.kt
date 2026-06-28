@@ -16,6 +16,9 @@ class IosDisplaySettingsStore : DisplaySettingsStore {
         themeMode = defaults.stringForKey(THEME_MODE)
             ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
             ?: ThemeMode.System,
+        locationFeedMode = defaults.stringForKey(LOCATION_FEED_MODE)
+            ?.let { runCatching { LocationFeedMode.valueOf(it) }.getOrNull() }
+            ?: LocationFeedMode.Simulated,
     )
 
     override fun save(settings: DriveDisplaySettings) {
@@ -25,6 +28,7 @@ class IosDisplaySettingsStore : DisplaySettingsStore {
         defaults.setBool(settings.showSpeedTrace, forKey = SHOW_SPEED_TRACE)
         defaults.setBool(settings.showGpsDiagnostics, forKey = SHOW_GPS_DIAGNOSTICS)
         defaults.setObject(settings.themeMode.name, forKey = THEME_MODE)
+        defaults.setObject(settings.locationFeedMode.name, forKey = LOCATION_FEED_MODE)
     }
 
     private fun boolean(key: String, default: Boolean): Boolean =
@@ -37,5 +41,6 @@ class IosDisplaySettingsStore : DisplaySettingsStore {
         const val SHOW_SPEED_TRACE = "display.showSpeedTrace"
         const val SHOW_GPS_DIAGNOSTICS = "display.showGpsDiagnostics"
         const val THEME_MODE = "display.themeMode"
+        const val LOCATION_FEED_MODE = "display.locationFeedMode"
     }
 }
