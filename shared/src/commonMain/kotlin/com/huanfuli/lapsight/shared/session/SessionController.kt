@@ -1,11 +1,13 @@
 package com.huanfuli.lapsight.shared.session
 
+import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.ghost.CourseCompatibilityKey
 import com.huanfuli.lapsight.shared.ghost.DeltaUnavailableReason
 import com.huanfuli.lapsight.shared.ghost.GhostCompatibility
 import com.huanfuli.lapsight.shared.ghost.LiveDeltaSnapshot
 import com.huanfuli.lapsight.shared.ghost.ReferenceLap
 import com.huanfuli.lapsight.shared.ghost.ReferenceLapSelector
+import com.huanfuli.lapsight.shared.lap.CourseDefinition
 import com.huanfuli.lapsight.shared.lap.LapEngineConfig
 import com.huanfuli.lapsight.shared.lap.LapEvent
 import com.huanfuli.lapsight.shared.nowEpochMillis
@@ -15,6 +17,7 @@ import com.huanfuli.lapsight.shared.track.CourseDirection
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackProfileController
+import com.huanfuli.lapsight.shared.track.TrackReferenceLine
 
 /**
  * Plain-Kotlin controller for the formal timing-session lifecycle (D-13..D-20,
@@ -56,6 +59,7 @@ class SessionController(
 ) {
     private var recorder: TimingSessionRecorder? = null
     private var session: TimingSession? = null
+    private var pendingWrongCourseStart: ResolvedTimingStart? = null
 
     /**
      * Current immutable snapshot of the active draft, or null when no draft is
@@ -92,20 +96,82 @@ class SessionController(
      * with the exact UI-SPEC copy when the Track does not exist or has no
      * confirmed start/finish (D-19).
      */
-    fun startTiming(trackId: String): StartTimingResult {
+    fun startTiming(
+        trackId: String,
+        latestGps: LocationSample? = null,
+        preflightNowElapsedMillis: Long = latestGps?.elapsedMillis ?: 0L,
+    ): StartTimingResult {
+        pendingWrongCourseStart = null
         val track = loadTrackForTiming(trackId)
             ?: return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
-        if (track.startFinish == null) {
-            return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
-        }
+        val startFinish = track.startFinish
+            ?: return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
         val runSource = sourceForTrack(track)
         // Resolve the persisted Course Direction / compatibility identity for this
         // Track and build the direction-specific course (D-18, D-21). Reverse flips
         // the accepted approach side and Sector order; Recorded keeps the recorded
         // orientation. Source is the active run provider, not the Track marking source.
         val courseIdentity = selectedCourseIdentityFor(track, runSource)
-        val course = courseFromTrack(track.startFinish, track.sectors, courseIdentity.direction)
+        val course = courseFromTrack(startFinish, track.sectors, courseIdentity.direction)
             ?: return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
+        val preflightResult = courseIdentity.referenceLine?.let { referenceLine ->
+            WrongCoursePreflight().evaluate(
+                referenceLine = referenceLine,
+                latestFix = latestGps,
+                nowElapsedMillis = preflightNowElapsedMillis,
+            )
+        } ?: CoursePreflightResult.Unavailable(
+            CoursePreflightUnavailableReason.MalformedGeometry,
+        )
+        val resolved = ResolvedTimingStart(
+            track = track,
+            source = runSource,
+            identity = courseIdentity,
+            course = course,
+            startFinish = startFinish,
+            preflightResult = preflightResult,
+        )
+        if (preflightResult is CoursePreflightResult.Blocked) {
+            pendingWrongCourseStart = resolved
+            return StartTimingResult.WrongCourseBlocked(
+                distanceMeters = preflightResult.distanceMeters,
+                thresholdMeters = preflightResult.thresholdMeters,
+                message = WRONG_COURSE_BLOCKED_COPY,
+            )
+        }
+        return startResolvedTiming(
+            resolved = resolved,
+            preflightSnapshot = CoursePreflightSnapshot.from(preflightResult),
+        )
+    }
+
+    /**
+     * Consume the exact previously blocked start without rerunning preflight.
+     *
+     * The selected revision, direction, provider source, course, and blocked
+     * evidence are captured together, then passed through the normal recorder
+     * construction path with an explicit override snapshot (D-23).
+     */
+    fun overrideWrongCourseAndStart(): StartTimingResult {
+        val pending = pendingWrongCourseStart
+            ?: return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
+        pendingWrongCourseStart = null
+        return startResolvedTiming(
+            resolved = pending,
+            preflightSnapshot = CoursePreflightSnapshot.from(
+                pending.preflightResult,
+                overrideUsed = true,
+            ),
+        )
+    }
+
+    private fun startResolvedTiming(
+        resolved: ResolvedTimingStart,
+        preflightSnapshot: CoursePreflightSnapshot,
+    ): StartTimingResult {
+        val track = resolved.track
+        val runSource = resolved.source
+        val courseIdentity = resolved.identity
         val createdAt = now()
         val session = TimingSession(
             id = "session-$createdAt",
@@ -113,19 +179,20 @@ class SessionController(
             trackName = track.name,
             createdAtEpochMillis = createdAt,
             source = runSource,
-            startFinish = track.startFinish,
+            startFinish = resolved.startFinish,
             sectors = track.sectors,
             direction = courseIdentity.direction,
             courseCompatibilityKey = courseIdentity.compatibilityKey,
+            coursePreflight = preflightSnapshot,
         )
         val rec = TimingSessionRecorder(
             session = session,
-            course = course,
+            course = resolved.course,
             config = engineConfig,
             store = store,
             app = appMetadata,
             initialReference = loadReferenceFor(session),
-            referenceLine = track.referenceLine,
+            referenceLine = courseIdentity.referenceLine,
         )
         this.session = session
         this.recorder = rec
@@ -311,6 +378,7 @@ class SessionController(
                     direction = selected.direction,
                     isSimulated = source.isSimulated,
                 ),
+                referenceLine = selected.revision.referenceLine,
             )
         }
         val direction = selectedDirectionFor(track.id)
@@ -319,6 +387,7 @@ class SessionController(
             compatibilityKey = GhostCompatibility
                 .migratedV1Key(trackId = track.id, isSimulated = source.isSimulated)
                 .copy(direction = direction),
+            referenceLine = track.referenceLine,
         )
     }
 
@@ -384,6 +453,16 @@ class SessionController(
     private data class SelectedCourseIdentity(
         val direction: CourseDirection,
         val compatibilityKey: CourseCompatibilityKey,
+        val referenceLine: TrackReferenceLine?,
+    )
+
+    private data class ResolvedTimingStart(
+        val track: Track,
+        val source: SourceMetadata,
+        val identity: SelectedCourseIdentity,
+        val course: CourseDefinition,
+        val startFinish: com.huanfuli.lapsight.shared.track.StartFinishLineDto,
+        val preflightResult: CoursePreflightResult,
     )
 }
 
@@ -393,6 +472,13 @@ data class SessionControllerSnapshot(val activeDraft: TimingDraftSnapshot?)
 /** Exact UI-SPEC copy shown while Start Timing is blocked (D-19). */
 const val START_TIMING_BLOCKED_COPY: String =
     "Mark a track first. Timing needs a saved start/finish line."
+
+/** Exact D-23 action copy for a clearly-far preflight override. */
+const val STILL_USE_THIS_TRACK_ACTION: String = "Still use this track"
+
+/** Conservative pre-Timing warning; it never appears on the active timing dash. */
+const val WRONG_COURSE_BLOCKED_COPY: String =
+    "This GPS fix is clearly far from the selected course. Check the current track before timing."
 
 /**
  * Default clock for the controller. Indirection so tests can inject a fixed

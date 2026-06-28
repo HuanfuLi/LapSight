@@ -49,6 +49,7 @@ import com.huanfuli.lapsight.shared.lap.formatLapTime
 import com.huanfuli.lapsight.shared.session.SaveDraftResult
 import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.session.StartTimingResult
+import com.huanfuli.lapsight.shared.session.STILL_USE_THIS_TRACK_ACTION
 import com.huanfuli.lapsight.shared.session.TimingRunSnapshot
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.CourseDirection
@@ -83,6 +84,9 @@ fun DriveScreen(
     var confirmDiscardSession by remember { mutableStateOf(false) }
     var saveToast by remember { mutableStateOf<String?>(null) }
     var startTimingBlockedMessage by remember { mutableStateOf<String?>(null) }
+    var wrongCourseBlock by remember {
+        mutableStateOf<StartTimingResult.WrongCourseBlocked?>(null)
+    }
 
     // Apply the chosen orientation through the platform window lock (app-wide).
     LaunchedEffect(orientation) {
@@ -116,6 +120,52 @@ fun DriveScreen(
                 timingRun = sessionController.timingRunSnapshot()
             }
         }
+    }
+
+    // Clearly-far preflight is a stationary, pre-Timing decision. The override
+    // never appears on the passive moving fullscreen timing surface.
+    wrongCourseBlock?.let { blocked ->
+        AlertDialog(
+            onDismissRequest = { wrongCourseBlock = null },
+            title = { Text("Check selected track") },
+            text = {
+                Text(
+                    "${blocked.message}\n\n" +
+                        "Closed-course/private-track use only. No public-road racing.",
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        when (val result = sessionController.overrideWrongCourseAndStart()) {
+                            is StartTimingResult.Started -> {
+                                if (!provider.isRunning) provider.start()
+                                wrongCourseBlock = null
+                                startTimingBlockedMessage = null
+                                timingActive = true
+                                timingSnapshot = sessionController.snapshot()
+                                timingRun = sessionController.timingRunSnapshot()
+                                snapshot = controller.snapshot()
+                            }
+                            is StartTimingResult.Blocked -> {
+                                wrongCourseBlock = null
+                                startTimingBlockedMessage = result.message
+                            }
+                            is StartTimingResult.WrongCourseBlocked -> {
+                                wrongCourseBlock = result
+                            }
+                        }
+                    },
+                ) {
+                    Text(STILL_USE_THIS_TRACK_ACTION)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { wrongCourseBlock = null }) {
+                    Text("Choose another track")
+                }
+            },
+        )
     }
 
     // Stop summary sheet (D-14): Save Session / Discard with exact UI-SPEC copy.
@@ -225,7 +275,14 @@ fun DriveScreen(
                         if (trackId == null) {
                             startTimingBlockedMessage = START_TIMING_BLOCKED_COPY
                         } else {
-                            when (val result = sessionController.startTiming(trackId = trackId)) {
+                            val latestGps = snapshot.latestSample
+                            when (
+                                val result = sessionController.startTiming(
+                                    trackId = trackId,
+                                    latestGps = latestGps,
+                                    preflightNowElapsedMillis = latestGps?.elapsedMillis ?: 0L,
+                                )
+                            ) {
                                 is StartTimingResult.Started -> {
                                     // If the user starts timing from a cold Drive
                                     // screen, begin the provider without resetting
@@ -238,6 +295,11 @@ fun DriveScreen(
                                     snapshot = controller.snapshot()
                                 }
                                 is StartTimingResult.Blocked -> {
+                                    startTimingBlockedMessage = result.message
+                                    snapshot = controller.snapshot()
+                                }
+                                is StartTimingResult.WrongCourseBlocked -> {
+                                    wrongCourseBlock = result
                                     startTimingBlockedMessage = result.message
                                     snapshot = controller.snapshot()
                                 }
@@ -577,7 +639,7 @@ private fun HeaderPanel(
         )
         Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
         Text(
-            text = "Closed-course use only. Phone GPS accuracy varies — this is not pro-grade timing. Verify before trusting lap data.",
+            text = "Closed-course/private-track use only. No public-road racing. Phone GPS accuracy varies — this is not pro-grade timing. Verify before trusting lap data.",
             color = Color(0xFFCED7E2),
             fontSize = if (compact) 11.sp else 13.sp,
             lineHeight = if (compact) 15.sp else 17.sp,

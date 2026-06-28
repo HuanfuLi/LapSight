@@ -449,6 +449,17 @@ sealed interface StartTimingResult {
     data class Started(val sessionId: String) : StartTimingResult
 
     /**
+     * The selected course is clearly far from the latest trustworthy GPS fix.
+     * Timing has not started; [actionLabel] is the explicit pre-Timing override.
+     */
+    data class WrongCourseBlocked(
+        val distanceMeters: Double,
+        val thresholdMeters: Double,
+        val message: String,
+        val actionLabel: String = STILL_USE_THIS_TRACK_ACTION,
+    ) : StartTimingResult
+
+    /**
      * Timing blocked because no saved Track with a confirmed start/finish
      * exists (D-19). [message] is the exact UI-SPEC copy.
      */
