@@ -3,6 +3,10 @@ package com.huanfuli.lapsight.shared.ghost
 import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.lap.LocalProjection
+import com.huanfuli.lapsight.shared.session.GeoPointDto
+import com.huanfuli.lapsight.shared.track.ClosedReferencePath
+import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
+import com.huanfuli.lapsight.shared.track.TrackReferenceLine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -37,14 +41,14 @@ class LiveDeltaEngineTest {
         source = LocationSource.Simulated,
     )
 
-    /** Reference lap: constant 10 m/s east over ~40 m in 4 s. */
+    /** Reference lap: constant 10 m/s around the matcher's 40 m square. */
     private fun referenceLap(): ReferenceLap {
         val samples = listOf(
             sample(0, eastMeters = 0.0),
-            sample(1_000, eastMeters = 10.0),
-            sample(2_000, eastMeters = 20.0),
-            sample(3_000, eastMeters = 30.0),
             sample(4_000, eastMeters = 40.0),
+            sample(8_000, eastMeters = 40.0, northMeters = 40.0),
+            sample(12_000, eastMeters = 0.0, northMeters = 40.0),
+            sample(16_000, eastMeters = 0.0),
         )
         val curve = when (val r = ProgressCurveBuilder.build(samples)) {
             is ProgressCurveResult.Success -> r.curve
@@ -54,7 +58,7 @@ class LiveDeltaEngineTest {
             trackId = "track-1",
             sessionId = "session-1",
             lapNumber = 1,
-            durationMillis = 4_000,
+            durationMillis = 16_000,
             isSimulated = true,
             rawSamples = samples,
             progressCurve = curve,
@@ -69,9 +73,28 @@ class LiveDeltaEngineTest {
         snapshot as? LiveDeltaSnapshot.Unavailable
             ?: fail("expected Unavailable, got $snapshot")
 
+    private fun engine(): LiveDeltaEngine {
+        val line = TrackReferenceLine(
+            points = listOf(
+                GeoPointDto(0.0, 0.0),
+                GeoPointDto(0.0, 40.0 / LocalProjection.METERS_PER_DEGREE),
+                GeoPointDto(40.0 / LocalProjection.METERS_PER_DEGREE, 40.0 / LocalProjection.METERS_PER_DEGREE),
+                GeoPointDto(40.0 / LocalProjection.METERS_PER_DEGREE, 0.0),
+            ),
+        )
+        val path = (ClosedReferencePath.fromReferenceLine(line) as ClosedReferencePathResult.Loaded).path
+        return LiveDeltaEngine(
+            courseMatcher = CourseProgressMatcher(
+                path = path,
+                startFinishProgressMeters = 0.0,
+                compatibilityKey = referenceLap().compatibilityKey,
+            ),
+        )
+    }
+
     @Test
     fun updateBeforeLapStartedIsUnavailableNoCurrentLap() {
-        val engine = LiveDeltaEngine()
+        val engine = engine()
         engine.setReference(referenceLap())
         val snapshot = engine.update(sample(0, eastMeters = 0.0))
         assertEquals(DeltaUnavailableReason.NoCurrentLap, unavailable(snapshot).reason)
@@ -79,7 +102,7 @@ class LiveDeltaEngineTest {
 
     @Test
     fun noReferenceIsUnavailable() {
-        val engine = LiveDeltaEngine()
+        val engine = engine()
         engine.startLap()
         engine.update(sample(0, eastMeters = 0.0))
         val snapshot = engine.update(sample(1_000, eastMeters = 10.0))
@@ -88,7 +111,7 @@ class LiveDeltaEngineTest {
 
     @Test
     fun singleCurrentSampleIsUnavailableTooFewSamples() {
-        val engine = LiveDeltaEngine()
+        val engine = engine()
         engine.setReference(referenceLap())
         engine.startLap()
         val snapshot = engine.update(sample(0, eastMeters = 0.0))
@@ -100,7 +123,7 @@ class LiveDeltaEngineTest {
 
     @Test
     fun slowerLapProducesPositiveDelta() {
-        val engine = LiveDeltaEngine()
+        val engine = engine()
         engine.setReference(referenceLap())
         engine.startLap()
         engine.update(sample(0, eastMeters = 0.0))
@@ -118,7 +141,7 @@ class LiveDeltaEngineTest {
 
     @Test
     fun fasterLapProducesNegativeDelta() {
-        val engine = LiveDeltaEngine()
+        val engine = engine()
         engine.setReference(referenceLap())
         engine.startLap()
         engine.update(sample(0, eastMeters = 0.0))
@@ -131,7 +154,7 @@ class LiveDeltaEngineTest {
 
     @Test
     fun poorAccuracySampleIsUnavailable() {
-        val engine = LiveDeltaEngine()
+        val engine = engine()
         engine.setReference(referenceLap())
         engine.startLap()
         engine.update(sample(0, eastMeters = 0.0))
@@ -141,7 +164,7 @@ class LiveDeltaEngineTest {
 
     @Test
     fun progressFarBeyondReferenceIsUnavailableUnmatched() {
-        val engine = LiveDeltaEngine()
+        val engine = engine()
         engine.setReference(referenceLap())
         engine.startLap()
         engine.update(sample(0, eastMeters = 0.0))
@@ -152,7 +175,7 @@ class LiveDeltaEngineTest {
 
     @Test
     fun staleDeltaClearedAfterUnavailableUpdate() {
-        val engine = LiveDeltaEngine()
+        val engine = engine()
         engine.setReference(referenceLap())
         engine.startLap()
         engine.update(sample(0, eastMeters = 0.0))
@@ -168,7 +191,7 @@ class LiveDeltaEngineTest {
 
     @Test
     fun startingNewLapResetsProgressAndDelta() {
-        val engine = LiveDeltaEngine()
+        val engine = engine()
         engine.setReference(referenceLap())
         engine.startLap()
         engine.update(sample(0, eastMeters = 0.0))

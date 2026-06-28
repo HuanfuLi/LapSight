@@ -1,15 +1,11 @@
 package com.huanfuli.lapsight.shared.ghost
 
 import com.huanfuli.lapsight.shared.LocationSample
-import com.huanfuli.lapsight.shared.lap.GeoPoint
-import com.huanfuli.lapsight.shared.lap.LocalPoint
-import com.huanfuli.lapsight.shared.lap.LocalProjection
-import kotlin.math.sqrt
 
 /**
  * Pure realtime live-delta engine (D-08/D-09/D-10).
  *
- * Streams current-lap [LocationSample]s, accumulates current progress distance,
+ * Streams current-lap [LocationSample]s, matches direction-relative course progress,
  * looks up the equivalent reference elapsed time on the loaded [ReferenceLap]'s
  * progress curve, and emits a [LiveDeltaSnapshot]:
  *
@@ -22,24 +18,19 @@ import kotlin.math.sqrt
  *
  * @param maxHorizontalAccuracyMeters current samples worse than this are treated
  *        as poor GPS quality and suppress the delta.
- * @param maxProgressOverrunFraction how far current progress may exceed the
- *        reference total distance before it is considered unmatchable. Progress
- *        within this margin is clamped to the reference range; beyond it the delta
- *        is suppressed as [DeltaUnavailableReason.UnmatchedProgress].
+ * @param courseMatcher exact selected-course matcher. A missing matcher suppresses
+ *        Ghost delta rather than falling back to traveled-distance accumulation.
  */
 class LiveDeltaEngine(
     private val maxHorizontalAccuracyMeters: Double =
         ProgressCurveBuilder.DEFAULT_MAX_HORIZONTAL_ACCURACY_METERS,
-    private val maxProgressOverrunFraction: Double = DEFAULT_MAX_PROGRESS_OVERRUN_FRACTION,
+    private val courseMatcher: CourseProgressMatcher? = null,
 ) {
 
     private var reference: ReferenceLap? = null
 
     private var lapActive: Boolean = false
-    private var projection: LocalProjection? = null
-    private var lastLocal: LocalPoint? = null
     private var lapStartMillis: Long? = null
-    private var accumulatedMeters: Double = 0.0
     private var sampleCount: Int = 0
 
     /** Latest emitted snapshot; cleared to an [LiveDeltaSnapshot.Unavailable] on suppression. */
@@ -58,11 +49,9 @@ class LiveDeltaEngine(
      */
     fun startLap() {
         lapActive = true
-        projection = null
-        lastLocal = null
         lapStartMillis = null
-        accumulatedMeters = 0.0
         sampleCount = 0
+        courseMatcher?.reset()
         snapshot = LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.InsufficientCurrentSamples)
     }
 
@@ -95,39 +84,29 @@ class LiveDeltaEngine(
             return emit(LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.PoorGpsQuality))
         }
 
-        val geo = GeoPoint(sample.latitude, sample.longitude)
-        val proj = projection ?: LocalProjection(geo).also { projection = it }
-        val local = proj.toLocal(geo)
-
-        // First usable sample of the lap establishes the origin and start time.
+        // The lap clock is independent of match confidence. Even an unmatched first
+        // sample establishes elapsed time so rematch never restarts timing.
         if (lapStartMillis == null) {
             lapStartMillis = sample.elapsedMillis
-            lastLocal = local
-            accumulatedMeters = 0.0
-            sampleCount = 1
+        }
+        sampleCount++
+
+        val match = courseMatcher?.match(sample, ref.compatibilityKey)
+            ?: return emit(LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.UnmatchedProgress))
+        if (match is CourseMatchResult.Unmatched) {
+            return emit(LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.UnmatchedProgress))
+        }
+        match as CourseMatchResult.Matched
+
+        if (sampleCount < 2) {
             return emit(
                 LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.InsufficientCurrentSamples),
             )
         }
 
-        val prev = lastLocal
-        if (prev != null) {
-            val dx = local.x - prev.x
-            val dy = local.y - prev.y
-            accumulatedMeters += sqrt(dx * dx + dy * dy)
-        }
-        lastLocal = local
-        sampleCount++
-
         val currentElapsed = sample.elapsedMillis - lapStartMillis!!
-        val progress = accumulatedMeters
-        val overrunLimit = curve.totalDistanceMeters * (1.0 + maxProgressOverrunFraction)
-        if (progress > overrunLimit) {
-            return emit(LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.UnmatchedProgress))
-        }
-
-        val clamped = progress.coerceIn(0.0, curve.totalDistanceMeters)
-        val referenceElapsed = curve.elapsedAtProgress(clamped)
+        val referenceProgress = curve.totalDistanceMeters * match.normalizedProgress
+        val referenceElapsed = curve.elapsedAtProgress(referenceProgress)
             ?: return emit(LiveDeltaSnapshot.Unavailable(DeltaUnavailableReason.InsufficientReference))
 
         return emit(
@@ -135,8 +114,8 @@ class LiveDeltaEngine(
                 deltaMillis = currentElapsed - referenceElapsed,
                 currentElapsedMillis = currentElapsed,
                 referenceElapsedMillis = referenceElapsed,
-                progressMeters = clamped,
-                normalizedProgress = clamped / curve.totalDistanceMeters,
+                progressMeters = match.directionProgressMeters,
+                normalizedProgress = match.normalizedProgress,
             ),
         )
     }
@@ -144,10 +123,5 @@ class LiveDeltaEngine(
     private fun emit(next: LiveDeltaSnapshot): LiveDeltaSnapshot {
         snapshot = next
         return next
-    }
-
-    companion object {
-        /** Default tolerance (25%) for current progress overshooting the reference. */
-        const val DEFAULT_MAX_PROGRESS_OVERRUN_FRACTION: Double = 0.25
     }
 }

@@ -132,6 +132,42 @@ sealed interface ProgressCurveResult {
     data class Failure(val reason: ProgressCurveFailure) : ProgressCurveResult
 }
 
+/** Confidence attached to a course-position match. */
+enum class CourseMatchConfidence {
+    Confident,
+}
+
+/** Typed reason a realtime sample could not be matched to the selected course. */
+enum class CourseUnmatchedReason {
+    NonFiniteInput,
+    PoorAccuracy,
+    OffCourse,
+    Ambiguous,
+    NonMonotonicTime,
+    ImplausibleJump,
+    IncompatibleCourse,
+    IncompatibleSource,
+}
+
+/**
+ * Direction-relative course position for one realtime GPS sample.
+ *
+ * Matcher failures are data, not exceptions: callers suppress only live delta
+ * and continue lap timing/raw capture unchanged.
+ */
+sealed interface CourseMatchResult {
+    data class Matched(
+        val directionProgressMeters: Double,
+        val normalizedProgress: Double,
+        val lateralDistanceMeters: Double,
+        val confidence: CourseMatchConfidence,
+    ) : CourseMatchResult
+
+    data class Unmatched(
+        val reason: CourseUnmatchedReason,
+    ) : CourseMatchResult
+}
+
 /** Why a live delta is suppressed and shown as `--` (D-11/D-17/D-18). */
 enum class DeltaUnavailableReason {
     /** No current lap is being timed yet. */
