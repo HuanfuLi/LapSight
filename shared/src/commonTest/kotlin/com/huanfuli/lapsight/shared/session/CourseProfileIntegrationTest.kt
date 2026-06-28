@@ -11,12 +11,15 @@ import com.huanfuli.lapsight.shared.session.SessionControllerTest.TestTrackFacto
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.CourseSetup
 import com.huanfuli.lapsight.shared.track.CreateProfileResult
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.Track
+import com.huanfuli.lapsight.shared.track.TrackProfile
 import com.huanfuli.lapsight.shared.track.TrackProfileController
 import com.huanfuli.lapsight.shared.track.TrackReferenceLine
+import com.huanfuli.lapsight.shared.track.TrackRevision
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -28,6 +31,83 @@ class CourseProfileIntegrationTest {
 
     private val store = InMemorySessionStore()
     private val app = AppMetadata(appVersion = "0.5.0", platform = "test")
+
+    @Test
+    fun startTimingLoadsV2ProfileWhenNoLegacyTrackExists() {
+        val base = TestTrackFactory.savedTrackWithStartFinish(LocationSource.Simulated)
+        val profile = TrackProfile(
+            profileId = "v2-only-profile",
+            name = "V2 Only Course",
+            createdAtEpochMillis = 1_700_000_000_000L,
+            source = SourceMetadata(
+                source = LocationSource.Simulated,
+                isSimulated = true,
+                label = "Demo",
+            ),
+            revisions = listOf(
+                TrackRevision(
+                    revisionId = "v2-only-profile:r1",
+                    ordinal = 1,
+                    createdAtEpochMillis = 1_700_000_000_000L,
+                    sourceMarkingSessionId = null,
+                    referenceLine = replayReferenceLine(),
+                    courseSetup = CourseSetup(startFinish = base.startFinish),
+                    geometryCompatibilityId = "v2-only-profile:g1",
+                ),
+            ),
+            preferredDirection = CourseDirection.Reverse,
+        )
+        store.saveProfile(profile, app)
+        store.setCurrentSelection(
+            CurrentTrackSelection(
+                profileId = profile.profileId,
+                direction = CourseDirection.Reverse,
+            ),
+        )
+
+        val controller = controller()
+        val result = controller.startTiming(profile.profileId)
+
+        assertIs<StartTimingResult.Started>(result)
+        val session = assertNotNull(controller.recorderForTest()).session
+        assertEquals(profile.profileId, session.trackId)
+        assertEquals(profile.name, session.trackName)
+        assertEquals(CourseDirection.Reverse, session.direction)
+        assertEquals("v2-only-profile:g1", session.courseCompatibilityKey.geometryCompatibilityId)
+    }
+
+    @Test
+    fun startTimingPrefersLatestV2ProfileOverStaleLegacyTrack() {
+        val legacy = TestTrackFactory.savedTrackWithStartFinish(LocationSource.Simulated)
+            .copy(id = "dual-format-track", name = "Legacy Name")
+        store.saveTrackBundle(legacy, TestTrackFactory.markingFor(legacy), app)
+        val profile = TrackProfile(
+            profileId = legacy.id,
+            name = "Revised Profile Name",
+            createdAtEpochMillis = legacy.createdAtEpochMillis,
+            source = legacy.source,
+            revisions = listOf(
+                TrackRevision(
+                    revisionId = "${legacy.id}:r2",
+                    ordinal = 2,
+                    createdAtEpochMillis = legacy.createdAtEpochMillis + 1,
+                    sourceMarkingSessionId = legacy.sourceMarkingSessionId,
+                    referenceLine = replayReferenceLine(),
+                    courseSetup = CourseSetup(startFinish = legacy.startFinish),
+                    geometryCompatibilityId = "${legacy.id}:g2",
+                ),
+            ),
+        )
+        store.saveProfile(profile, app)
+        store.setCurrentSelection(CurrentTrackSelection(profile.profileId, CourseDirection.Recorded))
+
+        val controller = controller()
+        assertIs<StartTimingResult.Started>(controller.startTiming(profile.profileId))
+
+        val session = assertNotNull(controller.recorderForTest()).session
+        assertEquals("Revised Profile Name", session.trackName)
+        assertEquals("${legacy.id}:g2", session.courseCompatibilityKey.geometryCompatibilityId)
+    }
 
     @Test
     fun selectionPreflightOverrideTimingSaveAndRelaunchStayOneVerticalFlow() {

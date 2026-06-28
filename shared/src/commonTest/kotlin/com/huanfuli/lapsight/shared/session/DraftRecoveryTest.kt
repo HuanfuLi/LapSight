@@ -63,6 +63,10 @@ class DraftRecoveryTest {
         val recorder = controllerA.recorderForTest()!!
         provider.start(); repeat(480) { provider.nextSample()?.let { recorder.onSample(it) } }
         controllerA.stop()
+        assertTrue(
+            recorder.checkpointCount < 100,
+            "checkpointing must be batched instead of rewriting the full draft for every sample",
+        )
 
         // App restart: a fresh controller loads the unfinished draft from storage.
         val controllerB = newController()
@@ -78,6 +82,13 @@ class DraftRecoveryTest {
         assertFalse(
             store.readIndex().rows.any { it.type == com.huanfuli.lapsight.shared.track.ReviewEntryType.TimingSession },
             "recovery must not auto-promote a draft into history",
+        )
+
+        controllerB.handleRecoveryAction(recovery, DraftRecoveryAction.Resume)
+        assertEquals(
+            0,
+            controllerB.recorderForTest()!!.checkpointCount,
+            "replaying persisted samples must not rewrite the draft once per historical sample",
         )
     }
 

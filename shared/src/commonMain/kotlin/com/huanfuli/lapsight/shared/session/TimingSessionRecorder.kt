@@ -131,6 +131,8 @@ class TimingSessionRecorder(
     private val sectorResults: MutableList<SectorResult> = mutableListOf()
     private var lastTimingState = engine.state
     private var totalDurationMillis: Long = 0L
+    var checkpointCount: Int = 0
+        private set
 
     private val courseMatcher = referenceLine?.let { line ->
         val path = when (val result = ClosedReferencePath.fromReferenceLine(line)) {
@@ -214,6 +216,7 @@ class TimingSessionRecorder(
         return TimingRunSnapshot(
             isActive = true,
             lapCount = timing.lapCount,
+            currentLapNumber = timing.currentLapNumber,
             currentLapMillis = timing.currentLapElapsedMillis,
             lastLapMillis = timing.lastLapMillis,
             bestLapMillis = timing.bestLapMillis,
@@ -221,10 +224,31 @@ class TimingSessionRecorder(
             checkpointedSampleCount = sampleCount,
             speedMetersPerSecond = latestSample?.speedMetersPerSecond,
             accuracyMeters = latestSample?.horizontalAccuracyMeters,
+            headingDegrees = latestSample?.headingDegrees,
+            altitudeMeters = latestSample?.altitudeMeters,
+            sampleRateHz = recentSampleRateHz(),
+            currentSectorNumber = timing.sectors
+                .indexOfFirst { it.status == com.huanfuli.lapsight.shared.lap.SectorStatus.Pending }
+                .takeIf { it >= 0 }
+                ?.plus(1),
+            sectorCount = timing.sectors.size,
+            latestSectorName = timing.latestSector?.let { event ->
+                timing.sectors.firstOrNull { it.sectorId == event.sectorId }?.sectorName
+                    ?: event.sectorId
+            },
+            latestSectorSplitMillis = timing.latestSector?.splitMillis,
             source = session.source,
             deltaDisplay = DeltaDisplayState.from(liveDelta),
             referenceLapMillis = activeReference?.durationMillis,
         )
+    }
+
+    private fun recentSampleRateHz(): Double? {
+        val recent = samples.takeLast(10)
+        if (recent.size < 2) return null
+        val durationMillis = recent.last().elapsedMillis - recent.first().elapsedMillis
+        if (durationMillis <= 0L) return null
+        return (recent.size - 1) * 1_000.0 / durationMillis
     }
 
     /**
@@ -232,6 +256,21 @@ class TimingSessionRecorder(
      * events into the draft checkpoint (D-13). Pure with respect to inputs.
      */
     fun onSample(sample: LocationSample) {
+        processSample(sample, allowCheckpoint = true)
+    }
+
+    /**
+     * Rebuild in-memory timing state from an already-persisted draft. Replaying
+     * must never rewrite the growing JSON payload once per historical sample.
+     */
+    fun restoreSamples(restoredSamples: List<LocationSample>) {
+        restoredSamples.forEach { processSample(it, allowCheckpoint = false) }
+    }
+
+    private fun processSample(
+        sample: LocationSample,
+        allowCheckpoint: Boolean,
+    ) {
         val state = engine.onSample(sample)
         samples.add(sample)
         lastTimingState = state
@@ -265,6 +304,7 @@ class TimingSessionRecorder(
             }
         }
         // Capture any newly emitted sector event.
+        val previousSectorEventCount = sectorEvents.size
         state.latestSector?.let { latest ->
             if (sectorEvents.none { it == latest }) {
                 sectorEvents.add(latest)
@@ -273,7 +313,8 @@ class TimingSessionRecorder(
         // Capture any newly closed complete-Sector intervals (D-06, D-11). The
         // engine appends to completedSectorResults as each interval closes, so we
         // mirror new entries without re-walking the whole list.
-        if (state.completedSectorResults.size > sectorResults.size) {
+        val previousSectorResultCount = sectorResults.size
+        if (state.completedSectorResults.size > previousSectorResultCount) {
             for (i in sectorResults.size until state.completedSectorResults.size) {
                 sectorResults.add(state.completedSectorResults[i])
             }
@@ -296,7 +337,20 @@ class TimingSessionRecorder(
             deltaEngine.update(sample)
         }
 
-        checkpoint()
+        val significantTimingEvent =
+            completedLaps.size > previousLapCount ||
+                sectorEvents.size > previousSectorEventCount ||
+                sectorResults.size > previousSectorResultCount
+        if (
+            allowCheckpoint &&
+            (
+                samples.size == 1 ||
+                    samples.size % CHECKPOINT_SAMPLE_INTERVAL == 0 ||
+                    significantTimingEvent
+                )
+        ) {
+            checkpoint()
+        }
     }
 
     /**
@@ -333,6 +387,12 @@ class TimingSessionRecorder(
             app = app,
             sectorResults = sectorResults.map { it.toDto() },
         )
+        checkpointCount++
         onCheckpoint()
+    }
+
+    private companion object {
+        /** At 10 Hz, bounds crash-loss exposure to roughly five seconds. */
+        const val CHECKPOINT_SAMPLE_INTERVAL = 50
     }
 }

@@ -67,24 +67,18 @@ class SessionController(
      */
     fun snapshot(): SessionControllerSnapshot {
         val rec = recorder ?: return SessionControllerSnapshot(null)
-        val payload = store.loadUnfinishedDraft() ?: return SessionControllerSnapshot(null)
-        val state = if (rec.session.id == payload.session.id) {
-            // If the recorder is still alive, the draft is active or stopped.
-            // We infer "stopped" only after [stop] has been called; the
-            // controller tracks that explicitly via the stopped flag.
+        val activeSession = rec.session
+        val state =
             if (stopped) TimingDraftState.StoppedPendingSave else TimingDraftState.ActiveDraft
-        } else {
-            TimingDraftState.ActiveDraft
-        }
         val draft = TimingDraftSnapshot(
             state = state,
-            sessionId = payload.session.id,
-            trackId = payload.session.trackId,
-            trackName = payload.session.trackName,
-            source = payload.session.source,
-            checkpointedSampleCount = payload.samples.size,
-            checkpointedLapCount = payload.laps.size,
-            checkpointedSectorEventCount = payload.sectorEvents.size,
+            sessionId = activeSession.id,
+            trackId = activeSession.trackId,
+            trackName = activeSession.trackName,
+            source = activeSession.source,
+            checkpointedSampleCount = rec.sampleCount,
+            checkpointedLapCount = rec.lapCount,
+            checkpointedSectorEventCount = rec.sectorEventCount,
         )
         return SessionControllerSnapshot(draft)
     }
@@ -302,7 +296,7 @@ class SessionController(
                     // state catches up to the persisted draft. Replaying through
                     // onSample also rebuilds the session-local active reference
                     // from the draft's completed laps (D-12 on resume).
-                    payload.samples.forEach { rec.onSample(it.toModel()) }
+                    rec.restoreSamples(payload.samples.map { it.toModel() })
                     this.recorder = rec
                     this.session = payload.session
                     this.stopped = false
@@ -357,6 +351,30 @@ class SessionController(
     fun recorderForTest(): TimingSessionRecorder? = recorder
 
     private fun loadTrackForTiming(trackId: String): Track? {
+        val profileResult = store.loadProfile(trackId)
+        val profile = (profileResult as? LoadResult.Loaded)?.value
+        val revision = profile?.latestRevision
+        if (profile != null && revision != null) {
+            return Track(
+                id = profile.profileId,
+                name = profile.name,
+                createdAtEpochMillis = profile.createdAtEpochMillis,
+                sourceMarkingSessionId = revision.sourceMarkingSessionId,
+                source = profile.source,
+                referenceLine = revision.referenceLine,
+                startFinish = revision.courseSetup.startFinish,
+                sectors = revision.courseSetup.boundaries.map {
+                    com.huanfuli.lapsight.shared.track.SectorLineDto(
+                        id = it.id,
+                        name = "Sector ${it.order}",
+                        order = it.order,
+                        pointA = it.pointA,
+                        pointB = it.pointB,
+                    )
+                }
+            )
+        }
+
         val result = store.loadTrack(trackId)
         return (result as? LoadResult.Loaded)?.value?.track
     }
