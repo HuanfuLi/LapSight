@@ -167,7 +167,7 @@ Plans:
 
 **Requirements:** New requirements to be defined after Milestone 1 validation.
 
-**Plans:** 9/14 plans executed
+**Plans:** 10/14 plans executed
 
 Plans:
 
@@ -206,7 +206,7 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8)*
 
-- [ ] 05-10-PLAN.md - Ghost compatibility key contract and key-gated selection
+- [x] 05-10-PLAN.md - Ghost compatibility key contract and key-gated selection
 
 **Wave 10** *(blocked on Wave 9)*
 
