@@ -401,13 +401,13 @@ Plans:
 
 **Requirements:** Validate the implemented PLAT, GPS, LAP, SESS, GHOST, SAFE, ARCH, and Phase 5 course-profile requirements. No new feature scope unless required to fix validation blockers.
 
-**Plans:** 8 plans
+**Plans:** 1/8 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 05.1-01-PLAN.md - Replay-from-export decoder + GPS degradation/perpendicular fixtures (test-infra foundation)
+- [x] 05.1-01-PLAN.md - Replay-from-export decoder + GPS degradation/perpendicular fixtures (test-infra foundation)
 - [ ] 05.1-03-PLAN.md - Aggregate Ready gate + raw-recording seam + source-provenance P1 fix
 
 **Wave 2** *(after Wave 1)*

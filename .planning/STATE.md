@@ -4,19 +4,19 @@ milestone: v1.0
 milestone_name: milestone
 status: in_progress
 stopped_at: Android Phone GPS provider wired behind shared LocationSampleProvider
-last_updated: "2026-06-29T00:31:36.957Z"
+last_updated: "2026-06-29T01:28:47.426Z"
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 37
-  completed_plans: 29
+  completed_plans: 30
   percent: 63
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5 execution and Android hardening UAT complete. Android Phone GPS is wired for pre-5.1 field prep. Phase 5.1 has not started.
+**Current Status:** Phase 5.1 execution started. Plan 05.1-01 complete (replay-from-export decoder + GPS degradation/perpendicular fixtures; host-test task confirmed). Wave 1 plan 05.1-03 still pending.
 
 ## Project Reference
 
@@ -128,6 +128,8 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Plan 05-13 preserves the exact compatibility key and keeps preflight outside `LapEngine` and matcher behavior.
 - Phase 5.1 remains a validation/hardening gate, not a new feature phase. Telemetry replay added in hardening is scoped to reviewing saved session data already captured by the phone app.
 - Real and simulated feeds must remain explicitly labeled and source-gated; simulated data must never silently stand in for a selected Phone GPS run.
+- Phase 5.1 host-test Gradle task is `:shared:testAndroidHostTest` (the AGP KMP `withHostTest` task), NOT `:shared:testDebugUnitTest` (does not exist). Warm runtime ~5-6s; 326 host tests pass (pure execution 0.570s). Confirmed in plan 05.1-01.
+- SessionReplayDecoder treats malformed/truncated bytes and degenerate (zero-length) start/finish as typed data (Corrupt/NoCourse), never a thrown exception — the export→replay determinism link for D-25/D-28.
 
 ## Performance Metrics
 
@@ -135,13 +137,14 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 |------------|----------|-------|-------|
 | 05-12 | 20min | 2 | 10 |
 | Phase 05 P13 | 13min | 2 tasks | 7 files |
+| 05.1-01 | 35min | 2 tasks | 4 files |
 
 ## Session Continuity
 
-**Last session:** 2026-06-28T17:43:29.104Z
+**Last session:** 2026-06-29T01:28:47.413Z
 **Stopped At:** Android Phone GPS provider wired behind shared LocationSampleProvider
 **Resume File:** None
 
 ---
 
-*Last updated: 2026-06-28 after Android Phone GPS provider wiring*
+*Last updated: 2026-06-29 after Phase 5.1 plan 01 (replay decoder + GPS fixtures) execution*

@@ -18,7 +18,7 @@
 - [ ] **GPS-01**: User can grant location permission and see current GPS fix status.
 - [ ] **GPS-02**: User can see live speed, location accuracy, and update rate during a session.
 - [ ] **GPS-03**: App records timestamped GPS samples with latitude, longitude, accuracy, speed, heading/course when available, and altitude when available.
-- [ ] **GPS-04**: App marks samples with quality metadata so noisy data can be filtered or diagnosed.
+- [x] **GPS-04**: App marks samples with quality metadata so noisy data can be filtered or diagnosed.
 - [x] **GPS-05**: User can replay a recorded GPS session through the lap engine for debugging.
 
 ### Lap Engine
@@ -103,7 +103,7 @@
 | GPS-01 | Phase 1 | Pending |
 | GPS-02 | Phase 1 | Pending |
 | GPS-03 | Phase 1 | Pending |
-| GPS-04 | Phase 1 | Pending |
+| GPS-04 | Phase 1 | Complete |
 | GPS-05 | Phase 2 | Complete |
 | LAP-01 | Phase 2 | Complete |
 | LAP-02 | Phase 2 | Complete |
