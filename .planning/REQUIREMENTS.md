@@ -9,9 +9,9 @@
 
 - [ ] **PLAT-01**: User can install and launch a native mobile app on Android.
 - [ ] **PLAT-02**: User can install and launch a native mobile app on iOS.
-- [ ] **PLAT-03**: User can use the live dash in portrait orientation.
-- [ ] **PLAT-04**: User can use the live dash in landscape orientation.
-- [ ] **PLAT-05**: User can keep the live dash visible during an active timing session.
+- [x] **PLAT-03**: User can use the live dash in portrait orientation.
+- [x] **PLAT-04**: User can use the live dash in landscape orientation.
+- [x] **PLAT-05**: User can keep the live dash visible during an active timing session.
 
 ### GPS Acquisition
 
@@ -48,8 +48,8 @@
 
 ### Safety and UX
 
-- [ ] **SAFE-01**: Live dash uses large typography and high contrast suitable for quick glances.
-- [ ] **SAFE-02**: Live dash avoids small controls and complex navigation during movement.
+- [x] **SAFE-01**: Live dash uses large typography and high contrast suitable for quick glances.
+- [x] **SAFE-02**: Live dash avoids small controls and complex navigation during movement.
 - [ ] **SAFE-03**: App displays a closed-course/private-track safety note during onboarding or first session setup.
 - [x] **SAFE-04**: App exposes GPS accuracy limitations clearly instead of implying pro-grade timing precision.
 
@@ -97,9 +97,9 @@
 |-------------|-------|--------|
 | PLAT-01 | Phase 1 | Pending |
 | PLAT-02 | Phase 1 | Pending |
-| PLAT-03 | Phase 1 | Pending |
-| PLAT-04 | Phase 1 | Pending |
-| PLAT-05 | Phase 1 | Pending |
+| PLAT-03 | Phase 1 | Complete |
+| PLAT-04 | Phase 1 | Complete |
+| PLAT-05 | Phase 1 | Complete |
 | GPS-01 | Phase 1 | Complete |
 | GPS-02 | Phase 1 | Complete |
 | GPS-03 | Phase 1 | Complete |
@@ -121,8 +121,8 @@
 | GHOST-02 | Phase 4 | Complete |
 | GHOST-03 | Phase 4 | Complete |
 | GHOST-04 | Phase 4 | Complete |
-| SAFE-01 | Phase 1 | Pending |
-| SAFE-02 | Phase 1 | Pending |
+| SAFE-01 | Phase 1 | Complete |
+| SAFE-02 | Phase 1 | Complete |
 | SAFE-03 | Phase 1 | Pending |
 | SAFE-04 | Phase 2 | Complete |
 | ARCH-01 | Phase 1 | Pending |
