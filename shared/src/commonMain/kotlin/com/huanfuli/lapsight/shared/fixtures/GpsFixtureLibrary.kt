@@ -3,6 +3,7 @@ package com.huanfuli.lapsight.shared.fixtures
 import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.session.GeoPointDto
+import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.TrackReferenceLine
 import kotlin.math.PI
 import kotlin.math.atan2
@@ -59,6 +60,8 @@ object GpsFixtureLibrary {
     const val COURSE_MATCH_AMBIGUITY = "course-match-ambiguity"
     const val COURSE_MATCH_RECOVERY = "course-match-recovery"
     const val COURSE_MATCH_BACKWARD = "course-match-backward"
+    const val DEGRADATION_DURING_TIMING = "degradation-during-timing"
+    const val CLOSED_COURSE_PERPENDICULAR = "closed-course-perpendicular"
 
     /** The six required scenario ids from D-04, in canonical order. */
     val requiredScenarioIds: List<String> = listOf(
@@ -224,6 +227,76 @@ object GpsFixtureLibrary {
         seed = 505L,
         keepEveryFraction = 0.65,
     )
+
+    /** Accuracy past which a fix is treated as degraded (engine default, D-14/D-24). */
+    private const val DEGRADED_ACCURACY_M = 48.0
+
+    /**
+     * Degrade the horizontal accuracy of a single contiguous mid-lap span so the
+     * trace stays ON the course (timing keeps running) but the middle of a lap
+     * crosses the degraded-accuracy line (D-24). Mirrors [withOutlierLoop]'s
+     * span-mutation idiom, but only the accuracy is mutated — position is left on
+     * track so this models honest mid-lap signal degradation, not an off-track
+     * outlier jump.
+     */
+    private fun withMidLapAccuracyDegradation(
+        samples: List<LocationSample>,
+        pointsPerLoop: Int = POINTS_PER_LOOP,
+    ): List<LocationSample> {
+        if (samples.isEmpty()) return samples
+        // Roughly the second half of one mid-trace loop.
+        val start = (samples.size / 2) + (pointsPerLoop / 2)
+        val end = minOf(samples.size, start + pointsPerLoop / 2)
+        return samples.mapIndexed { index, sample ->
+            if (index in start until end) {
+                sample.copy(horizontalAccuracyMeters = DEGRADED_ACCURACY_M)
+            } else {
+                sample
+            }
+        }
+    }
+
+    /**
+     * Good-to-poor GPS degradation that strikes mid-lap (D-24). A clean multi-loop
+     * oval whose accuracy collapses past the 25 m degraded line across a contiguous
+     * span in the middle of the trace, so the Ready/suppression path must degrade
+     * mid-lap deterministically. Position stays on track so the loop still closes.
+     */
+    fun degradationDuringTiming(): List<LocationSample> =
+        withMidLapAccuracyDegradation(ovalSession(loops = 6, seed = 611L))
+
+    /**
+     * Closed-course low-frequency lap whose start/finish is crossed roughly
+     * perpendicularly, the most likely real-world lap-count failure regime
+     * (D-19/D-24). Five oval loops at ~12 samples/loop (mirroring
+     * [droppedLowFrequency]'s cadence) so consecutive samples straddle the line
+     * and the crossing time must be reconstructed by interpolation. Pair with
+     * [closedCoursePerpendicularStartFinish] when replaying.
+     */
+    fun closedCoursePerpendicular(): List<LocationSample> = ovalSession(
+        loops = 5,
+        pointsPerLoop = 12,
+        accuracyBase = 6.0,
+        accuracyJitter = 1.0,
+        seed = 711L,
+    )
+
+    /**
+     * The perpendicular start/finish line for [closedCoursePerpendicular].
+     *
+     * A north-south segment (constant longitude at east = 50 m) sitting across the
+     * bottom of the oval where the car travels due west, so each loop crosses it
+     * once, perpendicularly, BETWEEN samples (forcing interpolation). The bottom
+     * pass is the only place the trace reaches east = 50 m within this north band,
+     * so exactly one crossing per loop is produced.
+     */
+    fun closedCoursePerpendicularStartFinish(): StartFinishLineDto = StartFinishLineDto(
+        pointA = geoPointDto(eastMeters = 50.0, northMeters = -150.0),
+        pointB = geoPointDto(eastMeters = 50.0, northMeters = -90.0),
+    )
+
+    private fun geoPointDto(eastMeters: Double, northMeters: Double): GeoPointDto =
+        GeoPointDto(latitude = lat(northMeters), longitude = lon(eastMeters))
 
     /**
      * Multiple sessions under one track for fastest-lap selection (D-04). The
@@ -512,6 +585,18 @@ object GpsFixtureLibrary {
             name = "Course-match backward movement",
             description = "Forward then backward movement on the same course segment without pausing timing.",
             sessions = listOf(courseMatchBackward()),
+        )
+        DEGRADATION_DURING_TIMING -> GpsFixtureScenario(
+            id = id,
+            name = "Degradation during timing",
+            description = "Clean oval whose GPS accuracy collapses past 25 m across a contiguous mid-lap span (D-24).",
+            sessions = listOf(degradationDuringTiming()),
+        )
+        CLOSED_COURSE_PERPENDICULAR -> GpsFixtureScenario(
+            id = id,
+            name = "Closed-course perpendicular start/finish",
+            description = "Low-frequency closed-loop oval crossing a perpendicular start/finish between samples (D-19/D-24).",
+            sessions = listOf(closedCoursePerpendicular()),
         )
         else -> throw IllegalArgumentException("Unknown GPS fixture scenario id: $id")
     }

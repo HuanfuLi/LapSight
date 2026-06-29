@@ -2,10 +2,13 @@ package com.huanfuli.lapsight.shared.fixtures
 
 import com.huanfuli.lapsight.shared.GpsQualitySummary
 import com.huanfuli.lapsight.shared.LocationSource
+import com.huanfuli.lapsight.shared.lap.ReplayRunner
+import com.huanfuli.lapsight.shared.session.courseFromTrack
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 /**
  * Wave 0 (RED) coverage for the deterministic GPS fixture library.
@@ -107,6 +110,53 @@ class GpsFixtureLibraryTest {
         assertTrue(
             summary.degradedSampleCount > 0,
             "the outlier scenario must surface degraded samples for review/export",
+        )
+    }
+
+    @Test
+    fun degradationDuringTimingIsDeterministicAndDegradesMidLap() {
+        val a = GpsFixtureLibrary.scenario(GpsFixtureLibrary.DEGRADATION_DURING_TIMING).samples
+        val b = GpsFixtureLibrary.scenario(GpsFixtureLibrary.DEGRADATION_DURING_TIMING).samples
+        assertEquals(a, b, "same id must produce identical samples across calls (D-01)")
+        assertTrue(a.isNotEmpty(), "degradation scenario must have samples")
+        assertTrue(
+            a.all { it.source == LocationSource.Simulated },
+            "every sample must be simulated (D-42)",
+        )
+
+        // A contiguous span past the 25 m degraded line exists mid-trace (D-24).
+        val degradedIndices = a.indices.filter { (a[it].horizontalAccuracyMeters ?: 0.0) > 25.0 }
+        assertTrue(degradedIndices.isNotEmpty(), "must contain a degraded (>25 m) span")
+        val first = degradedIndices.first()
+        val last = degradedIndices.last()
+        assertEquals(
+            (first..last).toList(),
+            degradedIndices,
+            "the degraded samples must form one contiguous mid-lap span",
+        )
+        assertTrue(first > 0 && last < a.lastIndex, "degradation must strike mid-trace, not at the edges")
+    }
+
+    @Test
+    fun closedCoursePerpendicularIsDeterministicAndCountsLaps() {
+        val a = GpsFixtureLibrary.scenario(GpsFixtureLibrary.CLOSED_COURSE_PERPENDICULAR).samples
+        val b = GpsFixtureLibrary.scenario(GpsFixtureLibrary.CLOSED_COURSE_PERPENDICULAR).samples
+        assertEquals(a, b, "same id must produce identical samples across calls (D-01)")
+        assertTrue(a.all { it.source == LocationSource.Simulated }, "every sample must be simulated (D-42)")
+
+        // Five loops crossing a perpendicular start/finish once per loop: the first
+        // crossing opens timing, the remaining four close laps (D-19). A learned-
+        // direction course (2-arg courseFromTrack) is used so the regime under test
+        // is the low-frequency interpolated crossing, not direction enforcement.
+        val course = courseFromTrack(
+            GpsFixtureLibrary.closedCoursePerpendicularStartFinish(),
+            emptyList(),
+        ) ?: fail("expected a course from the perpendicular start/finish")
+        val result = ReplayRunner(course).run(a)
+        assertEquals(
+            4,
+            result.finalState.lapCount,
+            "five low-frequency loops over a perpendicular line must reconstruct 4 laps",
         )
     }
 
