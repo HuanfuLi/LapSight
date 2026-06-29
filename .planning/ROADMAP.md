@@ -401,6 +401,33 @@ Plans:
 
 **Requirements:** Validate the implemented PLAT, GPS, LAP, SESS, GHOST, SAFE, ARCH, and Phase 5 course-profile requirements. No new feature scope unless required to fix validation blockers.
 
+**Plans:** 8 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 05.1-01-PLAN.md - Replay-from-export decoder + GPS degradation/perpendicular fixtures (test-infra foundation)
+- [ ] 05.1-03-PLAN.md - Aggregate Ready gate + raw-recording seam + source-provenance P1 fix
+
+**Wave 2** *(after Wave 1)*
+
+- [ ] 05.1-02-PLAN.md - Full-pipeline N-run determinism suite + widen existing replay tests
+- [ ] 05.1-05-PLAN.md - UI tokenization + glance hardening + six-pillar D-36 re-audit (5.1-UI-REVIEW.md)
+- [ ] 05.1-06-PLAN.md - Author 5.1-UAT.md protocol + 5.1-FIELD-TEST-LOG.md skeleton
+
+**Wave 3** *(after Wave 2)*
+
+- [ ] 05.1-04-PLAN.md - Deep core-path code audit + ARCH-03/04 license/privacy docs (5.1-CODE-REVIEW.md)
+
+**Wave 4** *(after Wave 3; manual evidence, gated per D-54)*
+
+- [ ] 05.1-07-PLAN.md - On-device + mounted-display UAT + five closed-course sessions + replay verification
+
+**Wave 5** *(after Wave 4)*
+
+- [ ] 05.1-08-PLAN.md - Go / Hardening Required / No-Go decision (5.1-GO-NOGO.md)
+
 **Success Criteria:**
 
 1. Code audit of Phase 1-5 core paths has no unresolved P0/P1 findings across architecture boundaries, lap engine logic, location ingestion, storage, session recovery, licensing, privacy, and safety positioning.

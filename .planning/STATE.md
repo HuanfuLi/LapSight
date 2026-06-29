@@ -4,11 +4,11 @@ milestone: v1.0
 milestone_name: milestone
 status: in_progress
 stopped_at: Android Phone GPS provider wired behind shared LocationSampleProvider
-last_updated: "2026-06-28T17:43:29.104Z"
+last_updated: "2026-06-29T00:31:36.957Z"
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 29
+  total_plans: 37
   completed_plans: 29
   percent: 63
 ---
