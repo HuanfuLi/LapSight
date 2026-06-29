@@ -401,7 +401,7 @@ Plans:
 
 **Requirements:** Validate the implemented PLAT, GPS, LAP, SESS, GHOST, SAFE, ARCH, and Phase 5 course-profile requirements. No new feature scope unless required to fix validation blockers.
 
-**Plans:** 5/8 plans executed
+**Plans:** 6/8 plans executed
 
 Plans:
 
@@ -418,7 +418,7 @@ Plans:
 
 **Wave 3** *(after Wave 2)*
 
-- [ ] 05.1-04-PLAN.md - Deep core-path code audit + ARCH-03/04 license/privacy docs (5.1-CODE-REVIEW.md)
+- [x] 05.1-04-PLAN.md - Deep core-path code audit + ARCH-03/04 license/privacy docs (5.1-CODE-REVIEW.md)
 
 **Wave 4** *(after Wave 3; manual evidence, gated per D-54)*
 
