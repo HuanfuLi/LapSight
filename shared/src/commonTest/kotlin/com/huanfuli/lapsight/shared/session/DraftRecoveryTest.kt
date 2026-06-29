@@ -4,6 +4,7 @@ import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.SimulatedGpsProvider
 import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
 import com.huanfuli.lapsight.shared.lap.LapEngineConfig
+import com.huanfuli.lapsight.shared.lap.ReplayFixtures
 import com.huanfuli.lapsight.shared.session.SessionControllerTest.TestTrackFactory.savedTrackWithStartFinish
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.track.Track
@@ -134,6 +135,44 @@ class DraftRecoveryTest {
             "Discarded recovery draft must not enter history (D-16)",
         )
         assertNull(controllerB.loadUnfinishedDraft(), "no lingering draft after discard")
+    }
+
+    @Test
+    fun resumedDraftReachesSameEngineStateAsFreshReplayOfSameSamples() {
+        val track = saveRealTrack()
+
+        // Session A: time a run and stop WITHOUT saving. The canonical multi-lap loop
+        // matches the saved Track's (DEMO) start/finish so real laps + sectors are
+        // produced; the exact samples are reused for the fresh-replay comparison.
+        val fed = ReplayFixtures.multiLapLoop(listOf(40_000L, 32_000L, 36_000L))
+        val controllerA = newController()
+        controllerA.startTiming(track.id)
+        val recorderA = controllerA.recorderForTest()!!
+        fed.forEach { recorderA.onSample(it) }
+        controllerA.stop()
+
+        // App restart: resume the unfinished draft (replays the persisted samples).
+        val controllerB = newController()
+        val recovery = controllerB.loadUnfinishedDraft()
+        assertNotNull(recovery)
+        controllerB.handleRecoveryAction(recovery, DraftRecoveryAction.Resume)
+        val resumedState = controllerB.recorderForTest()!!.timingState
+
+        // A fresh, independent replay of the SAME samples through a brand-new pipeline.
+        val controllerC = newController()
+        controllerC.startTiming(track.id)
+        val recorderC = controllerC.recorderForTest()!!
+        fed.forEach { recorderC.onSample(it) }
+        val freshState = recorderC.timingState
+
+        // D-25/D-28: a resumed mid-draft session must yield the SAME engine state as a
+        // fresh replay of the same samples — recovery introduces no algorithmic drift.
+        assertEquals(
+            freshState,
+            resumedState,
+            "a resumed draft must reach the identical engine state as a fresh replay (D-25/D-28)",
+        )
+        assertTrue(freshState.lapCount >= 1, "the partial run must complete laps so the check is meaningful")
     }
 
     @Test

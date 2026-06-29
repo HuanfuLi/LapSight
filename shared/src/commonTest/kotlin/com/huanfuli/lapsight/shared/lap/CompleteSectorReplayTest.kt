@@ -215,6 +215,31 @@ class CompleteSectorReplayTest {
         )
     }
 
+    // --- D-25/D-26/D-27: completedSectorResults are deterministic across N runs --
+
+    @Test
+    fun completedSectorResultsAreIdenticalAcrossNRuns() {
+        // Replay determinism is a hard gate (D-25): the same samples must yield the
+        // SAME complete sector intervals every run. A finalState-only check would
+        // miss adjacent-duration / cumulative-split / ordering drift, so assert the
+        // whole completedSectorResults list (exact Long-millis) is identical across
+        // N>=3 independent runs of a fresh engine over the same fixture (D-26/D-27).
+        val n = 4
+        val course = courseForSectors(n)
+        val samples = cleanLapSamples(n)
+
+        val runs = (1..3).map { runLap(course, samples).completedSectorResults }
+        val baseline = runs.first()
+        assertEquals(n, baseline.filter { it.lapNumber == 1 }.size, "the fixture must produce N sectors")
+        runs.drop(1).forEachIndexed { index, results ->
+            assertEquals(
+                baseline,
+                results,
+                "run ${index + 2} produced different completedSectorResults than run 1 (determinism drift)",
+            )
+        }
+    }
+
     // --- D-06/D-11: many crossings in one low-frequency segment stay ordered ----
 
     @Test

@@ -204,6 +204,54 @@ class CourseDirectionReplayTest {
         assertEquals(1, completed.lapCount, "a real recorded-direction crossing still completes the lap")
     }
 
+    // --- D-25/D-26: direction + turnaround replays are deterministic across runs ----
+
+    @Test
+    fun reverseLapReplaysDeterministicallyAcrossRuns() {
+        val reverse = CourseGeometryBuilder.directionalCourse(baseCourse(3), CourseDirection.Reverse)
+        val samples = reverseCleanLap()
+
+        val a = runLap(reverse, samples)
+        val b = runLap(reverse, samples)
+        // Reverse-direction lap completion is a hard-gate algorithmic output (D-26):
+        // the SAME physical replay must yield identical lap count, completedSector
+        // Results (reversed order, exact millis), and final timing state every run.
+        assertEquals(a.lapCount, b.lapCount, "reverse lap count must be deterministic")
+        assertEquals(
+            a.completedSectorResults,
+            b.completedSectorResults,
+            "reverse completedSectorResults must be byte-identical across runs (D-26/D-27)",
+        )
+        assertEquals(a, b, "the full reverse-direction timing state must be deterministic")
+        assertTrue(a.lapCount >= 1, "the reverse replay must actually complete a lap to be meaningful")
+    }
+
+    @Test
+    fun turnaroundReplayIsDeterministicAcrossRuns() {
+        val recorded = CourseGeometryBuilder.directionalCourse(baseCourse(2), CourseDirection.Recorded)
+        // A full open -> boundary -> wrong-way turnaround -> recovered-completion replay.
+        val samples = listOf(
+            sample(0, eastMeters = -10.0),
+            sample(1_000, eastMeters = 10.0),   // open lap 1 eastbound
+            sample(2_000, eastMeters = 60.0),   // close recorded Sector 1
+            sample(3_000, eastMeters = 40.0),   // westbound boundary re-cross (ignored)
+            sample(4_000, eastMeters = -10.0),  // westbound start/finish (rejected, no false lap)
+            sample(5_000, eastMeters = 10.0),   // recorded-direction crossing completes the lap
+        )
+
+        val a = runLap(recorded, samples)
+        val b = runLap(recorded, samples)
+        // The turnaround's reject/no-false-lap/resume decisions (D-17/D-20/D-21) must
+        // be identical across runs — not just the final lap count.
+        assertEquals(a, b, "turnaround timing state must be deterministic across runs (D-26)")
+        assertEquals(
+            a.completedSectorResults,
+            b.completedSectorResults,
+            "turnaround completedSectorResults must be byte-identical across runs",
+        )
+        assertEquals(1, a.lapCount, "the turnaround replay completes exactly one real lap")
+    }
+
     // --- Direction-relative progress transform (D-11/D-18) -------------------------
 
     @Test

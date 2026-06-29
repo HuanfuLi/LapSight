@@ -189,6 +189,55 @@ class LiveDeltaEngineTest {
         assertEquals(DeltaUnavailableReason.PoorGpsQuality, unavailable(engine.snapshot).reason)
     }
 
+    // --- D-26/D-27: the ordered availability/state-transition sequence is deterministic
+
+    /**
+     * Drive one fresh engine through a scripted lap that passes through several
+     * distinct snapshot states — insufficient-samples, Available, poor-GPS
+     * suppression, recovered Available — and capture the ORDERED sequence of state
+     * transitions using the change-detection idiom (record a snapshot whenever it
+     * differs from the previous one; never de-dup a sticky field, WR-05).
+     */
+    private fun transitionSequence(): List<LiveDeltaSnapshot> {
+        val engine = engine()
+        engine.setReference(referenceLap())
+        engine.startLap()
+        val script = listOf(
+            sample(0, eastMeters = 0.0),
+            sample(1_000, eastMeters = 10.0),
+            sample(2_000, eastMeters = 20.0, accuracy = 250.0), // poor GPS -> suppress
+            sample(3_000, eastMeters = 30.0),                   // recover -> Available
+        )
+        val sequence = mutableListOf<LiveDeltaSnapshot>()
+        var previous: LiveDeltaSnapshot? = null
+        sequence += engine.snapshot // initial state after startLap
+        previous = engine.snapshot
+        for (s in script) {
+            val snap = engine.update(s)
+            if (snap != previous) sequence += snap
+            previous = snap
+        }
+        return sequence
+    }
+
+    @Test
+    fun availabilityStateTransitionSequenceIsDeterministicAcrossRuns() {
+        val a = transitionSequence()
+        val b = transitionSequence()
+        // The ordered ghost-delta availability/state transitions (matched, suppressed
+        // to unavailable, recovered) must be byte-identical across two runs of the
+        // same input — the D-26 ghost-delta state-transition determinism gate.
+        assertEquals(a, b, "ghost-delta state-transition sequence must be deterministic (D-26)")
+        // The script is meaningful: it must actually traverse multiple distinct states,
+        // including at least one Available and one suppressed Unavailable.
+        assertTrue(a.size >= 3, "the scripted sequence must exhibit multiple distinct transitions")
+        assertTrue(a.any { it is LiveDeltaSnapshot.Available }, "sequence must reach Available")
+        assertTrue(
+            a.any { it is LiveDeltaSnapshot.Unavailable && it.reason == DeltaUnavailableReason.PoorGpsQuality },
+            "sequence must include a poor-GPS suppression transition",
+        )
+    }
+
     @Test
     fun startingNewLapResetsProgressAndDelta() {
         val engine = engine()

@@ -17,6 +17,25 @@ class ReplayTest {
     fun replayIsDeterministic() {
         val a = runner().run(ReplayFixtures.multiLapLoop())
         val b = runner().run(ReplayFixtures.multiLapLoop())
+        // D-26/D-27: determinism covers the FULL algorithmic output, not just
+        // finalState. The legacy assertion missed completed-lap and sector-result
+        // drift entirely; assert the whole ordered state sequence, the completed
+        // laps, and the ordered sector-event sequence are byte-identical.
+        assertEquals(
+            a.steps.map { it.state },
+            b.steps.map { it.state },
+            "the full ordered per-sample timing-state sequence must be identical (D-26)",
+        )
+        assertEquals(
+            a.finalState.completedLaps,
+            b.finalState.completedLaps,
+            "the completed-lap list (numbers + exact start/end millis) must be identical",
+        )
+        assertEquals(
+            a.sectorEvents,
+            b.sectorEvents,
+            "the ordered sector-event sequence must be identical (closes the finalState-only gap)",
+        )
         assertEquals(a.finalState, b.finalState)
     }
 
