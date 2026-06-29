@@ -401,7 +401,7 @@ Plans:
 
 **Requirements:** Validate the implemented PLAT, GPS, LAP, SESS, GHOST, SAFE, ARCH, and Phase 5 course-profile requirements. No new feature scope unless required to fix validation blockers.
 
-**Plans:** 2/8 plans executed
+**Plans:** 3/8 plans executed
 
 Plans:
 
@@ -412,7 +412,7 @@ Plans:
 
 **Wave 2** *(after Wave 1)*
 
-- [ ] 05.1-02-PLAN.md - Full-pipeline N-run determinism suite + widen existing replay tests
+- [x] 05.1-02-PLAN.md - Full-pipeline N-run determinism suite + widen existing replay tests
 - [ ] 05.1-05-PLAN.md - UI tokenization + glance hardening + six-pillar D-36 re-audit (5.1-UI-REVIEW.md)
 - [ ] 05.1-06-PLAN.md - Author 5.1-UAT.md protocol + 5.1-FIELD-TEST-LOG.md skeleton
 
