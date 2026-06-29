@@ -34,11 +34,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DriveDisplayController
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
@@ -173,7 +170,7 @@ fun AppShell(
                             sessionController.handleRecoveryAction(prompt, DraftRecoveryAction.Discard)
                             recoveryPrompt = null
                         },
-                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF6B6B)),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) { Text("Discard") }
                 },
                 dismissButton = {
@@ -230,7 +227,7 @@ fun AppShell(
                         TextButton(
                             onClick = { confirmDiscardDraft = true },
                             enabled = !recoveryBusy,
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF6B6B)),
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                         ) { Text("Discard") }
                     }
                 },
@@ -341,30 +338,30 @@ private fun SettingsScreen(
 ) {
     val effectiveLocationFeedMode =
         if (phoneGpsAvailable) settings.locationFeedMode else LocationFeedMode.Simulated
+    val spacing = LocalSpacing.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(spacing.md),
+        verticalArrangement = Arrangement.spacedBy(spacing.xs),
     ) {
         Text(
             text = "Settings",
             color = MaterialTheme.colorScheme.primary,
-            fontSize = 28.sp,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Black,
         )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(spacing.md))
         Text(
             text = "SPEED UNIT",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelMedium,
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             UnitButton(
                 label = "km/h",
@@ -387,12 +384,11 @@ private fun SettingsScreen(
         Text(
             text = "LOCATION SOURCE",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelMedium,
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             SourceButton(
                 label = "Phone GPS",
@@ -427,21 +423,19 @@ private fun SettingsScreen(
         sourceNote?.let {
             Text(
                 text = it,
-                color = Color(0xFFFFD166),
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
+                color = MaterialTheme.colorScheme.secondary,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Text(
             text = "THEME",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelMedium,
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             ThemeButton(
                 label = "System",
@@ -492,12 +486,11 @@ private fun SettingsScreen(
                 onSettingsChanged(settings.copy(showGpsDiagnostics = it))
             },
         )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(spacing.md))
         Text(
             text = "Closed-course/private-track use only. Configure the display while stationary.",
-            color = Color(0xFFFFD166),
-            fontSize = 13.sp,
-            lineHeight = 18.sp,
+            color = MaterialTheme.colorScheme.secondary,
+            style = MaterialTheme.typography.bodySmall,
         )
     }
 }
@@ -563,14 +556,15 @@ private fun SettingToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    val spacing = LocalSpacing.current
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = spacing.sm),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
         Text(
             text = label,
             color = MaterialTheme.colorScheme.onBackground,
-            fontSize = 16.sp,
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f),
         )
         Switch(checked = checked, onCheckedChange = onCheckedChange)

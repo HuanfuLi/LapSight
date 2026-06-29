@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -274,7 +275,7 @@ fun DriveScreen(
                             timingSnapshot = null
                             timingRun = TimingRunSnapshot.inactive()
                         },
-                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF6B6B)),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) { Text("Discard") }
                 },
                 dismissButton = {
@@ -316,7 +317,7 @@ fun DriveScreen(
                 dismissButton = {
                     TextButton(
                         onClick = { confirmDiscardSession = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF6B6B)),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) { Text("Discard") }
                 },
             )
@@ -325,24 +326,24 @@ fun DriveScreen(
 
     // Transient save success toast (D-32).
     saveToast?.let { toast ->
+        val spacing = LocalSpacing.current
         LaunchedEffect(toast) {
             delay(2000)
             saveToast = null
         }
         Box(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(spacing.md),
             contentAlignment = Alignment.BottomCenter,
         ) {
             Text(
                 text = toast,
-                color = Color(0xFF8CFF9B),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.tertiary,
+                style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF101722))
-                    .border(1.dp, Color(0xFF8CFF9B), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.tertiary, RoundedCornerShape(8.dp))
+                    .padding(horizontal = spacing.md, vertical = spacing.sm),
             )
         }
     }
@@ -517,7 +518,8 @@ private fun DriveSurface(
         // Layout follows the deliberately locked window, not device tilt.
         val isLandscape = maxWidth > maxHeight
         val isCompactLandscape = isLandscape && maxHeight < 520.dp
-        val padding = if (isCompactLandscape) 12.dp else 16.dp
+        val spacing = LocalSpacing.current
+        val padding = if (isCompactLandscape) spacing.sm else spacing.md
 
         if (snapshot.phase == DriveMarkingPhase.Review) {
             // Track Review replaces the dash controls (D-31).
@@ -526,7 +528,7 @@ private fun DriveSurface(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(padding),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(spacing.md),
             ) {
                 reviewContent()
             }
@@ -553,7 +555,7 @@ private fun DriveSurface(
         if (isLandscape) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                verticalArrangement = Arrangement.spacedBy(if (isCompactLandscape) 8.dp else 10.dp),
+                verticalArrangement = Arrangement.spacedBy(spacing.sm),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 DriveStatusBar(
@@ -591,7 +593,7 @@ private fun DriveSurface(
                     .fillMaxSize()
                     .padding(padding)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(spacing.sm),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 DriveStatusBar(
@@ -746,14 +748,15 @@ private fun TimingRunSurface(
         }
     }
 
+    val spacing = LocalSpacing.current
     if (orientation == DashOrientation.Landscape) {
         Row(
             modifier = Modifier.fillMaxSize().padding(padding),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             Column(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(spacing.sm),
             ) {
                 PrimaryTimingReadouts(
                     displayMillis = displayMillis,
@@ -786,7 +789,7 @@ private fun TimingRunSurface(
     } else {
         Column(
             modifier = Modifier.fillMaxSize().padding(padding),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             PrimaryTimingReadouts(
                 displayMillis = displayMillis,
@@ -831,20 +834,28 @@ private fun PrimaryTimingReadouts(
     compact: Boolean,
     tnum: androidx.compose.ui.text.TextStyle,
 ) {
+    val spacing = LocalSpacing.current
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = "CURRENT LAP",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelSmall,
         )
+        // Glance-safe hero readout (D-31): the display role anchors the type and
+        // autoSize shrinks to fit the viewport so long lap times never clip,
+        // replacing the brittle fixed `if (compact) 42.sp else 54.sp` pair.
         Text(
             text = displayMillis.formatLapTime(),
             color = MaterialTheme.colorScheme.primary,
-            fontSize = if (compact) 42.sp else 54.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1,
-            style = tnum,
+            softWrap = false,
+            autoSize = TextAutoSize.StepBased(
+                minFontSize = 24.sp,
+                maxFontSize = if (compact) 44.sp else 56.sp,
+                stepSize = 2.sp,
+            ),
+            style = MaterialTheme.typography.displayLarge.copy(fontFeatureSettings = "tnum"),
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -861,24 +872,28 @@ private fun PrimaryTimingReadouts(
                 Text(
                     text = "SPEED",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmall,
                 )
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = speedLabel,
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = if (compact) 34.sp else 40.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1,
-                        style = tnum,
+                        softWrap = false,
+                        autoSize = TextAutoSize.StepBased(
+                            minFontSize = 20.sp,
+                            maxFontSize = if (compact) 34.sp else 40.sp,
+                            stepSize = 2.sp,
+                        ),
+                        style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"),
                     )
                     Text(
                         text = speedUnit,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
-                        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+                        modifier = Modifier.padding(start = spacing.xs, bottom = spacing.xs),
                     )
                 }
             }
@@ -892,15 +907,16 @@ private fun TelemetryGrid(
     compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val spacing = LocalSpacing.current
     val rows = metrics.chunked(3)
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(spacing.xs),
     ) {
         rows.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth().weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(spacing.xs),
             ) {
                 row.forEach { metric ->
                     TelemetryCell(
@@ -923,36 +939,38 @@ private fun TelemetryCell(
     compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val spacing = LocalSpacing.current
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .padding(if (compact) 8.dp else 10.dp),
+            .padding(spacing.sm),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Text(
                 text = metric.label,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = if (compact) 9.sp else 10.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
             )
-            Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height(spacing.xs))
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = metric.value,
                     color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = if (compact) 15.sp else 18.sp,
-                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
-                    style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+                    style = (if (compact) {
+                        MaterialTheme.typography.titleSmall
+                    } else {
+                        MaterialTheme.typography.titleMedium
+                    }).copy(fontFeatureSettings = "tnum"),
                 )
                 if (metric.unit.isNotEmpty()) {
                     Text(
                         text = metric.unit,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 9.sp,
-                        modifier = Modifier.padding(start = 3.dp, bottom = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(start = spacing.xs, bottom = 2.dp),
                     )
                 }
             }
@@ -1006,15 +1024,16 @@ private fun TimingControls(
     onToggleOrientation: () -> Unit,
     onStopTiming: () -> Unit,
 ) {
+    val spacing = LocalSpacing.current
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
         Button(
             onClick = onStopTiming,
             modifier = Modifier.weight(1f).height(52.dp),
             contentPadding = PaddingValues(0.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB8343A)),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
         ) {
             Icon(
                 imageVector = StopActionIcon,
@@ -1057,41 +1076,52 @@ private fun DeltaReadout(
     Text(
         text = "DELTA",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontSize = if (compact) 10.sp else 11.sp,
-        fontWeight = FontWeight.Bold,
+        style = MaterialTheme.typography.labelSmall,
     )
     Text(
         text = display.text,
         color = display.tone.toDeltaColor(),
-        fontSize = if (compact) 32.sp else 44.sp,
         fontWeight = FontWeight.Black,
         textAlign = TextAlign.Start,
-        style = tnum,
+        maxLines = 1,
+        softWrap = false,
+        autoSize = TextAutoSize.StepBased(
+            minFontSize = 22.sp,
+            maxFontSize = if (compact) 32.sp else 44.sp,
+            stepSize = 2.sp,
+        ),
+        style = MaterialTheme.typography.displayMedium.copy(fontFeatureSettings = "tnum"),
     )
 }
 
-/** Maps the platform-free [DeltaTone] to UI-SPEC semantic colors. */
+/**
+ * Maps the platform-free [DeltaTone] to MaterialTheme semantic colors (D-36): green
+ * (tertiary) = faster than reference, amber (secondary) = slower, gray
+ * (onSurfaceVariant) = neutral / unavailable. Tokenized so the delta cue follows the
+ * theme instead of inline hex.
+ */
+@Composable
 private fun DeltaTone.toDeltaColor(): Color = when (this) {
-    DeltaTone.Faster -> Color(0xFF8CFF9B)
-    DeltaTone.Slower -> Color(0xFFFF9F43)
-    DeltaTone.Neutral -> Color(0xFF9AA8B8)
+    DeltaTone.Faster -> MaterialTheme.colorScheme.tertiary
+    DeltaTone.Slower -> MaterialTheme.colorScheme.secondary
+    DeltaTone.Neutral -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 /** Amber "DEMO — simulated GPS" pill: simulated data must never read as live (D-42). */
 @Composable
 internal fun DemoBadge(compact: Boolean = false) {
+    val spacing = LocalSpacing.current
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(Color(0xFF101722))
-            .border(1.dp, Color(0xFFFFD166), RoundedCornerShape(6.dp))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.secondary, RoundedCornerShape(6.dp))
+            .padding(horizontal = spacing.sm, vertical = spacing.xs),
     ) {
         Text(
             text = "DEMO — simulated GPS",
-            color = Color(0xFFFFD166),
-            fontSize = if (compact) 11.sp else 13.sp,
-            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.secondary,
+            style = MaterialTheme.typography.labelSmall,
         )
     }
 }
@@ -1125,9 +1155,9 @@ private fun DriveStatusBar(
         else -> "SIM"
     }
     val sourceColor = when {
-        locationFeedMode == LocationFeedMode.PhoneGps && phoneGpsPermission.isGranted -> Color(0xFF1F8F4D)
-        locationFeedMode == LocationFeedMode.PhoneGps -> Color(0xFFB26A00)
-        else -> Color(0xFFB26A00)
+        locationFeedMode == LocationFeedMode.PhoneGps && phoneGpsPermission.isGranted -> MaterialTheme.colorScheme.tertiary
+        locationFeedMode == LocationFeedMode.PhoneGps -> MaterialTheme.colorScheme.secondary
+        else -> MaterialTheme.colorScheme.secondary
     }
     val rateLabel = snapshot.feedQuality?.averageUpdateRateHz?.let { formatOneDecimal(it) } ?: "--"
     // Ready / not-Ready glance state (D-13/D-14/D-32). Reuse the same green/amber
@@ -1137,42 +1167,43 @@ private fun DriveStatusBar(
     when {
         rawRecordingActive -> {
             readyLabel = "RAW REC · ${rawSnapshot.sampleCount} pts"
-            readyColor = Color(0xFFB26A00)
+            readyColor = MaterialTheme.colorScheme.secondary
         }
         dashReady is ReadyState.Ready -> {
             readyLabel = "READY"
-            readyColor = Color(0xFF1F8F4D)
+            readyColor = MaterialTheme.colorScheme.tertiary
         }
         else -> {
             val primary = (dashReady as ReadyState.NotReady).reasons.firstOrNull()
             readyLabel = "NOT READY · ${primary?.dashLabel() ?: "checking"}"
-            readyColor = Color(0xFFB26A00)
+            readyColor = MaterialTheme.colorScheme.secondary
         }
     }
+    val spacing = LocalSpacing.current
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-            .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 7.dp else 8.dp),
-        verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 4.dp),
+            .padding(horizontal = spacing.sm, vertical = spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(spacing.xs),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             Text(
                 text = sourceLabel,
                 color = sourceColor,
-                fontSize = if (compact) 10.sp else 11.sp,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Black,
                 maxLines = 1,
             )
             Text(
                 text = "$speedLabel $speedUnit · ${snapshot.accuracyLabel}m · ${snapshot.feedSampleCount} pts · ${rateLabel}Hz",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = if (compact) 10.sp else 11.sp,
+                style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -1181,7 +1212,7 @@ private fun DriveStatusBar(
         Text(
             text = readyLabel,
             color = readyColor,
-            fontSize = if (compact) 10.sp else 11.sp,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Black,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -1258,16 +1289,17 @@ private fun ControlPanel(
     compact: Boolean = false,
     startTimingBlockedMessage: String? = null,
 ) {
+    val spacing = LocalSpacing.current
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
+        verticalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
         when (snapshot.phase) {
             DriveMarkingPhase.Capturing -> {
                 DriveActionRow(
                     primaryIcon = StopActionIcon,
                     primaryDescription = "Stop marking",
-                    primaryContainerColor = Color(0xFFB8343A),
+                    primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
                     primaryEnabled = true,
                     onPrimary = onStopMarking,
                     orientation = orientation,
@@ -1283,14 +1315,13 @@ private fun ControlPanel(
                 // for replay/diagnosis but NO lap/ghost timing has started (D-17).
                 Text(
                     text = "Recording raw GPS for diagnosis. No lap timing is running.",
-                    color = Color(0xFFFFD166),
-                    fontSize = if (compact) 11.sp else 13.sp,
-                    lineHeight = if (compact) 15.sp else 17.sp,
+                    color = MaterialTheme.colorScheme.secondary,
+                    style = MaterialTheme.typography.bodySmall,
                 )
                 Button(
                     onClick = onStopRawRecording,
                     modifier = Modifier.fillMaxWidth().height(if (compact) 48.dp else 54.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB8343A)),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
                 ) {
                     Text("Stop raw recording")
                 }
@@ -1321,17 +1352,15 @@ private fun ControlPanel(
                 if (!snapshot.canStartTiming && snapshot.needsTrackSelection) {
                     Text(
                         text = "Choose a track to start timing.",
-                        color = Color(0xFFFFD166),
-                        fontSize = if (compact) 11.sp else 13.sp,
-                        lineHeight = if (compact) 15.sp else 17.sp,
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 startTimingBlockedMessage?.let { message ->
                     Text(
                         text = message,
-                        color = Color(0xFFFFD166),
-                        fontSize = if (compact) 11.sp else 13.sp,
-                        lineHeight = if (compact) 15.sp else 17.sp,
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 // When not Ready the user cannot start trustworthy formal timing, so
@@ -1360,9 +1389,10 @@ private fun DriveActionRow(
     onToggleOrientation: () -> Unit,
     compact: Boolean = false,
 ) {
+    val spacing = LocalSpacing.current
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
         Button(
             onClick = onPrimary,
@@ -1398,18 +1428,18 @@ private fun DriveActionRow(
 
 @Composable
 private fun PhoneGpsBadge(compact: Boolean = false) {
+    val spacing = LocalSpacing.current
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, Color(0xFF8CFF9B), RoundedCornerShape(6.dp))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .border(1.dp, MaterialTheme.colorScheme.tertiary, RoundedCornerShape(6.dp))
+            .padding(horizontal = spacing.sm, vertical = spacing.xs),
     ) {
         Text(
             text = "PHONE GPS — live",
-            color = Color(0xFF8CFF9B),
-            fontSize = if (compact) 11.sp else 13.sp,
-            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.tertiary,
+            style = MaterialTheme.typography.labelSmall,
         )
     }
 }
@@ -1431,6 +1461,7 @@ private fun TrackSelectorSection(
     onBeginMarking: () -> Unit,
     compact: Boolean = false,
 ) {
+    val spacing = LocalSpacing.current
     var showTrackPicker by remember { mutableStateOf(false) }
 
     if (showTrackPicker) {
@@ -1443,13 +1474,13 @@ private fun TrackSelectorSection(
                         .fillMaxWidth()
                         .heightIn(max = 420.dp)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
                     if (snapshot.selectableProfiles.isEmpty()) {
                         Text(
                             text = "No saved tracks yet.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodySmall,
                         )
                     } else {
                         snapshot.selectableProfiles.forEach { row ->
@@ -1494,30 +1525,32 @@ private fun TrackSelectorSection(
     OutlinedButton(
         onClick = { showTrackPicker = true },
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = if (compact) 12.dp else 14.dp, vertical = if (compact) 9.dp else 11.dp),
+        contentPadding = PaddingValues(horizontal = spacing.md, vertical = spacing.sm),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "TRACK",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = if (compact) 10.sp else 11.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmall,
                 )
                 Text(
                     text = snapshot.currentTrackName ?: "No track selected",
                     color = if (snapshot.currentTrackName != null) {
                         MaterialTheme.colorScheme.onSurface
                     } else {
-                        Color(0xFFFFD166)
+                        MaterialTheme.colorScheme.secondary
                     },
-                    fontSize = if (compact) 15.sp else 17.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = if (compact) {
+                        MaterialTheme.typography.titleSmall
+                    } else {
+                        MaterialTheme.typography.titleMedium
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1525,8 +1558,7 @@ private fun TrackSelectorSection(
             Text(
                 text = ">",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = if (compact) 18.sp else 20.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium,
             )
         }
     }
@@ -1547,21 +1579,21 @@ private fun DirectionSelectorSection(
     onSelectDirection: (CourseDirection) -> Unit,
     compact: Boolean = false,
 ) {
+    val spacing = LocalSpacing.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-            .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 8.dp else 10.dp),
+            .padding(horizontal = spacing.sm, vertical = spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
         Text(
             text = "DIRECTION",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = if (compact) 10.sp else 11.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.weight(0.9f),
         )
         DirectionChip(
@@ -1631,6 +1663,7 @@ internal fun TrackReviewContent(
     // Name-on-create affordance (D-02, SC-01): the user names the Track before saving.
     // The controller validates/falls back to a default if left blank.
     var trackName by remember { mutableStateOf("") }
+    val spacing = LocalSpacing.current
 
     if (confirmReRecord) {
         AlertDialog(
@@ -1661,7 +1694,7 @@ internal fun TrackReviewContent(
                         controller.discard()
                         onChanged()
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF6B6B)),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) { Text("Discard") }
             },
             dismissButton = {
@@ -1674,12 +1707,11 @@ internal fun TrackReviewContent(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(spacing.md), verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
             Text(
                 text = "Track Review",
                 color = MaterialTheme.colorScheme.primary,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge,
             )
             if (review.extraction.markingSession.source.isSimulated) {
                 DemoBadge()
@@ -1689,26 +1721,25 @@ internal fun TrackReviewContent(
             if (review.canSave) {
                 Text(
                     text = "Track ready. Set start/finish, then save.",
-                    color = Color(0xFF8CFF9B),
-                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    style = MaterialTheme.typography.bodyLarge,
                 )
             } else {
                 Text(
                     text = "Couldn't build a clean track. Re-record 5–10 continuous loops and avoid long stops.",
-                    color = Color(0xFFFFD166),
-                    fontSize = 16.sp,
-                    lineHeight = 22.sp,
+                    color = MaterialTheme.colorScheme.secondary,
+                    style = MaterialTheme.typography.bodyLarge,
                 )
             }
             Text(
                 text = "Loops detected: ${review.extraction.detectedLoopCount} · accepted: ${review.extraction.acceptedLoopCount} · rejected: ${review.extraction.rejectedLoopCount}",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.bodySmall,
             )
             Text(
                 text = "Samples: ${review.rawSampleCount} · degraded: ${review.quality.degradedSampleCount}",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.bodySmall,
             )
             // Start/finish editing state (D-11, D-19). A confirmed start/finish
             // is required before formal timing (Plan 03-06).
@@ -1719,18 +1750,18 @@ internal fun TrackReviewContent(
                 } else {
                     "Start/finish: not set — required before timing"
                 },
-                color = if (startFinishSet) Color(0xFF8CFF9B) else Color(0xFFFFD166),
-                fontSize = 13.sp,
+                color = if (startFinishSet) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary,
+                style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold,
             )
             // Marking is continuous capture, NOT lap timing — no lap times shown (D-08).
             Text(
                 text = "Marking capture does not produce lap times.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.bodySmall,
             )
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(spacing.xs))
             // Name this Track before saving (D-02). Blank falls back to the default
             // name in the controller; the name never forms a storage path (T-05-07).
             OutlinedTextField(
@@ -1764,7 +1795,7 @@ internal fun TrackReviewContent(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
             ) { Text("Set start/finish from reference") }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
                     onClick = { confirmReRecord = true },
                     modifier = Modifier.weight(1f),
@@ -1773,7 +1804,7 @@ internal fun TrackReviewContent(
                 OutlinedButton(
                     onClick = { confirmDiscard = true },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF6B6B)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) { Text("Discard") }
             }
         }
