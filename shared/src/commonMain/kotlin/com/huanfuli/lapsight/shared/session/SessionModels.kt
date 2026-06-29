@@ -480,6 +480,18 @@ sealed interface StartTimingResult {
      * exists (D-19). [message] is the exact UI-SPEC copy.
      */
     data class Blocked(val message: String) : StartTimingResult
+
+    /**
+     * Formal timing was refused because the conservative aggregate Ready gate is
+     * not satisfied (D-13, D-14). [reasons] lists every failing Ready input so the
+     * dash can show a primary reason and offer raw recording instead (D-16). This
+     * is distinct from [WrongCourseBlocked]: that path is overridable evidence
+     * (D-18); not-Ready means timing simply must not begin yet.
+     */
+    data class NotReady(
+        val reasons: List<ReadyBlocker>,
+        val message: String,
+    ) : StartTimingResult
 }
 
 /** Outcome of saving a stopped draft. */

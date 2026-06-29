@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,6 +44,7 @@ import com.huanfuli.lapsight.shared.DriveDisplayController
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
 import com.huanfuli.lapsight.shared.LocationFeedMode
 import com.huanfuli.lapsight.shared.LocationSampleProvider
+import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.OrientationController
 import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.SpeedUnit
@@ -52,6 +54,7 @@ import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
 import com.huanfuli.lapsight.shared.session.DraftRecoveryAction
 import com.huanfuli.lapsight.shared.session.DraftRecoveryPrompt
 import com.huanfuli.lapsight.shared.session.SessionController
+import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import kotlinx.coroutines.Dispatchers
@@ -92,7 +95,35 @@ fun AppShell(
     var tab by remember { mutableStateOf(AppTab.Drive) }
     var orientation by remember { mutableStateOf(DashOrientation.Portrait) }
     var savedVersion by remember { mutableStateOf(0L) }
-    val sessionController = remember { SessionController(store = sessionStore) }
+    val effectiveLocationFeedMode =
+        if (displaySettings.locationFeedMode == LocationFeedMode.PhoneGps && phoneGpsProvider != null) {
+            LocationFeedMode.PhoneGps
+        } else {
+            LocationFeedMode.Simulated
+        }
+    // The session source must follow the LIVE feed, not the Track's marking source
+    // (D-04/D-42). Capture the current feed mode in a State the controller's
+    // sourceForTrack lambda reads at startTiming time, so switching feeds before a
+    // run is reflected in the saved session provenance.
+    val liveFeedModeState = rememberUpdatedState(effectiveLocationFeedMode)
+    val sessionController = remember {
+        SessionController(
+            store = sessionStore,
+            sourceForTrack = { _ ->
+                when (liveFeedModeState.value) {
+                    LocationFeedMode.PhoneGps -> SourceMetadata(
+                        source = LocationSource.PhoneGps,
+                        isSimulated = false,
+                    )
+                    LocationFeedMode.Simulated -> SourceMetadata(
+                        source = LocationSource.Simulated,
+                        isSimulated = true,
+                        label = "Demo",
+                    )
+                }
+            },
+        )
+    }
     var recoveryPrompt by remember { mutableStateOf<DraftRecoveryPrompt?>(null) }
     var confirmDiscardDraft by remember { mutableStateOf(false) }
     var driveTimingActive by remember { mutableStateOf(false) }
@@ -110,12 +141,6 @@ fun AppShell(
             (driveTimingActive && displaySettings.fullscreenWhileTiming)
         )
     val showBottomNav = !driveFullscreen
-    val effectiveLocationFeedMode =
-        if (displaySettings.locationFeedMode == LocationFeedMode.PhoneGps && phoneGpsProvider != null) {
-            LocationFeedMode.PhoneGps
-        } else {
-            LocationFeedMode.Simulated
-        }
     val activeLocationProvider =
         if (effectiveLocationFeedMode == LocationFeedMode.PhoneGps) phoneGpsProvider!! else simulatedGpsProvider
 

@@ -94,6 +94,8 @@ class SessionController(
         trackId: String,
         latestGps: LocationSample? = null,
         preflightNowElapsedMillis: Long = latestGps?.elapsedMillis ?: 0L,
+        recentRateHz: Double? = null,
+        requireReady: Boolean = false,
     ): StartTimingResult {
         pendingWrongCourseStart = null
         val track = loadTrackForTiming(trackId)
@@ -132,6 +134,28 @@ class SessionController(
                 thresholdMeters = preflightResult.thresholdMeters,
                 message = WRONG_COURSE_BLOCKED_COPY,
             )
+        }
+        // D-13/D-14: production callers gate formal timing on the conservative
+        // aggregate Ready decision. The wrong-course Blocked/override path above is
+        // preserved (D-18); this gate covers the remaining seven Ready inputs plus a
+        // preflight that is Unavailable. A run started while not Ready is invalid as
+        // evidence, so the user is offered raw recording instead (D-16).
+        if (requireReady) {
+            val readyState = aggregateReady(
+                latest = latestGps,
+                nowElapsedMillis = preflightNowElapsedMillis,
+                recentRateHz = recentRateHz,
+                selection = TrackProfileController(store).resolveCurrent(),
+                startFinishConfirmed = true,
+                directionCompatible = true,
+                preflight = preflightResult,
+            )
+            if (readyState is ReadyState.NotReady) {
+                return StartTimingResult.NotReady(
+                    reasons = readyState.reasons,
+                    message = READY_NOT_MET_COPY,
+                )
+            }
         }
         return startResolvedTiming(
             resolved = resolved,
@@ -497,6 +521,10 @@ const val STILL_USE_THIS_TRACK_ACTION: String = "Still use this track"
 /** Conservative pre-Timing warning; it never appears on the active timing dash. */
 const val WRONG_COURSE_BLOCKED_COPY: String =
     "This GPS fix is clearly far from the selected course. Check the current track before timing."
+
+/** Shown when the aggregate Ready gate blocks formal timing (D-13, D-16). */
+const val READY_NOT_MET_COPY: String =
+    "Not ready to time yet. Record raw GPS for diagnosis, or wait for a clean fix."
 
 /**
  * Default clock for the controller. Indirection so tests can inject a fixed

@@ -58,6 +58,10 @@ import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.ghost.DeltaTone
 import com.huanfuli.lapsight.shared.lap.formatLapTime
+import com.huanfuli.lapsight.shared.session.RawRecordingController
+import com.huanfuli.lapsight.shared.session.ReadyBlocker
+import com.huanfuli.lapsight.shared.session.ReadyState
+import com.huanfuli.lapsight.shared.session.ReadyThresholds
 import com.huanfuli.lapsight.shared.session.SaveDraftResult
 import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.session.StartTimingResult
@@ -120,6 +124,17 @@ fun DriveScreen(
     var wrongCourseBlock by remember {
         mutableStateOf<StartTimingResult.WrongCourseBlocked?>(null)
     }
+    // Diagnostic raw-recording seam used when the app is not Ready (D-16, D-17). It
+    // shares the live feed but constructs no lap/ghost timing state.
+    val rawController = remember(locationProvider) {
+        RawRecordingController(provider = locationProvider)
+    }
+    var rawRecordingActive by remember { mutableStateOf(false) }
+    var rawSnapshot by remember { mutableStateOf(rawController.snapshot()) }
+    // Conservative Ready preview for the dash (D-13/D-14/D-32). The authoritative
+    // gate runs in SessionController.startTiming; this mirrors its thresholds over
+    // the inputs the stationary dash can see so the user knows before tapping Start.
+    val dashReady = dashReadyState(snapshot)
     val ensureSelectedLocationFeedReady: () -> Boolean = {
         if (locationFeedMode == LocationFeedMode.PhoneGps && !phoneGpsPermission.isGranted) {
             startTimingBlockedMessage = PHONE_GPS_PERMISSION_COPY
@@ -163,9 +178,16 @@ fun DriveScreen(
     // Poll the provider on a timer while the demo feed runs (D-05). The feed
     // flows continuously as if the phone were physically moving around the
     // track, even before/after a marking capture or timing run.
-    LaunchedEffect(snapshot.isDemoFeedRunning, timingActive) {
-        while (snapshot.isDemoFeedRunning || timingActive) {
+    LaunchedEffect(snapshot.isDemoFeedRunning, timingActive, rawRecordingActive) {
+        while (snapshot.isDemoFeedRunning || timingActive || rawRecordingActive) {
             delay(100L)
+            if (rawRecordingActive) {
+                // Raw recording owns the feed exclusively: pull through the raw seam
+                // (no lap/ghost state) and read its diagnostic snapshot back.
+                rawController.tick()
+                rawSnapshot = rawController.snapshot()
+                continue
+            }
             val sample = controller.tick()
             snapshot = controller.snapshot()
             if (timingActive) {
@@ -213,6 +235,13 @@ fun DriveScreen(
                             }
                             is StartTimingResult.WrongCourseBlocked -> {
                                 wrongCourseBlock = result
+                            }
+                            is StartTimingResult.NotReady -> {
+                                // The override path intentionally bypasses the Ready
+                                // gate (D-18 evidence), so this is unreachable; close
+                                // the dialog and surface the reason defensively.
+                                wrongCourseBlock = null
+                                startTimingBlockedMessage = result.message
                             }
                         }
                     },
@@ -354,8 +383,17 @@ fun DriveScreen(
                         trackId = trackId,
                         latestGps = latestGps,
                         preflightNowElapsedMillis = latestGps?.elapsedMillis ?: 0L,
+                        recentRateHz = snapshot.feedQuality?.averageUpdateRateHz,
+                        // D-13: real runs only begin when the conservative Ready gate passes.
+                        requireReady = true,
                     )
                 ) {
+                    is StartTimingResult.NotReady -> {
+                        // Not Ready: do not start formal timing. The dash already
+                        // offers the raw-recording path instead (D-16).
+                        startTimingBlockedMessage = result.message
+                        snapshot = controller.snapshot()
+                    }
                     is StartTimingResult.Started -> {
                         // Timing starts from a clean feed session. For simulated
                         // data this rewinds the replay; for phone GPS it clears
@@ -410,10 +448,30 @@ fun DriveScreen(
                 }
             }
         },
+        onStartRawRecording = action@{
+            if (!ensureSelectedLocationFeedReady()) return@action
+            if (timingActive || rawRecordingActive) return@action
+            startTimingBlockedMessage = null
+            rawController.start()
+            rawRecordingActive = true
+            rawSnapshot = rawController.snapshot()
+            snapshot = controller.snapshot()
+        },
+        onStopRawRecording = {
+            if (rawRecordingActive) {
+                rawController.stop()
+                rawRecordingActive = false
+                rawSnapshot = rawController.snapshot()
+                snapshot = controller.snapshot()
+            }
+        },
         timingActive = timingActive,
         timingSnapshot = timingSnapshot,
         timingRun = timingRun,
         startTimingBlockedMessage = startTimingBlockedMessage,
+        dashReady = dashReady,
+        rawRecordingActive = rawRecordingActive,
+        rawSnapshot = rawSnapshot,
         reviewContent = {
             TrackReviewContent(
                 snapshot = snapshot,
@@ -439,10 +497,15 @@ private fun DriveSurface(
     onBeginMarking: () -> Unit,
     onStopMarking: () -> Unit,
     onStopTiming: () -> Unit,
+    onStartRawRecording: () -> Unit,
+    onStopRawRecording: () -> Unit,
     timingActive: Boolean,
     timingSnapshot: com.huanfuli.lapsight.shared.session.SessionControllerSnapshot?,
     timingRun: TimingRunSnapshot,
     startTimingBlockedMessage: String?,
+    dashReady: ReadyState,
+    rawRecordingActive: Boolean,
+    rawSnapshot: com.huanfuli.lapsight.shared.session.RawRecordingSnapshot,
     reviewContent: @Composable () -> Unit,
 ) {
     BoxWithConstraints(
@@ -498,6 +561,9 @@ private fun DriveSurface(
                     displaySettings = displaySettings,
                     locationFeedMode = locationFeedMode,
                     phoneGpsPermission = phoneGpsPermission,
+                    dashReady = dashReady,
+                    rawRecordingActive = rawRecordingActive,
+                    rawSnapshot = rawSnapshot,
                     modifier = Modifier.fillMaxWidth(),
                     compact = isCompactLandscape,
                 )
@@ -510,6 +576,10 @@ private fun DriveSurface(
                     onStartTiming = onStartTiming,
                     onBeginMarking = onBeginMarking,
                     onStopMarking = onStopMarking,
+                    onStartRawRecording = onStartRawRecording,
+                    onStopRawRecording = onStopRawRecording,
+                    dashReady = dashReady,
+                    rawRecordingActive = rawRecordingActive,
                     modifier = Modifier.fillMaxWidth(),
                     compact = isCompactLandscape,
                     startTimingBlockedMessage = startTimingBlockedMessage,
@@ -529,6 +599,9 @@ private fun DriveSurface(
                     displaySettings = displaySettings,
                     locationFeedMode = locationFeedMode,
                     phoneGpsPermission = phoneGpsPermission,
+                    dashReady = dashReady,
+                    rawRecordingActive = rawRecordingActive,
+                    rawSnapshot = rawSnapshot,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 ControlPanel(
@@ -540,6 +613,10 @@ private fun DriveSurface(
                     onStartTiming = onStartTiming,
                     onBeginMarking = onBeginMarking,
                     onStopMarking = onStopMarking,
+                    onStartRawRecording = onStartRawRecording,
+                    onStopRawRecording = onStopRawRecording,
+                    dashReady = dashReady,
+                    rawRecordingActive = rawRecordingActive,
                     modifier = Modifier.fillMaxWidth(),
                     startTimingBlockedMessage = startTimingBlockedMessage,
                 )
@@ -1025,6 +1102,9 @@ private fun DriveStatusBar(
     displaySettings: DriveDisplaySettings,
     locationFeedMode: LocationFeedMode,
     phoneGpsPermission: PhoneGpsPermissionState,
+    dashReady: ReadyState,
+    rawRecordingActive: Boolean,
+    rawSnapshot: com.huanfuli.lapsight.shared.session.RawRecordingSnapshot,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -1050,31 +1130,114 @@ private fun DriveStatusBar(
         else -> Color(0xFFB26A00)
     }
     val rateLabel = snapshot.feedQuality?.averageUpdateRateHz?.let { formatOneDecimal(it) } ?: "--"
-    Row(
+    // Ready / not-Ready glance state (D-13/D-14/D-32). Reuse the same green/amber
+    // semantic branches as the source label so the dash reads consistently.
+    val readyLabel: String
+    val readyColor: Color
+    when {
+        rawRecordingActive -> {
+            readyLabel = "RAW REC · ${rawSnapshot.sampleCount} pts"
+            readyColor = Color(0xFFB26A00)
+        }
+        dashReady is ReadyState.Ready -> {
+            readyLabel = "READY"
+            readyColor = Color(0xFF1F8F4D)
+        }
+        else -> {
+            val primary = (dashReady as ReadyState.NotReady).reasons.firstOrNull()
+            readyLabel = "NOT READY · ${primary?.dashLabel() ?: "checking"}"
+            readyColor = Color(0xFFB26A00)
+        }
+    }
+    Column(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
             .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 7.dp else 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 4.dp),
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = sourceLabel,
+                color = sourceColor,
+                fontSize = if (compact) 10.sp else 11.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+            )
+            Text(
+                text = "$speedLabel $speedUnit · ${snapshot.accuracyLabel}m · ${snapshot.feedSampleCount} pts · ${rateLabel}Hz",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = if (compact) 10.sp else 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
         Text(
-            text = sourceLabel,
-            color = sourceColor,
+            text = readyLabel,
+            color = readyColor,
             fontSize = if (compact) 10.sp else 11.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1,
-        )
-        Text(
-            text = "$speedLabel $speedUnit · ${snapshot.accuracyLabel}m · ${snapshot.feedSampleCount} pts · ${rateLabel}Hz",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = if (compact) 10.sp else 11.sp,
-            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
         )
     }
+}
+
+/** Short glance label for a not-Ready primary reason shown on the dash (D-32). */
+private fun ReadyBlocker.dashLabel(): String = when (this) {
+    ReadyBlocker.MissingFix -> "no GPS fix"
+    ReadyBlocker.NonFiniteFix -> "bad GPS fix"
+    ReadyBlocker.PoorAccuracy -> "GPS accuracy"
+    ReadyBlocker.StaleFix -> "stale GPS"
+    ReadyBlocker.LowSampleRate -> "low GPS rate"
+    ReadyBlocker.NoCourseSelected -> "no track"
+    ReadyBlocker.StartFinishUnconfirmed -> "no start/finish"
+    ReadyBlocker.DirectionIncompatible -> "direction"
+    ReadyBlocker.WrongCourseBlocked -> "wrong course"
+    ReadyBlocker.PreflightUnavailable -> "course check"
+}
+
+/**
+ * Conservative Ready preview computed from the stationary dash inputs
+ * (D-13/D-14/D-32). It mirrors the authoritative [com.huanfuli.lapsight.shared.session.aggregateReady]
+ * thresholds over the inputs the dash can see — GPS fix presence/validity,
+ * horizontal accuracy, recent sample rate, and current-track selection. Freshness,
+ * direction compatibility, and wrong-course preflight are enforced by the
+ * authoritative gate in `SessionController.startTiming`; this preview never starts
+ * timing on its own.
+ */
+private fun dashReadyState(snapshot: DriveMarkingSnapshot): ReadyState {
+    val thresholds = ReadyThresholds.Default
+    val reasons = mutableListOf<ReadyBlocker>()
+    val fix = snapshot.latestSample
+    if (fix == null) {
+        reasons += ReadyBlocker.MissingFix
+    } else if (!fix.latitude.isFinite() || !fix.longitude.isFinite() ||
+        fix.latitude !in -90.0..90.0 || fix.longitude !in -180.0..180.0
+    ) {
+        reasons += ReadyBlocker.NonFiniteFix
+    } else {
+        val accuracy = fix.horizontalAccuracyMeters
+        if (accuracy == null || !accuracy.isFinite() || accuracy < 0.0 ||
+            accuracy > thresholds.maxHorizontalAccuracyMeters
+        ) {
+            reasons += ReadyBlocker.PoorAccuracy
+        }
+    }
+    val rate = snapshot.feedQuality?.averageUpdateRateHz
+    if (rate == null || !rate.isFinite() || rate < thresholds.minSampleRateHz) {
+        reasons += ReadyBlocker.LowSampleRate
+    }
+    if (!snapshot.canStartTiming) {
+        reasons += ReadyBlocker.NoCourseSelected
+    }
+    return if (reasons.isEmpty()) ReadyState.Ready else ReadyState.NotReady(reasons)
 }
 
 @Composable
@@ -1087,6 +1250,10 @@ private fun ControlPanel(
     onStartTiming: () -> Unit,
     onBeginMarking: () -> Unit,
     onStopMarking: () -> Unit,
+    onStartRawRecording: () -> Unit,
+    onStopRawRecording: () -> Unit,
+    dashReady: ReadyState,
+    rawRecordingActive: Boolean,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     startTimingBlockedMessage: String? = null,
@@ -1111,7 +1278,23 @@ private fun ControlPanel(
             DriveMarkingPhase.Review -> {
                 // Track Review owns its own actions; no primary CTA here.
             }
-            DriveMarkingPhase.Idle -> {
+            DriveMarkingPhase.Idle -> if (rawRecordingActive) {
+                // Diagnostic raw recording in progress (D-16): samples are captured
+                // for replay/diagnosis but NO lap/ghost timing has started (D-17).
+                Text(
+                    text = "Recording raw GPS for diagnosis. No lap timing is running.",
+                    color = Color(0xFFFFD166),
+                    fontSize = if (compact) 11.sp else 13.sp,
+                    lineHeight = if (compact) 15.sp else 17.sp,
+                )
+                Button(
+                    onClick = onStopRawRecording,
+                    modifier = Modifier.fillMaxWidth().height(if (compact) 48.dp else 54.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB8343A)),
+                ) {
+                    Text("Stop raw recording")
+                }
+            } else {
                 TrackSelectorSection(
                     snapshot = snapshot,
                     onSelectProfile = onSelectProfile,
@@ -1150,6 +1333,16 @@ private fun ControlPanel(
                         fontSize = if (compact) 11.sp else 13.sp,
                         lineHeight = if (compact) 15.sp else 17.sp,
                     )
+                }
+                // When not Ready the user cannot start trustworthy formal timing, so
+                // expose the raw-recording diagnostic path instead (D-16).
+                if (dashReady is ReadyState.NotReady) {
+                    OutlinedButton(
+                        onClick = onStartRawRecording,
+                        modifier = Modifier.fillMaxWidth().height(if (compact) 44.dp else 48.dp),
+                    ) {
+                        Text("Record raw GPS (diagnostic)")
+                    }
                 }
             }
         }
