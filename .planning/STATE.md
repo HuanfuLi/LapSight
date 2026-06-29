@@ -3,20 +3,20 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 05.1-05-PLAN.md (UI tokenization hardening + six-pillar re-audit)
-last_updated: "2026-06-29T06:00:25.715Z"
+stopped_at: Completed 05.1-06-PLAN.md (5.1-UAT.md protocol + 5.1-FIELD-TEST-LOG.md skeleton)
+last_updated: "2026-06-29T07:00:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 37
-  completed_plans: 33
-  percent: 63
+  completed_plans: 34
+  percent: 65
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5.1 execution in progress. Plans 05.1-01, 05.1-02, 05.1-03, and 05.1-05 complete. Plan 05 tokenized the Drive dash + shell (colors/typography/spacing now flow through MaterialTheme semantic tokens + a 4dp Spacing scale, glance sizing made clip-safe via autoSize) and re-audited the six D-36 UI pillars: all now >= 3/4 (overall 19/24), with Visual Polish/Accessibility lifted 1/4->3/4 and Motion/Glance 2/4->3/4. Remaining Wave plans (field UAT, go/no-go) pending; on-glass daylight/low-light glance confirmation deferred to the Plan 07 display UAT.
+**Current Status:** Phase 5.1 execution in progress. Plans 05.1-01, 05.1-02, 05.1-03, 05.1-05, and 05.1-06 complete. Plan 06 authored the two evidence-plan artifacts: `5.1-UAT.md` (device-independent Android-only UAT protocol — on-device smoke + mounted-display glance + closed-course Ready-before-timing + Review/JSON/GPX export smoke + replay-diagnosis-first, with the verbatim Plan 03 Ready thresholds 25.0 m / 15000 ms / 1.0 Hz and the 3+2 five-valid-session matrix) and `5.1-FIELD-TEST-LOG.md` (per-session evidence-index skeleton on the D-48 template). Remaining: Plan 04 (code audit), Plan 07 (manual field UAT, gated per D-54), Plan 08 (Go/No-Go).
 
 ## Project Reference
 
@@ -136,6 +136,7 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Replay determinism (D-25..D-28) is now an automated standing gate: `FullPipelineDeterminismTest` asserts the full `SessionController` pipeline (laps, completedSectorResults, ordered LiveDeltaSnapshot sequence, CourseCompatibilityKey/direction) is byte-identical across runs and across export→decode→replay; the legacy finalState-only replay/recovery/ghost/direction tests were widened to full algorithmic output (Plan 05.1-02).
 - Oval GPS fixtures complete laps through `SessionController` under `CourseDirection.Reverse` (the explicit accepted-sign is enforced even under lenient config); the Recorded config deterministically rejects the same physical crossings.
 - UI hardening (Plan 05.1-05): Drive dash + shell colors/typography/spacing now flow through `MaterialTheme` semantic tokens (`ui/Theme.kt`) + a 4dp `LocalSpacing` scale (`ui/Spacing.kt`); 0 inline hex and 0 inline `fontSize`/`.sp` remain. Hero readouts use `TextAutoSize.StepBased` so glance sizing is clip-safe. Six D-36 pillars re-audited: all >= 3/4 (overall 19/24); no Hardening-Required UI blocker. Information hierarchy and manual orientation toggle unchanged.
+- Field-UAT protocol authored (Plan 05.1-06): `5.1-UAT.md` is the device-independent Android-only protocol (on-device smoke S1-S6, mounted-display glance over the 7 core elements portrait/landscape x daylight/low-light, Ready-before-timing with the verbatim 25.0 m / 15000 ms / 1.0 Hz thresholds, the 3+2 five-valid-session matrix, lap-count-100% hard blocker, <=0.5 s video target, replay-diagnosis-first via `SessionReplayDecoder`, and Review + JSON/GPX export smoke R1-R5 with concrete acceptance). `5.1-FIELD-TEST-LOG.md` is the 5-row (3 primary + 2 secondary) evidence-index skeleton on the D-48 template. Both are pending real field evidence (D-54), filled during Plan 07. Build/install uses the corrected `:shared:testAndroidHostTest` + `:androidApp:assembleDebug`.
 
 ## Performance Metrics
 
@@ -147,13 +148,14 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 | 05.1-03 | 50min | 3 tasks | 8 files |
 | 05.1-02 | 45min | 2 tasks | 6 files |
 | 05.1-05 | 14min | 3 tasks | 6 files |
+| 05.1-06 | 12min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-**Last session:** 2026-06-29T06:00:00.000Z
-**Stopped At:** Completed 05.1-05-PLAN.md (UI tokenization hardening + six-pillar re-audit)
+**Last session:** 2026-06-29T07:00:00.000Z
+**Stopped At:** Completed 05.1-06-PLAN.md (5.1-UAT.md protocol + 5.1-FIELD-TEST-LOG.md skeleton)
 **Resume File:** None
 
 ---
 
-*Last updated: 2026-06-29 after Phase 5.1 plan 05 (UI tokenization hardening + six-pillar re-audit) execution*
+*Last updated: 2026-06-29 after Phase 5.1 plan 06 (field-UAT protocol + evidence-index authoring) execution*
