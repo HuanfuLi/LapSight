@@ -1804,7 +1804,7 @@ internal fun TrackReviewContent(
                 )
             } else {
                 Text(
-                    text = "Couldn't build a clean track. Re-record 5–10 continuous loops and avoid long stops.",
+                    text = "Couldn't build a clean track. Re-record 3 continuous closed-course loops and avoid long stops.",
                     color = MaterialTheme.colorScheme.secondary,
                     style = MaterialTheme.typography.bodyLarge,
                 )

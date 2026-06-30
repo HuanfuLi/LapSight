@@ -126,7 +126,7 @@ Secondary buttons, Resume/Re-record, export buttons, and inactive nav tabs use n
 | Stop summary sheet title | **"Session ended"** — primary `Save Session`, secondary `Discard` |
 | Save success toast | **"Session saved"** (and **"New track best"** when applicable — D-32) |
 | Draft recovery on launch (D-15) | Title: **"Unfinished session found"** · Body: **"You have a session that wasn't saved."** · Actions: `Resume` / `Save` / `Discard` |
-| Track Review — not save-ready (D-31) | **"Couldn't build a clean track. Re-record 5–10 continuous loops and avoid long stops."** |
+| Track Review — not save-ready (D-31) | **"Couldn't build a clean track. Re-record 3 continuous closed-course loops and avoid long stops."** |
 | Track Review — ready | **"Track ready. Set start/finish, then save."** |
 | Sectors empty (existing) | **"No sectors on this course."** |
 | Export menu | **"Export JSON"** (canonical/debug) · **"Export GPX"** (for other GPS tools) |

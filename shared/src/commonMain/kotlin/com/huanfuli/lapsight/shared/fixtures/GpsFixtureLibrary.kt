@@ -174,6 +174,12 @@ object GpsFixtureLibrary {
         return out
     }
 
+    private fun List<LocationSample>.withClosingAnchor(): List<LocationSample> {
+        if (isEmpty()) return this
+        val stepMillis = LOOP_MILLIS / POINTS_PER_LOOP
+        return this + first().copy(elapsedMillis = last().elapsedMillis + stepMillis)
+    }
+
     /**
      * Inject one bad/outlier loop into an otherwise clean trace: a contiguous
      * span is jumped far off-track with degraded accuracy (D-04 outlier case).
@@ -203,6 +209,9 @@ object GpsFixtureLibrary {
 
     /** Minimum 5-loop input (D-04). */
     fun minimumFiveLoop(): List<LocationSample> = ovalSession(loops = 5, seed = 202L)
+
+    /** Field-test minimum: three clean loops plus the closing start-point crossing. */
+    fun minimumThreeLoop(): List<LocationSample> = ovalSession(loops = 3, seed = 212L).withClosingAnchor()
 
     /** Clean trace with one bad/outlier loop (D-04). */
     fun oneOutlierLoop(): List<LocationSample> =

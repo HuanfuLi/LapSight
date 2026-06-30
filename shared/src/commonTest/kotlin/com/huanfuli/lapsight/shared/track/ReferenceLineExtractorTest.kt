@@ -64,6 +64,15 @@ class ReferenceLineExtractorTest {
         assertTrue(result.acceptedLoopCount >= 4)
     }
 
+    @Test
+    fun threeLoopFieldCaptureIsReady() {
+        val result = ReferenceLineExtractor.extract(marking(GpsFixtureLibrary.minimumThreeLoop()))
+
+        assertTrue(result.isReady, "a 3-loop field capture must extract a reference line")
+        assertNotNull(result.referenceLine)
+        assertTrue(result.acceptedLoopCount >= 3)
+    }
+
     // --- D-09: outlier rejection without producing laps -----------------------
 
     @Test
