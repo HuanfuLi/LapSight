@@ -591,9 +591,9 @@ private fun DriveSurface(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
+                    .padding(horizontal = padding, vertical = spacing.sm)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(spacing.sm, Alignment.Top),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 DriveStatusBar(
@@ -1166,7 +1166,7 @@ private fun DriveStatusBar(
     val readyColor: Color
     when {
         rawRecordingActive -> {
-            readyLabel = "RAW REC · ${rawSnapshot.sampleCount} pts"
+            readyLabel = "RAW REC - ${rawSnapshot.sampleCount} pts"
             readyColor = MaterialTheme.colorScheme.secondary
         }
         dashReady is ReadyState.Ready -> {
@@ -1175,7 +1175,7 @@ private fun DriveStatusBar(
         }
         else -> {
             val primary = (dashReady as ReadyState.NotReady).reasons.firstOrNull()
-            readyLabel = "NOT READY · ${primary?.dashLabel() ?: "checking"}"
+            readyLabel = "NOT READY - ${primary?.dashLabel() ?: "checking"}"
             readyColor = MaterialTheme.colorScheme.secondary
         }
     }
@@ -1186,7 +1186,7 @@ private fun DriveStatusBar(
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
             .padding(horizontal = spacing.sm, vertical = spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+        verticalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1201,18 +1201,73 @@ private fun DriveStatusBar(
                 maxLines = 1,
             )
             Text(
-                text = "$speedLabel $speedUnit · ${snapshot.accuracyLabel}m · ${snapshot.feedSampleCount} pts · ${rateLabel}Hz",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = readyLabel,
+                color = readyColor,
                 style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Black,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
+                textAlign = TextAlign.End,
             )
         }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+        ) {
+            DriveStatusMetric(
+                label = "SPEED",
+                value = "$speedLabel $speedUnit",
+                modifier = Modifier.weight(1f),
+                compact = compact,
+            )
+            DriveStatusMetric(
+                label = "ACCURACY",
+                value = "${snapshot.accuracyLabel} m",
+                modifier = Modifier.weight(1f),
+                compact = compact,
+            )
+            DriveStatusMetric(
+                label = "SAMPLES",
+                value = snapshot.feedSampleCount.toString(),
+                modifier = Modifier.weight(1f),
+                compact = compact,
+            )
+            DriveStatusMetric(
+                label = "RATE",
+                value = "$rateLabel Hz",
+                modifier = Modifier.weight(1f),
+                compact = compact,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DriveStatusMetric(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
+    val spacing = LocalSpacing.current
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = spacing.sm, vertical = if (compact) spacing.xs else spacing.sm),
+    ) {
         Text(
-            text = readyLabel,
-            color = readyColor,
+            text = label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = value,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Black,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -1298,6 +1353,7 @@ private fun ControlPanel(
             DriveMarkingPhase.Capturing -> {
                 DriveActionRow(
                     primaryIcon = StopActionIcon,
+                    primaryLabel = "Stop marking",
                     primaryDescription = "Stop marking",
                     primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
                     primaryEnabled = true,
@@ -1341,6 +1397,7 @@ private fun ControlPanel(
                 }
                 DriveActionRow(
                     primaryIcon = PlayActionIcon,
+                    primaryLabel = "Start Timing",
                     primaryDescription = "Start timing",
                     primaryContainerColor = MaterialTheme.colorScheme.primary,
                     primaryEnabled = snapshot.canStartTiming,
@@ -1381,6 +1438,7 @@ private fun ControlPanel(
 @Composable
 private fun DriveActionRow(
     primaryIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    primaryLabel: String,
     primaryDescription: String,
     primaryContainerColor: Color,
     primaryEnabled: Boolean,
@@ -1401,15 +1459,27 @@ private fun DriveActionRow(
             contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(containerColor = primaryContainerColor),
         ) {
-            Icon(
-                imageVector = primaryIcon,
-                contentDescription = primaryDescription,
-                modifier = Modifier.size(if (compact) 24.dp else 28.dp),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+            ) {
+                Icon(
+                    imageVector = primaryIcon,
+                    contentDescription = primaryDescription,
+                    modifier = Modifier.size(if (compact) 22.dp else 24.dp),
+                )
+                if (!compact) {
+                    Text(
+                        text = primaryLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                    )
+                }
+            }
         }
         Button(
             onClick = onToggleOrientation,
-            modifier = Modifier.weight(1f).height(if (compact) 48.dp else 54.dp),
+            modifier = Modifier.weight(0.34f).height(if (compact) 48.dp else 54.dp),
             contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.surface,

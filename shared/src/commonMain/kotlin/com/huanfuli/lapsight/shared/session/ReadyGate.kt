@@ -52,9 +52,9 @@ enum class ReadyBlocker {
  *    ([GpsQualitySummary.DEFAULT_DEGRADED_ACCURACY_METERS] = 25.0 m), stricter
  *    than the preflight's 100 m course-distance accuracy gate.
  *  - [maxFixAgeMillis] = 15 s, the wrong-course preflight freshness window.
- *  - [minSampleRateHz] = 1.0 Hz, the observed real Fused-Location delivery floor
+ *  - [minSampleRateHz] = 0.9 Hz, the observed real Fused-Location delivery floor
  *    (RESEARCH "Sampling-rate (literal Nyquist) note": requested ~10 Hz, real
- *    delivery often 1 Hz). Below this a start/finish crossing cannot be
+ *    delivery often hovers around 1 Hz). Below this a start/finish crossing cannot be
  *    trustworthily reconstructed.
  *
  * Constructing thresholds with non-finite or non-positive values throws via
@@ -64,7 +64,7 @@ enum class ReadyBlocker {
 data class ReadyThresholds(
     val maxHorizontalAccuracyMeters: Double = GpsQualitySummary.DEFAULT_DEGRADED_ACCURACY_METERS,
     val maxFixAgeMillis: Long = 15_000L,
-    val minSampleRateHz: Double = 1.0,
+    val minSampleRateHz: Double = 0.9,
 ) {
     init {
         require(maxHorizontalAccuracyMeters > 0.0 && maxHorizontalAccuracyMeters.isFinite()) {

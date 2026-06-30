@@ -1,6 +1,7 @@
 package com.huanfuli.lapsight.shared.ui
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -97,30 +98,4 @@ val StopActionIcon: ImageVector by lazy {
     }.build()
 }
 
-val RotateScreenIcon: ImageVector by lazy {
-    ImageVector.Builder(
-        name = "lapsight-rotate-screen",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f,
-    ).apply {
-        path(
-            fill = null,
-            stroke = SolidColor(Color.White),
-            strokeLineWidth = 2f,
-            strokeLineCap = StrokeCap.Round,
-        ) {
-            moveTo(7f, 8f)
-            curveTo(9.2f, 5.7f, 13.0f, 5.2f, 16.0f, 7.0f)
-            lineTo(17.0f, 4.5f)
-            moveTo(16.0f, 7.0f)
-            lineTo(13.3f, 7.1f)
-            moveTo(17.0f, 16.0f)
-            curveTo(14.8f, 18.3f, 11.0f, 18.8f, 8.0f, 17.0f)
-            lineTo(7.0f, 19.5f)
-            moveTo(8.0f, 17.0f)
-            lineTo(10.7f, 16.9f)
-        }
-    }.build()
-}
+val RotateScreenIcon: ImageVector get() = Icons.Filled.Refresh

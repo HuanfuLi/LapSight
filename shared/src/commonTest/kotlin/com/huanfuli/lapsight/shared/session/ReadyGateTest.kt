@@ -148,8 +148,13 @@ class ReadyGateTest {
     fun lowSampleRateBlocksReady() {
         assertEquals(
             ReadyBlocker.LowSampleRate,
-            soleReason(ready(recentRateHz = 0.4)),
+            soleReason(ready(recentRateHz = 0.89)),
         )
+    }
+
+    @Test
+    fun pointNineHertzSatisfiesSampleRateFloor() {
+        assertIs<ReadyState.Ready>(ready(recentRateHz = 0.9))
     }
 
     @Test
