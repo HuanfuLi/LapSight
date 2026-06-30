@@ -1,6 +1,6 @@
 # LapSight — Third-Party Licenses, Clean-Room Attestation, and Privacy Note
 
-**Compiled:** 2026-06-29 (Phase 5.1 hardening gate, Plan 04)
+**Compiled:** 2026-06-30 (Phase 5.1 field-test UI follow-up)
 **Covers:** ARCH-03 (document all third-party code and licenses), ARCH-04 (GPL projects studied as references, not copied), and the ARCH-03 local-GPS privacy note.
 **Source of truth:** `gradle/libs.versions.toml`, `shared/build.gradle.kts`, `androidApp/build.gradle.kts`.
 
@@ -8,7 +8,7 @@
 
 ## 1. ARCH-03 — Third-Party Dependency Inventory
 
-LapSight adds **no new external packages in Phase 5.1**. The dependency set below is the complete third-party surface of the shipping Android phone app and the shared KMP domain. Every runtime dependency is permissively licensed (Apache-2.0) except the Google Play Services Location SDK (a proprietary Google SDK, Android-app only) and test-only JUnit (EPL-1.0). **No dependency is GPL/AGPL/LGPL-runtime-linked.**
+LapSight adds `material-icons-extended` in the Phase 5.1 field-test UI follow-up so the Drive orientation control can use a standard screen-rotation icon instead of a refresh/redo glyph. The dependency set below is the complete third-party surface of the shipping Android phone app and the shared KMP domain. Every runtime dependency is permissively licensed (Apache-2.0) except the Google Play Services Location SDK (a proprietary Google SDK, Android-app only) and test-only JUnit (EPL-1.0). **No dependency is GPL/AGPL/LGPL-runtime-linked.**
 
 ### Runtime dependencies
 
@@ -18,6 +18,7 @@ LapSight adds **no new external packages in Phase 5.1**. The dependency set belo
 | Compose Multiplatform (runtime, foundation, ui, components-resources) | 1.11.1 | `org.jetbrains.compose.*` | shared UI + app | Apache-2.0 |
 | Compose Material 3 | 1.11.0-alpha07 | `org.jetbrains.compose.material3` | shared UI | Apache-2.0 |
 | Compose Material Icons (core) | 1.7.3 | `org.jetbrains.compose.material:material-icons-core` | shared UI | Apache-2.0 |
+| Compose Material Icons (extended) | 1.7.3 | `org.jetbrains.compose.material:material-icons-extended` | shared UI orientation icon | Apache-2.0 |
 | kotlinx-serialization-json | 1.11.0 | `org.jetbrains.kotlinx:kotlinx-serialization-json` | shared (canonical JSON, export/replay) | Apache-2.0 |
 | kotlinx-coroutines-core | 1.11.0 | `org.jetbrains.kotlinx:kotlinx-coroutines-core` | shared | Apache-2.0 |
 | Okio | 3.17.0 | `com.squareup.okio:okio` | shared storage/export **I/O seam only** | Apache-2.0 |
@@ -81,5 +82,5 @@ LapSight's **own** application license is **not yet decided** (`STATE.md` Review
 
 ---
 
-*Phase: 05.1-mvp-field-validation-and-hardening-gate — Plan 04, Task 2*
-*Compiled: 2026-06-29*
+*Phase: 05.1-mvp-field-validation-and-hardening-gate — field-test UI follow-up*
+*Compiled: 2026-06-30*

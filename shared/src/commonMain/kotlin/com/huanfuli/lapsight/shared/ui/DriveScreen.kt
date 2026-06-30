@@ -512,8 +512,7 @@ private fun DriveSurface(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .safeContentPadding(),
+            .background(MaterialTheme.colorScheme.background),
     ) {
         // Layout follows the deliberately locked window, not device tilt.
         val isLandscape = maxWidth > maxHeight
@@ -526,6 +525,7 @@ private fun DriveSurface(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .safeContentPadding()
                     .verticalScroll(rememberScrollState())
                     .padding(padding),
                 verticalArrangement = Arrangement.spacedBy(spacing.md),
@@ -539,22 +539,30 @@ private fun DriveSurface(
         // current/last/best/laps/speed/accuracy and a DEMO badge for simulated
         // source (D-29, D-42, SESS-01).
         if (timingActive) {
-            TimingRunSurface(
-                timingRun = timingRun,
-                orientation = orientation,
-                displaySettings = displaySettings,
-                locationFeedMode = locationFeedMode,
-                onToggleOrientation = onToggleOrientation,
-                onStopTiming = onStopTiming,
-                isCompactLandscape = isCompactLandscape,
-                padding = padding,
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .safeContentPadding(),
+            ) {
+                TimingRunSurface(
+                    timingRun = timingRun,
+                    orientation = orientation,
+                    displaySettings = displaySettings,
+                    locationFeedMode = locationFeedMode,
+                    onToggleOrientation = onToggleOrientation,
+                    onStopTiming = onStopTiming,
+                    isCompactLandscape = isCompactLandscape,
+                    padding = padding,
+                )
+            }
             return@BoxWithConstraints
         }
 
         if (isLandscape) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = spacing.xs, vertical = spacing.xs),
                 verticalArrangement = Arrangement.spacedBy(spacing.sm),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -591,7 +599,7 @@ private fun DriveSurface(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = padding, vertical = spacing.sm)
+                    .padding(horizontal = spacing.xs, vertical = spacing.xs)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(spacing.sm, Alignment.Top),
                 horizontalAlignment = Alignment.CenterHorizontally,

@@ -1,7 +1,7 @@
 package com.huanfuli.lapsight.shared.ui
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -14,9 +14,10 @@ import androidx.compose.ui.unit.dp
  * Bottom-navigation icons for the three-tab shell.
  *
  * The approved `material-icons-core` (pinned 1.7.3 per the Plan 03-02 gate) ships
- * `Icons.Filled.Settings` but omits `Speed` and `History` (those live in the
- * forbidden `material-icons-extended`). Rather than add a dependency, Drive and
- * Review use locally-built [ImageVector]s with simple, recognizable geometry.
+ * `Icons.Filled.Settings` but omits `Speed` and `History`, so Drive and Review
+ * use locally-built [ImageVector]s with simple, recognizable geometry. The
+ * screen-rotation action uses `material-icons-extended` so it reads as rotation
+ * instead of redo/refresh.
  */
 val DriveTabIcon: ImageVector by lazy {
     ImageVector.Builder(
@@ -98,4 +99,4 @@ val StopActionIcon: ImageVector by lazy {
     }.build()
 }
 
-val RotateScreenIcon: ImageVector get() = Icons.Filled.Refresh
+val RotateScreenIcon: ImageVector get() = Icons.Filled.ScreenRotation
