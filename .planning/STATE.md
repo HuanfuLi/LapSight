@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 05.1-04-PLAN.md (5.1-CODE-REVIEW.md core-path audit + docs/THIRD-PARTY-LICENSES.md)
-last_updated: "2026-06-29T08:30:00.000Z"
+stopped_at: Completed quick task 260629-wwd (Phase 5.1 GPS Ready blocker + pre-timing Drive UI hardening)
+last_updated: "2026-06-30T03:41:14.912Z"
 progress:
   total_phases: 8
   completed_phases: 5
@@ -16,7 +16,7 @@ progress:
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5.1 execution in progress. Plans 05.1-01, 05.1-02, 05.1-03, 05.1-04, 05.1-05, and 05.1-06 complete. Plan 04 produced `5.1-CODE-REVIEW.md` (deep severity-tagged audit of every Phase 1-5 core path: core P0/P1/P2 CLEAR for Go per D-42 — zero open findings, the confirmed source-provenance P1 verified fixed by Plan 03, 4 P3/info backlog items; clean-room boundary verified, export path-traversal + bad-input-as-data + manual orientation confirmed) and `docs/THIRD-PARTY-LICENSES.md` (ARCH-03 dependency inventory + ARCH-04 GPL-not-copied clean-room attestation + local-GPS privacy note). REQUIREMENTS.md traceability reconciled (PLAT-01, SAFE-03, ARCH-01/03/04 marked complete; PLAT-02 correctly pending per D-02). Remaining: Plan 07 (manual field UAT, gated per D-54), Plan 08 (Go/No-Go). Code-audit evidence layer for the Go gate = PASS.
+**Current Status:** Phase 5.1 execution in progress. Plans 05.1-01, 05.1-02, 05.1-03, 05.1-04, 05.1-05, and 05.1-06 complete. Quick task 260629-wwd fixed the field-test Ready blocker by lowering the sample-rate floor to 0.9 Hz, tightening the pre-timing Drive layout, and replacing the custom rotate icon with a standard material icon. Remaining: Plan 07 (manual field UAT, gated per D-54), Plan 08 (Go/No-Go). Code-audit evidence layer for the Go gate = PASS.
 
 ## Project Reference
 
@@ -32,9 +32,9 @@ Phase 5 course-profile work is implemented. A post-execution Android hardening p
 blocking usability issues in Drive, Review, recovery, theme handling, telemetry replay,
 and Android Phone GPS provider wiring.
 
-Next step: perform an unlocked-device Android UAT of the Phone GPS / Simulated switch,
-then start Phase 5.1 field-validation planning. Do not begin paid/real-world field
-validation until the real GPS feed is checked outdoors.
+Next step: reconnect the Android test phone, install the updated debug APK, and resume
+Plan 07 field UAT. Confirm a Phone GPS feed around 0.9-1.0 Hz no longer blocks Ready
+with `low GPS rate` before collecting counted sessions.
 
 ## Working Assumptions
 
@@ -130,13 +130,13 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Real and simulated feeds must remain explicitly labeled and source-gated; simulated data must never silently stand in for a selected Phone GPS run.
 - Phase 5.1 host-test Gradle task is `:shared:testAndroidHostTest` (the AGP KMP `withHostTest` task), NOT `:shared:testDebugUnitTest` (does not exist). Warm runtime ~5-6s; 326 host tests pass (pure execution 0.570s). Confirmed in plan 05.1-01.
 - SessionReplayDecoder treats malformed/truncated bytes and degenerate (zero-length) start/finish as typed data (Corrupt/NoCourse), never a thrown exception — the export→replay determinism link for D-25/D-28.
-- Conservative Ready thresholds chosen (Plan 05.1-03): horizontal accuracy 25 m, fix freshness 15 s, sample rate 1.0 Hz — injectable and validated. To be transcribed into 5.1-UAT.md by Plan 06.
+- Conservative Ready thresholds now used for field testing: horizontal accuracy 25 m, fix freshness 15 s, sample rate 0.9 Hz — injectable and validated. Quick task 260629-wwd lowered the previous 1.0 Hz floor after real-device testing showed Fused Location commonly hovering at 0.9-1.0 Hz.
 - The aggregate Ready gate in `SessionController.startTiming` is opt-in (`requireReady`); production Drive UI opts in (D-13), engine/determinism tests keep legacy behavior. Wrong-course override (D-18) runs before the Ready gate and bypasses it.
 - Session source now follows the live feed (PhoneGps/Simulated) via `AppShell` `sourceForTrack` injection, not the Track's marking source — the confirmed P1 evidence-integrity fix (D-04/D-42).
 - Replay determinism (D-25..D-28) is now an automated standing gate: `FullPipelineDeterminismTest` asserts the full `SessionController` pipeline (laps, completedSectorResults, ordered LiveDeltaSnapshot sequence, CourseCompatibilityKey/direction) is byte-identical across runs and across export→decode→replay; the legacy finalState-only replay/recovery/ghost/direction tests were widened to full algorithmic output (Plan 05.1-02).
 - Oval GPS fixtures complete laps through `SessionController` under `CourseDirection.Reverse` (the explicit accepted-sign is enforced even under lenient config); the Recorded config deterministically rejects the same physical crossings.
 - UI hardening (Plan 05.1-05): Drive dash + shell colors/typography/spacing now flow through `MaterialTheme` semantic tokens (`ui/Theme.kt`) + a 4dp `LocalSpacing` scale (`ui/Spacing.kt`); 0 inline hex and 0 inline `fontSize`/`.sp` remain. Hero readouts use `TextAutoSize.StepBased` so glance sizing is clip-safe. Six D-36 pillars re-audited: all >= 3/4 (overall 19/24); no Hardening-Required UI blocker. Information hierarchy and manual orientation toggle unchanged.
-- Field-UAT protocol authored (Plan 05.1-06): `5.1-UAT.md` is the device-independent Android-only protocol (on-device smoke S1-S6, mounted-display glance over the 7 core elements portrait/landscape x daylight/low-light, Ready-before-timing with the verbatim 25.0 m / 15000 ms / 1.0 Hz thresholds, the 3+2 five-valid-session matrix, lap-count-100% hard blocker, <=0.5 s video target, replay-diagnosis-first via `SessionReplayDecoder`, and Review + JSON/GPX export smoke R1-R5 with concrete acceptance). `5.1-FIELD-TEST-LOG.md` is the 5-row (3 primary + 2 secondary) evidence-index skeleton on the D-48 template. Both are pending real field evidence (D-54), filled during Plan 07. Build/install uses the corrected `:shared:testAndroidHostTest` + `:androidApp:assembleDebug`.
+- Field-UAT protocol authored (Plan 05.1-06) and updated by quick task 260629-wwd: `5.1-UAT.md` is the device-independent Android-only protocol (on-device smoke S1-S6, mounted-display glance over the 7 core elements portrait/landscape x daylight/low-light, Ready-before-timing with the 25.0 m / 15000 ms / 0.9 Hz thresholds, the 3+2 five-valid-session matrix, lap-count-100% hard blocker, <=0.5 s video target, replay-diagnosis-first via `SessionReplayDecoder`, and Review + JSON/GPX export smoke R1-R5 with concrete acceptance). `5.1-FIELD-TEST-LOG.md` is the 5-row (3 primary + 2 secondary) evidence-index skeleton on the D-48 template. Both are pending real field evidence (D-54), filled during Plan 07. Build/install uses the corrected `:shared:testAndroidHostTest` + `:androidApp:assembleDebug`.
 - Code audit complete (Plan 05.1-04): `5.1-CODE-REVIEW.md` is the deep severity-tagged audit of every Phase 1-5 core path. Verdict: core-path P0/P1/P2 CLEAR for the Go gate (D-42) — zero open findings; the confirmed source-provenance P1 (AppShell.kt) is verified fixed by Plan 03; 4 P3/info backlog items (Okio-in-I/O-seam is not an ARCH-01 breach, belt-and-suspenders `..` replacement, optional first-run safety gate, undecided app license). Clean-room boundary verified (engine imports zero Compose/platform; Okio only in storage/export I/O), engine pure (no Random/clock in `lap/`), no network/analytics in `commonMain`, no `doves`/`gpl` in `shared/src`, export-filename path traversal mitigated + tested, bad-input-as-data confirmed, manual orientation confirmed. `docs/THIRD-PARTY-LICENSES.md` delivers the owed ARCH-03 inventory (all deps Apache-2.0 except proprietary Play Services Location + test-only JUnit; none GPL) + ARCH-04 clean-room attestation + local-GPS privacy note. The app's own license remains an open product decision (tracked risk, not a core-timing blocker). REQUIREMENTS.md reconciled: PLAT-01, SAFE-03, ARCH-01/03/04 marked complete; PLAT-02 correctly pending (iOS out of scope, D-02).
 
 ## Performance Metrics
@@ -152,12 +152,18 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 | 05.1-06 | 12min | 2 tasks | 2 files |
 | 05.1-04 | 30min | 2 tasks | 2 files |
 
+## Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260629-wwd | Phase 5.1 field-test blocker hardening: relax GPS Ready rate, tidy pre-timing Drive layout, replace rotate icon | 2026-06-30 | 04fff42 | [260629-wwd-phase-5-1-field-test-blocker-hardening-r](./quick/260629-wwd-phase-5-1-field-test-blocker-hardening-r/) |
+
 ## Session Continuity
 
-**Last session:** 2026-06-29T08:30:00.000Z
-**Stopped At:** Completed 05.1-04-PLAN.md (5.1-CODE-REVIEW.md core-path audit + docs/THIRD-PARTY-LICENSES.md)
+**Last session:** 2026-06-30T03:41:14.912Z
+**Stopped At:** Completed quick task 260629-wwd (Phase 5.1 GPS Ready blocker + pre-timing Drive UI hardening)
 **Resume File:** None
 
 ---
 
-*Last updated: 2026-06-29 after Phase 5.1 plan 06 (field-UAT protocol + evidence-index authoring) execution*
+*Last updated: 2026-06-30 after quick task 260629-wwd (field-test blocker hardening)*
