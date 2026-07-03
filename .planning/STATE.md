@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed quick task 260702-uju (Track editor field-test hardening)
-last_updated: "2026-07-03T01:59:48.899Z"
+stopped_at: Completed quick task 260702-vn1 (unified Track detail course map)
+last_updated: "2026-07-03T02:53:32.581Z"
 progress:
   total_phases: 8
   completed_phases: 5
@@ -16,7 +16,7 @@ progress:
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5.1 execution in progress. Plans 05.1-01, 05.1-02, 05.1-03, 05.1-04, 05.1-05, and 05.1-06 complete. Quick tasks 260629-wwd and 260702-uju fixed the field-test Ready blocker and Track editor usability/data-refresh blockers. Track editor now uses relative handle dragging, clearer circuit rendering, immediate Review refresh after profile actions, and V2-only duplicated profiles remain editable. Remaining: Plan 07 (manual field UAT, gated per D-54), Plan 08 (Go/No-Go). Code-audit evidence layer for the Go gate = PASS.
+**Current Status:** Phase 5.1 execution in progress. Plans 05.1-01, 05.1-02, 05.1-03, 05.1-04, 05.1-05, and 05.1-06 complete. Quick tasks 260629-wwd, 260702-uju, and 260702-vn1 fixed the field-test Ready blocker, Track editor usability/data-refresh blockers, and the duplicate Track detail map regression. Track detail now uses one beautified circuit map; `Edit course` switches that same map into editable mode instead of rendering a second trace. Remaining: Plan 07 (manual field UAT, gated per D-54), Plan 08 (Go/No-Go). Code-audit evidence layer for the Go gate = PASS.
 
 ## Project Reference
 
@@ -32,10 +32,11 @@ Phase 5 course-profile work is implemented. A post-execution Android hardening p
 blocking usability issues in Drive, Review, recovery, theme handling, telemetry replay,
 and Android Phone GPS provider wiring.
 
-Next step: reconnect the Android test phone, install the updated debug APK, and resume
-Plan 07 field UAT. Confirm a Phone GPS feed around 0.9-1.0 Hz no longer blocks Ready
-with `low GPS rate`, then re-test Track editor gestures: start/finish dragging,
-sector-boundary dragging, revision save refresh, and duplicate-profile editability.
+Next step: resume Plan 07 field UAT on the installed Android build. Confirm a Phone GPS
+feed around 0.9-1.0 Hz no longer blocks Ready with `low GPS rate`, then re-test
+Track detail/editor gestures: single beautified Trace map, in-place `Edit course`,
+start/finish dragging, sector-boundary dragging, revision save refresh, and
+duplicate-profile editability.
 
 ## Working Assumptions
 
@@ -140,6 +141,7 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Field-UAT protocol authored (Plan 05.1-06) and updated by quick task 260629-wwd: `5.1-UAT.md` is the device-independent Android-only protocol (on-device smoke S1-S6, mounted-display glance over the 7 core elements portrait/landscape x daylight/low-light, Ready-before-timing with the 25.0 m / 15000 ms / 0.9 Hz thresholds, the 3+2 five-valid-session matrix, lap-count-100% hard blocker, <=0.5 s video target, replay-diagnosis-first via `SessionReplayDecoder`, and Review + JSON/GPX export smoke R1-R5 with concrete acceptance). `5.1-FIELD-TEST-LOG.md` is the 5-row (3 primary + 2 secondary) evidence-index skeleton on the D-48 template. Both are pending real field evidence (D-54), filled during Plan 07. Build/install uses the corrected `:shared:testAndroidHostTest` + `:androidApp:assembleDebug`.
 - Code audit complete (Plan 05.1-04): `5.1-CODE-REVIEW.md` is the deep severity-tagged audit of every Phase 1-5 core path. Verdict: core-path P0/P1/P2 CLEAR for the Go gate (D-42) — zero open findings; the confirmed source-provenance P1 (AppShell.kt) is verified fixed by Plan 03; 4 P3/info backlog items (Okio-in-I/O-seam is not an ARCH-01 breach, belt-and-suspenders `..` replacement, optional first-run safety gate, undecided app license). Clean-room boundary verified (engine imports zero Compose/platform; Okio only in storage/export I/O), engine pure (no Random/clock in `lap/`), no network/analytics in `commonMain`, no `doves`/`gpl` in `shared/src`, export-filename path traversal mitigated + tested, bad-input-as-data confirmed, manual orientation confirmed. `docs/THIRD-PARTY-LICENSES.md` delivers the owed ARCH-03 inventory (all deps Apache-2.0 except proprietary Play Services Location + test-only JUnit; none GPL) + ARCH-04 clean-room attestation + local-GPS privacy note. The app's own license remains an open product decision (tracked risk, not a core-timing blocker). REQUIREMENTS.md reconciled: PLAT-01, SAFE-03, ARCH-01/03/04 marked complete; PLAT-02 correctly pending (iOS out of scope, D-02).
 - Quick task 260702-uju hardened Track editor after field feedback: start/finish and sector boundaries now drag by relative course progress instead of repeated nearest-point taps; the circuit illustration uses thicker outer/inner strokes and larger handles; Review refreshes after profile mutations; duplicated V2-only profiles stay editable. Verification: focused editor/profile tests, full `:shared:testAndroidHostTest`, and `:androidApp:assembleDebug` passed.
+- Quick task 260702-vn1 fixed the Track detail duplicate-map regression: the original `Trace` now uses the shared beautified circuit canvas, and `Edit course` switches that same map into edit mode in place. Verification: `:shared:testAndroidHostTest`, `:androidApp:assembleDebug`, `:androidApp:installDebug`, and ADB launch on device `25053RT47C` passed.
 
 ## Performance Metrics
 
@@ -160,13 +162,14 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 |---|-------------|------|--------|-----------|
 | 260629-wwd | Phase 5.1 field-test blocker hardening: relax GPS Ready rate, tidy pre-timing Drive layout, replace rotate icon | 2026-06-30 | 04fff42 | [260629-wwd-phase-5-1-field-test-blocker-hardening-r](./quick/260629-wwd-phase-5-1-field-test-blocker-hardening-r/) |
 | 260702-uju | Track editor field-test hardening: fix start/finish drag behavior, editable sectors, live review refresh, duplicated profile editability, and track rendering polish | 2026-07-03 | ed5e81b | [260702-uju-track-editor-field-test-hardening-fix-st](./quick/260702-uju-track-editor-field-test-hardening-fix-st/) |
+| 260702-vn1 | Unify Track detail trace and edit course map so the original Trace is beautified and editing does not render a duplicate map | 2026-07-03 | ee84fef | [260702-vn1-unify-track-detail-trace-and-edit-course](./quick/260702-vn1-unify-track-detail-trace-and-edit-course/) |
 
 ## Session Continuity
 
-**Last session:** 2026-07-03T01:59:48.899Z
-**Stopped At:** Completed quick task 260702-uju (Track editor field-test hardening)
-**Resume File:** `.planning/quick/260702-uju-track-editor-field-test-hardening-fix-st/260702-uju-SUMMARY.md`
+**Last session:** 2026-07-03T02:53:32.581Z
+**Stopped At:** Completed quick task 260702-vn1 (unified Track detail course map)
+**Resume File:** `.planning/quick/260702-vn1-unify-track-detail-trace-and-edit-course/260702-vn1-SUMMARY.md`
 
 ---
 
-*Last updated: 2026-07-03 after quick task 260702-uju (Track editor field-test hardening)*
+*Last updated: 2026-07-03 after quick task 260702-vn1 (unified Track detail course map)*
