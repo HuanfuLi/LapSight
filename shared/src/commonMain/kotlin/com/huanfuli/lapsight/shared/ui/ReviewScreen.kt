@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -64,12 +65,21 @@ import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.AppendRevisionResult
 import com.huanfuli.lapsight.shared.track.ArchiveProfileResult
+import com.huanfuli.lapsight.shared.track.ClosedReferencePath
+import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
 import com.huanfuli.lapsight.shared.track.CreateProfileResult
+import com.huanfuli.lapsight.shared.track.CourseGeometryBuilder
+import com.huanfuli.lapsight.shared.track.CourseProfileEditor
+import com.huanfuli.lapsight.shared.track.CourseSetup
+import com.huanfuli.lapsight.shared.track.CourseValidation
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.DuplicateProfileResult
 import com.huanfuli.lapsight.shared.track.RenameProfileResult
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
+import com.huanfuli.lapsight.shared.track.SectorBoundary
+import com.huanfuli.lapsight.shared.track.SectorLineDto
+import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackProfile
@@ -645,8 +655,16 @@ private fun RowDetail(
         if (row.sampleCount != null) DetailLine("Samples", row.sampleCount.toString())
         DetailLine("Payload", row.payloadPath)
 
-        // Trace section for Track and TrackMarking entries (D-35).
-        if (row.type == ReviewEntryType.Track || row.type == ReviewEntryType.TrackMarking) {
+        // Track detail uses a single beautified course map. Edit mode switches this
+        // map in place instead of rendering a second identical editor map.
+        if (row.type == ReviewEntryType.Track) {
+            TrackCourseDetailSection(
+                trackId = row.id,
+                sessionStore = sessionStore,
+                refreshVersion = refreshVersion,
+                onDataChanged = onDataChanged,
+            )
+        } else if (row.type == ReviewEntryType.TrackMarking) {
             TrackTraceSection(
                 rowId = row.id,
                 type = row.type,
@@ -694,16 +712,6 @@ private fun RowDetail(
             )
         }
 
-        // Edit course + revision history (SC-02, D-05, D-12..D-14): offline editing of
-        // start/finish and Sector layout, saved as an immutable revision.
-        if (row.type == ReviewEntryType.Track) {
-            EditCourseSection(
-                trackId = row.id,
-                sessionStore = sessionStore,
-                onDataChanged = onDataChanged,
-            )
-        }
-
         // Export actions (D-40): explicit button tap on Track Review detail only.
         if (row.type == ReviewEntryType.Track) {
             Spacer(Modifier.height(6.dp))
@@ -737,6 +745,255 @@ private fun RowDetail(
             }
         }
     }
+}
+
+/**
+ * Single Track course surface for Review detail.
+ *
+ * This replaces the previous split between a read-only `TraceView` and a second
+ * `TrackEditorScreen`. The same beautified map is used for browse and edit mode.
+ */
+@Composable
+private fun TrackCourseDetailSection(
+    trackId: String,
+    sessionStore: LocalSessionStore,
+    refreshVersion: Long,
+    onDataChanged: () -> Unit,
+) {
+    val payload = remember(trackId, refreshVersion) {
+        (sessionStore.loadTrack(trackId) as? LoadResult.Loaded<TrackPayloadV1>)?.value
+    }
+    var profile by remember(trackId, refreshVersion) {
+        mutableStateOf(ensureProfile(sessionStore, trackId))
+    }
+    var editing by remember(trackId) { mutableStateOf(false) }
+    var message by remember(trackId) { mutableStateOf<String?>(null) }
+
+    val current = profile
+    val latest = current?.latestRevision
+    val referenceLine = latest?.referenceLine ?: payload?.track?.referenceLine
+    val initialSetup = latest?.courseSetup ?: legacyCourseSetup(payload?.track)
+
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "Trace",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+    )
+    Spacer(Modifier.height(4.dp))
+
+    val pathResult = remember(referenceLine) {
+        referenceLine?.let { ClosedReferencePath.fromReferenceLine(it) }
+    }
+    if (referenceLine == null || referenceLine.points.isEmpty() || pathResult !is ClosedReferencePathResult.Loaded) {
+        Text(
+            text = "Trace data unavailable.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+        )
+    } else {
+        val path = pathResult.path
+        var editor by remember(trackId, refreshVersion, editing, path) {
+            mutableStateOf(seedCourseProfileEditor(path, initialSetup))
+        }
+        TrackCourseMapCanvas(
+            referenceLine = referenceLine,
+            editor = editor,
+            editingEnabled = editing,
+            height = 260.dp,
+            onPlaceStartFinish = { local -> editor = editor.placeStartFinish(local) },
+            onDragStartFinishBy = { deltaMeters -> editor = editor.dragStartFinishBy(deltaMeters) },
+            onDragBoundaryBy = { id, deltaMeters -> editor = editor.dragBoundaryBy(id, deltaMeters) },
+        )
+
+        if (current == null) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Course editing unavailable for this entry.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+            )
+        } else {
+            CourseRevisionAndEditControls(
+                profile = current,
+                editing = editing,
+                editor = editor,
+                message = message,
+                onStartEditing = {
+                    editing = true
+                    message = null
+                },
+                onEditorChanged = { editor = it },
+                onCancelEditing = {
+                    editing = false
+                    message = null
+                },
+                onSave = {
+                    val controller = TrackProfileController(sessionStore)
+                    when (val result = controller.appendRevision(
+                        profileId = current.profileId,
+                        referenceLine = referenceLine,
+                        courseSetup = editor.toCourseSetup(),
+                        app = trackApp(sessionStore, trackId) ?: uiFallbackAppMetadata(),
+                        sourceMarkingSessionId = latest?.sourceMarkingSessionId,
+                    )) {
+                        is AppendRevisionResult.Appended -> {
+                            profile = result.profile
+                            editing = false
+                            message = "Saved revision ${result.revision.ordinal}."
+                            onDataChanged()
+                        }
+                        is AppendRevisionResult.Rejected -> {
+                            message = "Couldn't save: ${result.reason}."
+                        }
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CourseRevisionAndEditControls(
+    profile: TrackProfile,
+    editing: Boolean,
+    editor: CourseProfileEditor,
+    message: String?,
+    onStartEditing: () -> Unit,
+    onEditorChanged: (CourseProfileEditor) -> Unit,
+    onCancelEditing: () -> Unit,
+    onSave: () -> Unit,
+) {
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "Revision history",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+    )
+    profile.revisions.sortedBy { it.ordinal }.forEach { revision ->
+        val ready = revision.courseSetup.startFinish != null
+        Text(
+            text = "Rev ${revision.ordinal} · ${formatEpochMillis(revision.createdAtEpochMillis)} · " +
+                if (ready) "timing-ready" else "needs start/finish",
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 13.sp,
+        )
+    }
+
+    message?.let { msg ->
+        Text(
+            text = msg,
+            color = if (msg.startsWith("Couldn't") || msg.startsWith("Edit")) Color(0xFFFF6B6B) else Color(0xFF8CFF9B),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+
+    if (!editing) {
+        Spacer(Modifier.height(6.dp))
+        OutlinedButton(onClick = onStartEditing) { Text("Edit course") }
+        return
+    }
+
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val placed = editor.startFinishProgress != null
+        OutlinedButton(
+            enabled = placed && !editor.startFinishConfirmed,
+            onClick = { if (editor.startFinishProgress != null) onEditorChanged(editor.confirmStartFinish()) },
+        ) { Text(if (editor.startFinishConfirmed) "Start/finish confirmed" else "Confirm start/finish") }
+    }
+    if (editor.startFinishProgress == null) {
+        Text(
+            text = "Tap the trace to place the start/finish line.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+        )
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = "Sector timing",
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 15.sp,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        Switch(
+            checked = editor.sectorsEnabled,
+            onCheckedChange = { enabled -> onEditorChanged(editor.setSectorsEnabled(enabled)) },
+        )
+    }
+    if (editor.sectorsEnabled) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                enabled = editor.sectorCount > CourseGeometryBuilder.MIN_SECTOR_COUNT,
+                onClick = { onEditorChanged(editor.setSectorCount(editor.sectorCount - 1)) },
+            ) { Text("-") }
+            Text(
+                text = "${editor.sectorCount} Sectors",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            OutlinedButton(
+                enabled = editor.sectorCount < CourseGeometryBuilder.MAX_SECTOR_COUNT,
+                onClick = { onEditorChanged(editor.setSectorCount(editor.sectorCount + 1)) },
+            ) { Text("+") }
+        }
+        Text(
+            text = editor.boundaries.joinToString(
+                prefix = "Boundaries: ",
+                separator = "  ",
+            ) { "S${it.order}" },
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+        )
+    }
+
+    when (val validation = editor.validate()) {
+        is CourseValidation.Valid -> Text(
+            text = "Ready to save.",
+            color = Color(0xFF8CFF9B),
+            fontSize = 13.sp,
+        )
+        is CourseValidation.Invalid -> Text(
+            text = validation.problems.joinToString("\n") { describeCourseProblem(it) },
+            color = Color(0xFFFFD166),
+            fontSize = 13.sp,
+        )
+    }
+
+    Spacer(Modifier.height(4.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(
+            enabled = editor.canSave,
+            onClick = { if (editor.canSave) onSave() },
+        ) { Text("Save revision") }
+        OutlinedButton(onClick = onCancelEditing) { Text("Cancel") }
+    }
+}
+
+private fun legacyCourseSetup(track: Track?): CourseSetup? {
+    if (track == null) return null
+    val boundaries = track.sectors.map { sector ->
+        SectorBoundary(
+            id = sector.id,
+            order = sector.order,
+            pointA = sector.pointA,
+            pointB = sector.pointB,
+            normalizedProgress = null,
+        )
+    }
+    return CourseSetup(
+        startFinish = track.startFinish,
+        sectorsEnabled = boundaries.isNotEmpty(),
+        sectorCount = if (boundaries.isNotEmpty()) boundaries.size + 1 else 0,
+        boundaries = boundaries,
+    )
 }
 
 /**
@@ -785,8 +1042,8 @@ private fun TrackTraceSection(
     }
 
     val startFinish = track?.startFinish ?: profile?.latestRevision?.courseSetup?.startFinish
-    val sectors = track?.sectors ?: profile?.latestRevision?.courseSetup?.boundaries?.map { 
-        com.huanfuli.lapsight.shared.track.SectorLineDto(id = it.id, name = "Sector ${it.order}", order = it.order, pointA = it.pointA, pointB = it.pointB)
+    val sectors = track?.sectors ?: profile?.latestRevision?.courseSetup?.boundaries?.map {
+        SectorLineDto(id = it.id, name = "Sector ${it.order}", order = it.order, pointA = it.pointA, pointB = it.pointB)
     } ?: emptyList()
 
     val layers = buildTrackTraceLayers(
@@ -876,114 +1133,6 @@ private fun ProfileLifecycleSection(
             fontWeight = FontWeight.Bold,
         )
     }
-}
-
-/**
- * Offline course-editing surface on Track detail (SC-02, D-05, D-12..D-14).
- *
- * Shows the profile's immutable revision history and, on demand, the offline
- * [TrackEditorScreen] seeded with the latest revision's course setup. A valid save
- * appends a new immutable revision via [TrackProfileController.appendRevision] and the
- * history updates immediately; prior revisions are never overwritten. A V1-only Track
- * is promoted to a V2 profile before editing so a real aggregate always backs the edit.
- */
-@Composable
-private fun EditCourseSection(
-    trackId: String,
-    sessionStore: LocalSessionStore,
-    onDataChanged: () -> Unit,
-) {
-    val payload = remember(trackId) {
-        (sessionStore.loadTrack(trackId) as? LoadResult.Loaded<TrackPayloadV1>)?.value
-    }
-    // Resolve (promoting if needed) the V2 aggregate; held in state so a save refreshes it.
-    var profile by remember(trackId) { mutableStateOf(ensureProfile(sessionStore, trackId)) }
-    var editing by remember(trackId) { mutableStateOf(false) }
-    var message by remember(trackId) { mutableStateOf<String?>(null) }
-
-    val current = profile
-    if (current == null) {
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "Course editing unavailable for this entry.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 13.sp,
-        )
-        return
-    }
-
-    Spacer(Modifier.height(8.dp))
-    Text(
-        text = "Revision history",
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Bold,
-    )
-    current.revisions.sortedBy { it.ordinal }.forEach { revision ->
-        val ready = revision.courseSetup.startFinish != null
-        Text(
-            text = "Rev ${revision.ordinal} · ${formatEpochMillis(revision.createdAtEpochMillis)} · " +
-                if (ready) "timing-ready" else "needs start/finish",
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 13.sp,
-        )
-    }
-
-    message?.let { msg ->
-        Text(
-            text = msg,
-            color = if (msg.startsWith("Couldn't") || msg.startsWith("Edit")) Color(0xFFFF6B6B) else Color(0xFF8CFF9B),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-
-    if (!editing) {
-        Spacer(Modifier.height(6.dp))
-        OutlinedButton(onClick = { editing = true; message = null }) { Text("Edit course") }
-        return
-    }
-
-    // Edit over the latest revision's canonical reference line + course setup.
-    val latest = current.latestRevision
-    val referenceLine = latest?.referenceLine ?: payload?.track?.referenceLine
-    if (referenceLine == null || referenceLine.points.isEmpty()) {
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "This track has no reference line to edit.",
-            color = Color(0xFFFFD166),
-            fontSize = 13.sp,
-        )
-        OutlinedButton(onClick = { editing = false }) { Text("Close") }
-        return
-    }
-
-    Spacer(Modifier.height(8.dp))
-    TrackEditorScreen(
-        referenceLine = referenceLine,
-        initialSetup = latest?.courseSetup,
-        onSave = { setup ->
-            val controller = TrackProfileController(sessionStore)
-            when (val result = controller.appendRevision(
-                profileId = current.profileId,
-                referenceLine = referenceLine,
-                courseSetup = setup,
-                app = trackApp(sessionStore, trackId) ?: uiFallbackAppMetadata(),
-                sourceMarkingSessionId = latest?.sourceMarkingSessionId,
-            )) {
-                is AppendRevisionResult.Appended -> {
-                    profile = result.profile
-                    editing = false
-                    message = "Saved revision ${result.revision.ordinal}."
-                    onDataChanged()
-                }
-                is AppendRevisionResult.Rejected -> {
-                    message = "Couldn't save: ${result.reason}."
-                }
-            }
-        },
-        onCancel = { editing = false },
-    )
 }
 
 /**

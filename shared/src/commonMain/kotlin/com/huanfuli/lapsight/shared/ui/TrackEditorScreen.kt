@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.huanfuli.lapsight.shared.lap.LocalPoint
@@ -114,11 +115,12 @@ fun TrackEditorScreen(
         }
 
         val path = pathResult.path
-        var editor by remember(path) { mutableStateOf(seedEditor(path, initialSetup)) }
+        var editor by remember(path) { mutableStateOf(seedCourseProfileEditor(path, initialSetup)) }
 
-        TrackEditorCanvas(
+        TrackCourseMapCanvas(
             referenceLine = referenceLine,
             editor = editor,
+            editingEnabled = true,
             onPlaceStartFinish = { local -> editor = editor.placeStartFinish(local) },
             onDragStartFinishBy = { deltaMeters -> editor = editor.dragStartFinishBy(deltaMeters) },
             onDragBoundaryBy = { id, deltaMeters -> editor = editor.dragBoundaryBy(id, deltaMeters) },
@@ -191,7 +193,7 @@ fun TrackEditorScreen(
                 fontSize = 13.sp,
             )
             is CourseValidation.Invalid -> Text(
-                text = validation.problems.joinToString("\n") { describeProblem(it) },
+                text = validation.problems.joinToString("\n") { describeCourseProblem(it) },
                 color = Color(0xFFFFD166),
                 fontSize = 13.sp,
             )
@@ -209,15 +211,18 @@ fun TrackEditorScreen(
 }
 
 /**
- * The interactive canvas: draws the closed reference loop, the derived start/finish
- * line, and the derived Sector boundaries, and routes pointer gestures into
- * candidate local points. Handle hit-testing and the screen→local inverse both go
- * through the single [TraceViewport].
+ * Shared course map canvas used by Track detail and the offline editor.
+ *
+ * In browse mode it draws the improved circuit-style trace without pointer input.
+ * In edit mode it routes handle drags into relative course-progress deltas.
  */
 @Composable
-private fun TrackEditorCanvas(
+internal fun TrackCourseMapCanvas(
     referenceLine: TrackReferenceLine,
     editor: CourseProfileEditor,
+    editingEnabled: Boolean,
+    modifier: Modifier = Modifier,
+    height: Dp = 300.dp,
     onPlaceStartFinish: (LocalPoint) -> Unit,
     onDragStartFinishBy: (Double) -> Unit,
     onDragBoundaryBy: (String, Double) -> Unit,
@@ -230,10 +235,10 @@ private fun TrackEditorCanvas(
     var activeHandle by remember { mutableStateOf<String?>(null) }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 240.dp, max = 360.dp)
-            .height(300.dp)
+            .height(height)
             .background(MaterialTheme.colorScheme.background),
     ) {
         if (viewport == null) return@Box
@@ -242,10 +247,11 @@ private fun TrackEditorCanvas(
         val startFinishLine: StartFinishLineDto? = editor.buildStartFinishLine()
         val boundaries: List<SectorBoundary> = editor.buildBoundaries()
 
-        Canvas(
-            modifier = Modifier
+        var canvasModifier = Modifier
                 .fillMaxWidth()
-                .height(300.dp)
+                .height(height)
+        if (editingEnabled) {
+            canvasModifier = canvasModifier
                 // Single gesture model: touch creates the first start/finish only;
                 // existing handles move by relative course progress, not repeated taps.
                 .pointerInput(viewport) {
@@ -327,7 +333,11 @@ private fun TrackEditorCanvas(
                             }
                         },
                     )
-                },
+                }
+        }
+
+        Canvas(
+            modifier = canvasModifier,
         ) {
             val w = size.width
             val h = size.height
@@ -347,7 +357,7 @@ private fun TrackEditorCanvas(
                     width = w,
                     height = h,
                     color = Color(0xFF8CFF9B),
-                    active = activeHandle == START_FINISH_HANDLE,
+                    active = editingEnabled && activeHandle == START_FINISH_HANDLE,
                 )
             }
 
@@ -362,7 +372,7 @@ private fun TrackEditorCanvas(
                     width = w,
                     height = h,
                     color = Color(0xFFFFD166),
-                    active = activeHandle == boundary.id,
+                    active = editingEnabled && activeHandle == boundary.id,
                 )
             }
         }
@@ -520,7 +530,7 @@ private fun DrawScope.drawHandle(
     )
 }
 
-private fun describeProblem(problem: CourseProblem): String = when (problem) {
+internal fun describeCourseProblem(problem: CourseProblem): String = when (problem) {
     CourseProblem.NoStartFinish -> "Place a start/finish line."
     CourseProblem.StartFinishUnconfirmed -> "Confirm the start/finish line."
     CourseProblem.InvalidSectorCount -> "Choose between 2 and 6 Sectors."
@@ -535,7 +545,7 @@ private fun describeProblem(problem: CourseProblem): String = when (problem) {
  * stored normalized progress so the canonical anchors — not persisted endpoints —
  * drive placement (D-10).
  */
-private fun seedEditor(path: ClosedReferencePath, setup: CourseSetup?): CourseProfileEditor {
+internal fun seedCourseProfileEditor(path: ClosedReferencePath, setup: CourseSetup?): CourseProfileEditor {
     var editor = CourseProfileEditor.create(path)
     if (setup == null) return editor
 
