@@ -74,6 +74,30 @@ data class CourseProfileEditor(
     /** Place/replace start/finish from a candidate geographic point. */
     fun placeStartFinishGeo(geo: GeoPointDto): CourseProfileEditor = placeStartFinish(path.toLocal(geo))
 
+    /**
+     * Drag the existing start/finish by an arc-length delta along the recorded trace.
+     *
+     * Unlike [placeStartFinish], this is a true handle drag: the movement is relative
+     * to the current progress anchor, so dragging away from the thin trace does not
+     * repeatedly re-project to nearly the same nearest point.
+     */
+    fun dragStartFinishBy(deltaMeters: Double): CourseProfileEditor {
+        val current = startFinishProgress ?: return this
+        val snappedRaw = snapRaw(current + deltaMeters)
+        val movedProgress = path.wrap(snappedRaw)
+        val actualDelta = snappedRaw - current
+        val movedBoundaries = if (sectorsEnabled) {
+            boundaries.map { it.copy(progress = path.wrap(it.progress + actualDelta)) }
+        } else {
+            boundaries
+        }
+        return copy(
+            startFinishProgress = movedProgress,
+            startFinishConfirmed = false,
+            boundaries = movedBoundaries,
+        )
+    }
+
     /** Confirm the placed start/finish as the timing boundary (D-05). */
     fun confirmStartFinish(): CourseProfileEditor {
         require(startFinishProgress != null) { "Cannot confirm start/finish before it is placed." }
@@ -112,6 +136,16 @@ data class CourseProfileEditor(
     fun dragBoundary(id: String, local: LocalPoint): CourseProfileEditor {
         val target = boundaries.firstOrNull { it.id == id } ?: return this
         val candidate = snap(path.projectLocal(local).progressMeters)
+        val clamped = clampToSpacing(id, candidate)
+        return copy(
+            boundaries = boundaries.map { if (it.id == id) it.copy(progress = clamped) else it },
+        )
+    }
+
+    /** Drag a boundary by an arc-length delta along the trace. */
+    fun dragBoundaryBy(id: String, deltaMeters: Double): CourseProfileEditor {
+        val target = boundaries.firstOrNull { it.id == id } ?: return this
+        val candidate = path.wrap(snapRaw(target.progress + deltaMeters))
         val clamped = clampToSpacing(id, candidate)
         return copy(
             boundaries = boundaries.map { if (it.id == id) it.copy(progress = clamped) else it },
@@ -186,9 +220,13 @@ data class CourseProfileEditor(
 
     /** Snap arc length to the configured grid and wrap into [0, perimeter). */
     private fun snap(progress: Double): Double {
+        return path.wrap(snapRaw(progress))
+    }
+
+    /** Snap arc length to the configured grid without wrapping, preserving drag direction. */
+    private fun snapRaw(progress: Double): Double {
         val grid = thresholds.snapMeters
-        val snapped = if (grid <= 0.0) progress else round(progress / grid) * grid
-        return path.wrap(snapped)
+        return if (grid <= 0.0) progress else round(progress / grid) * grid
     }
 
     /**

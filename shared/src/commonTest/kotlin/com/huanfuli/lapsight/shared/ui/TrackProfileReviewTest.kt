@@ -140,6 +140,25 @@ class TrackProfileReviewTest {
         // The source profile is unchanged and still active alongside the duplicate.
         assertEquals(source, loadedProfile(store, "track-a"))
         assertTrue(store.listActiveProfiles().any { it.profileId == "track-a-copy-42" })
+        assertTrue(
+            store.readIndex().rows.any { it.id == "track-a-copy-42" },
+            "duplicate must be visible in Review immediately",
+        )
+    }
+
+    @Test
+    fun duplicateProfileCanBeManagedWithoutLegacyTrackPayload() {
+        val store = InMemorySessionStore()
+        seedTrack(store, "track-a", "Alpha")
+        loadedProfileAfterPromotion(store, "track-a")
+
+        val duplicateMessage = duplicateTrack(store, "track-a", now = { 42L })
+        assertFalse(duplicateMessage.startsWith("Couldn't"), duplicateMessage)
+        assertIs<LoadResult.NotFound>(store.loadTrack("track-a-copy-42"))
+
+        val renameMessage = renameTrack(store, "track-a-copy-42", "Alpha setup B")
+        assertFalse(renameMessage.startsWith("Couldn't"), renameMessage)
+        assertEquals("Alpha setup B", loadedProfile(store, "track-a-copy-42").name)
     }
 
     // --- D-14 (anti-pattern guard): old session geometry is frozen --------------

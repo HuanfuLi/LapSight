@@ -3,7 +3,6 @@ package com.huanfuli.lapsight.shared.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,10 +20,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
@@ -43,6 +44,7 @@ import com.huanfuli.lapsight.shared.track.CourseValidation
 import com.huanfuli.lapsight.shared.track.SectorBoundary
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.TrackReferenceLine
+import kotlin.math.abs
 import kotlin.math.hypot
 
 /**
@@ -118,7 +120,8 @@ fun TrackEditorScreen(
             referenceLine = referenceLine,
             editor = editor,
             onPlaceStartFinish = { local -> editor = editor.placeStartFinish(local) },
-            onDragBoundary = { id, local -> editor = editor.dragBoundary(id, local) },
+            onDragStartFinishBy = { deltaMeters -> editor = editor.dragStartFinishBy(deltaMeters) },
+            onDragBoundaryBy = { id, deltaMeters -> editor = editor.dragBoundaryBy(id, deltaMeters) },
         )
 
         // Start/finish controls (confirmation is mandatory before save, D-05).
@@ -171,7 +174,10 @@ fun TrackEditorScreen(
                 ) { Text("+") }
             }
             Text(
-                text = "Drag a Sector handle to move that boundary along the trace.",
+                text = editor.boundaries.joinToString(
+                    prefix = "Boundaries: ",
+                    separator = "  ",
+                ) { "S${it.order}" },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
@@ -213,12 +219,15 @@ private fun TrackEditorCanvas(
     referenceLine: TrackReferenceLine,
     editor: CourseProfileEditor,
     onPlaceStartFinish: (LocalPoint) -> Unit,
-    onDragBoundary: (String, LocalPoint) -> Unit,
+    onDragStartFinishBy: (Double) -> Unit,
+    onDragBoundaryBy: (String, Double) -> Unit,
 ) {
     val padding = 0.1
     val viewport = remember(referenceLine) {
         TraceViewport.fromLayers(listOf(referenceLine.points), 400.0, 300.0, padding)
     }
+    val latestEditor = rememberUpdatedState(editor)
+    var activeHandle by remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = Modifier
@@ -237,19 +246,14 @@ private fun TrackEditorCanvas(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(300.dp)
-                // Tap to place / replace the start/finish candidate.
-                .pointerInput(viewport, editor) {
-                    detectTapGestures(onTap = { pos ->
-                        val local = viewport.screenToLocal(pos, size.width.toFloat(), size.height.toFloat())
-                        onPlaceStartFinish(local)
-                    })
-                }
-                // Drag the nearest handle (start/finish or a Sector boundary).
-                .pointerInput(viewport, editor) {
+                // Single gesture model: touch creates the first start/finish only;
+                // existing handles move by relative course progress, not repeated taps.
+                .pointerInput(viewport) {
                     var draggingBoundaryId: String? = null
                     var draggingStartFinish = false
                     detectDragGestures(
                         onDragStart = { pos ->
+                            val current = latestEditor.value
                             val w = size.width.toFloat()
                             val h = size.height.toFloat()
                             val pick = pickHandle(
@@ -257,26 +261,69 @@ private fun TrackEditorCanvas(
                                 viewport = viewport,
                                 width = w,
                                 height = h,
-                                startFinishLine = startFinishLine,
-                                boundaries = boundaries,
+                                startFinishLine = current.buildStartFinishLine(),
+                                boundaries = current.buildBoundaries(),
                             )
-                            draggingStartFinish = pick == START_FINISH_HANDLE
-                            draggingBoundaryId = if (pick != null && pick != START_FINISH_HANDLE) pick else null
+                            when {
+                                pick == START_FINISH_HANDLE -> {
+                                    draggingStartFinish = true
+                                    draggingBoundaryId = null
+                                    activeHandle = START_FINISH_HANDLE
+                                }
+                                pick != null -> {
+                                    draggingStartFinish = false
+                                    draggingBoundaryId = pick
+                                    activeHandle = pick
+                                }
+                                current.startFinishProgress == null -> {
+                                    onPlaceStartFinish(
+                                        viewport.screenToLocal(pos, size.width.toFloat(), size.height.toFloat()),
+                                    )
+                                    draggingStartFinish = true
+                                    draggingBoundaryId = null
+                                    activeHandle = START_FINISH_HANDLE
+                                }
+                                else -> {
+                                    draggingStartFinish = false
+                                    draggingBoundaryId = null
+                                    activeHandle = null
+                                }
+                            }
                         },
                         onDragEnd = {
                             draggingBoundaryId = null
                             draggingStartFinish = false
+                            activeHandle = null
                         },
-                        onDrag = { change, _ ->
-                            val local = viewport.screenToLocal(
-                                change.position,
-                                size.width.toFloat(),
-                                size.height.toFloat(),
-                            )
+                        onDragCancel = {
+                            draggingBoundaryId = null
+                            draggingStartFinish = false
+                            activeHandle = null
+                        },
+                        onDrag = { change, dragAmount ->
+                            val current = latestEditor.value
                             val id = draggingBoundaryId
-                            when {
-                                draggingStartFinish -> onPlaceStartFinish(local)
-                                id != null -> onDragBoundary(id, local)
+                            val progress = when {
+                                draggingStartFinish -> current.startFinishProgress
+                                id != null -> current.boundaries.firstOrNull { it.id == id }?.progress
+                                else -> null
+                            }
+                            if (progress != null) {
+                                val deltaProgress = dragDeltaAlongTrace(
+                                    viewport = viewport,
+                                    path = current.path,
+                                    progress = progress,
+                                    previous = change.previousPosition,
+                                    current = change.position,
+                                    width = size.width.toFloat(),
+                                    height = size.height.toFloat(),
+                                )
+                                if (abs(deltaProgress) >= 0.001 || abs(dragAmount.x) + abs(dragAmount.y) == 0f) {
+                                    when {
+                                        draggingStartFinish -> onDragStartFinishBy(deltaProgress)
+                                        id != null -> onDragBoundaryBy(id, deltaProgress)
+                                    }
+                                }
                             }
                         },
                     )
@@ -293,16 +340,30 @@ private fun TrackEditorCanvas(
             startFinishLine?.let { line ->
                 val a = viewport.geoToNormalized(line.pointA)
                 val b = viewport.geoToNormalized(line.pointB)
-                drawTraceSegment(a, b, w, h, Color(0xFF8CFF9B), 3f)
-                drawHandle(midpoint(a, b), w, h, Color(0xFF8CFF9B))
+                drawTraceSegment(a, b, w, h, Color(0xFF071014), 9f)
+                drawTraceSegment(a, b, w, h, Color(0xFF8CFF9B), 5f)
+                drawHandle(
+                    center = midpoint(a, b),
+                    width = w,
+                    height = h,
+                    color = Color(0xFF8CFF9B),
+                    active = activeHandle == START_FINISH_HANDLE,
+                )
             }
 
             // Sector boundaries (amber) + handles.
             for (boundary in boundaries) {
                 val a = viewport.geoToNormalized(boundary.pointA)
                 val b = viewport.geoToNormalized(boundary.pointB)
-                drawTraceSegment(a, b, w, h, Color(0xFFFFD166), 2f)
-                drawHandle(midpoint(a, b), w, h, Color(0xFFFFD166))
+                drawTraceSegment(a, b, w, h, Color(0xFF071014), 7f)
+                drawTraceSegment(a, b, w, h, Color(0xFFFFD166), 3.5f)
+                drawHandle(
+                    center = midpoint(a, b),
+                    width = w,
+                    height = h,
+                    color = Color(0xFFFFD166),
+                    active = activeHandle == boundary.id,
+                )
             }
         }
     }
@@ -318,6 +379,21 @@ private fun TraceViewport.screenToLocal(pos: Offset, width: Float, height: Float
     val nx = if (width > 0f) pos.x / width else 0.0f
     val ny = if (height > 0f) pos.y / height else 0.0f
     return normalizedToLocal(nx.toDouble(), ny.toDouble())
+}
+
+private fun dragDeltaAlongTrace(
+    viewport: TraceViewport,
+    path: ClosedReferencePath,
+    progress: Double,
+    previous: Offset,
+    current: Offset,
+    width: Float,
+    height: Float,
+): Double {
+    val prevLocal = viewport.screenToLocal(previous, width, height)
+    val currentLocal = viewport.screenToLocal(current, width, height)
+    val tangent = path.tangentAt(progress)
+    return (currentLocal.x - prevLocal.x) * tangent.x + (currentLocal.y - prevLocal.y) * tangent.y
 }
 
 /**
@@ -367,22 +443,34 @@ private fun midpointGeo(a: GeoPointDto, b: GeoPointDto): GeoPointDto =
 /** Draw the closed reference loop (cyan), connecting the last vertex back to the first. */
 private fun DrawScope.drawClosedLoop(points: List<TracePoint>, width: Float, height: Float) {
     if (points.size < 2) return
-    val color = Color(0xFF62E3FF)
-    val stroke = 3f
+    val outer = Color(0xFF071014)
+    val inner = Color(0xFF62E3FF)
+    val outerStroke = 11f
+    val innerStroke = 6f
     for (i in 1 until points.size) {
-        drawLine(
-            color = color,
-            start = Offset((points[i - 1].x * width).toFloat(), (points[i - 1].y * height).toFloat()),
-            end = Offset((points[i].x * width).toFloat(), (points[i].y * height).toFloat()),
-            strokeWidth = stroke,
-        )
+        drawStyledTrackSegment(points[i - 1], points[i], width, height, outer, outerStroke)
     }
-    // Closing segment back to the first vertex.
+    drawStyledTrackSegment(points.last(), points.first(), width, height, outer, outerStroke)
+    for (i in 1 until points.size) {
+        drawStyledTrackSegment(points[i - 1], points[i], width, height, inner, innerStroke)
+    }
+    drawStyledTrackSegment(points.last(), points.first(), width, height, inner, innerStroke)
+}
+
+private fun DrawScope.drawStyledTrackSegment(
+    a: TracePoint,
+    b: TracePoint,
+    width: Float,
+    height: Float,
+    color: Color,
+    strokeWidth: Float,
+) {
     drawLine(
         color = color,
-        start = Offset((points.last().x * width).toFloat(), (points.last().y * height).toFloat()),
-        end = Offset((points.first().x * width).toFloat(), (points.first().y * height).toFloat()),
-        strokeWidth = stroke,
+        start = Offset((a.x * width).toFloat(), (a.y * height).toFloat()),
+        end = Offset((b.x * width).toFloat(), (b.y * height).toFloat()),
+        strokeWidth = strokeWidth,
+        cap = StrokeCap.Round,
     )
 }
 
@@ -400,15 +488,35 @@ private fun DrawScope.drawTraceSegment(
         start = Offset((a.x * width).toFloat(), (a.y * height).toFloat()),
         end = Offset((b.x * width).toFloat(), (b.y * height).toFloat()),
         strokeWidth = strokeWidth,
+        cap = StrokeCap.Round,
     )
 }
 
 /** Draw a draggable circular handle at a normalized midpoint. */
-private fun DrawScope.drawHandle(center: TracePoint, width: Float, height: Float, color: Color) {
+private fun DrawScope.drawHandle(
+    center: TracePoint,
+    width: Float,
+    height: Float,
+    color: Color,
+    active: Boolean,
+) {
+    val radius = if (active) 17f else 13f
+    val innerRadius = if (active) 9f else 7f
+    val offset = Offset((center.x * width).toFloat(), (center.y * height).toFloat())
+    drawCircle(
+        color = Color(0xFF071014),
+        radius = radius + 4f,
+        center = offset,
+    )
     drawCircle(
         color = color,
-        radius = 10f,
-        center = Offset((center.x * width).toFloat(), (center.y * height).toFloat()),
+        radius = radius,
+        center = offset,
+    )
+    drawCircle(
+        color = Color(0xFF101722),
+        radius = innerRadius,
+        center = offset,
     )
 }
 

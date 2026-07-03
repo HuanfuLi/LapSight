@@ -137,6 +137,35 @@ class CourseProfileEditorTest {
     }
 
     @Test
+    fun dragStartFinishByMovesAlongCourseProgressAndPreservesSectorOffsets() {
+        val editor = confirmedOvalEditor().setSectorsEnabled(true).setSectorCount(4)
+        val beforeBoundaries = editor.boundaries.map { it.progress }
+
+        val dragged = editor.dragStartFinishBy(40.2)
+
+        assertEquals(40.0, dragged.startFinishProgress!!, 1e-6)
+        assertFalse(dragged.startFinishConfirmed, "moving start/finish requires reconfirmation")
+        dragged.boundaries.zip(beforeBoundaries).forEach { (after, before) ->
+            assertEquals(
+                dragged.path.wrap(before + 40.0),
+                after.progress,
+                1e-6,
+                "sector boundaries should move with the dragged start/finish",
+            )
+        }
+    }
+
+    @Test
+    fun dragBoundaryByMovesRelativeToExistingBoundary() {
+        val editor = confirmedOvalEditor().setSectorsEnabled(true).setSectorCount(2)
+        val before = editor.boundaries.single().progress
+
+        val dragged = editor.dragBoundaryBy("sb-1", 28.6)
+
+        assertEquals(editor.path.wrap(before + 29.0), dragged.boundaries.single().progress, 1e-6)
+    }
+
+    @Test
     fun dragIsClampedToMinimumCyclicSpacingFromStartFinish() {
         val editor = confirmedOvalEditor().setSectorsEnabled(true).setSectorCount(3)
         val minSpacing = editor.path.thresholds.minCyclicSpacing(editor.path.perimeter)

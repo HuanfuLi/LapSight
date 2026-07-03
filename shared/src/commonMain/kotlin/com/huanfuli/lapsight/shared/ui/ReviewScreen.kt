@@ -94,9 +94,11 @@ fun ReviewScreen(
 ) {
     var rows by remember { mutableStateOf(ReviewListState.from(sessionStore.readIndex())) }
     var selectedId by remember { mutableStateOf<String?>(null) }
+    var localRefreshVersion by remember { mutableStateOf(0L) }
+    val refreshRows: () -> Unit = { localRefreshVersion += 1L }
 
     // Re-read the index when the Drive tab reports a new save (D-27).
-    LaunchedEffect(savedVersion) {
+    LaunchedEffect(savedVersion, localRefreshVersion) {
         rows = ReviewListState.from(sessionStore.readIndex())
     }
 
@@ -116,9 +118,9 @@ fun ReviewScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        reviewSection("Sessions", sessions, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget)
-        reviewSection("Tracks", tracks, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget)
-        reviewSection("Raw captures", rawCaptures, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget)
+        reviewSection("Sessions", sessions, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget, localRefreshVersion, refreshRows)
+        reviewSection("Tracks", tracks, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget, localRefreshVersion, refreshRows)
+        reviewSection("Raw captures", rawCaptures, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget, localRefreshVersion, refreshRows)
     }
 }
 
@@ -130,6 +132,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.reviewSection(
     sessionStore: LocalSessionStore,
     displaySettings: DriveDisplaySettings,
     exportShareTarget: ExportShareTarget,
+    refreshVersion: Long,
+    onDataChanged: () -> Unit,
 ) {
     if (rows.isEmpty()) return
     item {
@@ -146,6 +150,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.reviewSection(
             sessionStore = sessionStore,
             displaySettings = displaySettings,
             exportShareTarget = exportShareTarget,
+            refreshVersion = refreshVersion,
+            onDataChanged = onDataChanged,
         )
     }
 }
@@ -209,6 +215,8 @@ private fun ReviewRow(
     sessionStore: LocalSessionStore,
     displaySettings: DriveDisplaySettings,
     exportShareTarget: ExportShareTarget,
+    refreshVersion: Long,
+    onDataChanged: () -> Unit,
 ) {
     Card(
         modifier = Modifier
@@ -241,7 +249,7 @@ private fun ReviewRow(
                 if (row.type == ReviewEntryType.TimingSession) {
                     TimingSessionReviewDetail(row.id, sessionStore, displaySettings, exportShareTarget)
                 } else {
-                    RowDetail(row, sessionStore, exportShareTarget)
+                    RowDetail(row, sessionStore, exportShareTarget, refreshVersion, onDataChanged)
                 }
             }
         }
@@ -622,7 +630,13 @@ private fun TimingTraceSection(
 }
 
 @Composable
-private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore, exportShareTarget: ExportShareTarget) {
+private fun RowDetail(
+    row: ReviewRowViewModel,
+    sessionStore: LocalSessionStore,
+    exportShareTarget: ExportShareTarget,
+    refreshVersion: Long,
+    onDataChanged: () -> Unit,
+) {
     var exportMessage by remember { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         DetailLine("ID", row.id)
@@ -633,7 +647,12 @@ private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore, 
 
         // Trace section for Track and TrackMarking entries (D-35).
         if (row.type == ReviewEntryType.Track || row.type == ReviewEntryType.TrackMarking) {
-            TrackTraceSection(rowId = row.id, type = row.type, sessionStore = sessionStore)
+            TrackTraceSection(
+                rowId = row.id,
+                type = row.type,
+                sessionStore = sessionStore,
+                refreshVersion = refreshVersion,
+            )
         }
 
         // DEMO provenance stays visible in the expanded detail too (T-03-10).
@@ -668,13 +687,21 @@ private fun RowDetail(row: ReviewRowViewModel, sessionStore: LocalSessionStore, 
         // Profile lifecycle (SC-01, D-12/D-16, D-01/D-03): rename, archive, and duplicate
         // a saved Track profile without deleting or rebinding history.
         if (row.type == ReviewEntryType.Track) {
-            ProfileLifecycleSection(trackId = row.id, sessionStore = sessionStore)
+            ProfileLifecycleSection(
+                trackId = row.id,
+                sessionStore = sessionStore,
+                onDataChanged = onDataChanged,
+            )
         }
 
         // Edit course + revision history (SC-02, D-05, D-12..D-14): offline editing of
         // start/finish and Sector layout, saved as an immutable revision.
         if (row.type == ReviewEntryType.Track) {
-            EditCourseSection(trackId = row.id, sessionStore = sessionStore)
+            EditCourseSection(
+                trackId = row.id,
+                sessionStore = sessionStore,
+                onDataChanged = onDataChanged,
+            )
         }
 
         // Export actions (D-40): explicit button tap on Track Review detail only.
@@ -722,15 +749,16 @@ private fun TrackTraceSection(
     rowId: String,
     type: ReviewEntryType,
     sessionStore: LocalSessionStore,
+    refreshVersion: Long,
 ) {
-    val trackResult = remember(rowId) { sessionStore.loadTrack(rowId) }
+    val trackResult = remember(rowId, refreshVersion) { sessionStore.loadTrack(rowId) }
     val track = (trackResult as? LoadResult.Loaded<TrackPayloadV1>)?.value?.track
 
-    val profileResult = remember(rowId) { sessionStore.loadProfile(rowId) }
+    val profileResult = remember(rowId, refreshVersion) { sessionStore.loadProfile(rowId) }
     val profile = (profileResult as? LoadResult.Loaded<TrackProfile>)?.value
 
     val markingId = track?.sourceMarkingSessionId ?: profile?.latestRevision?.sourceMarkingSessionId
-    val markingResult = remember(markingId) {
+    val markingResult = remember(markingId, refreshVersion) {
         markingId?.let { sessionStore.loadTrackMarking(it) }
     }
     val marking = (markingResult as? LoadResult.Loaded<TrackMarkingPayloadV1>)?.value?.marking
@@ -796,7 +824,11 @@ private fun TrackTraceSection(
  * promoted to a V2 profile on demand so a real aggregate always backs the action.
  */
 @Composable
-private fun ProfileLifecycleSection(trackId: String, sessionStore: LocalSessionStore) {
+private fun ProfileLifecycleSection(
+    trackId: String,
+    sessionStore: LocalSessionStore,
+    onDataChanged: () -> Unit,
+) {
     Spacer(Modifier.height(8.dp))
     Text(
         text = "Profile",
@@ -821,13 +853,19 @@ private fun ProfileLifecycleSection(trackId: String, sessionStore: LocalSessionS
     Spacer(Modifier.height(4.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = {
-            message = renameTrack(sessionStore, trackId, renameValue)
+            val msg = renameTrack(sessionStore, trackId, renameValue)
+            message = msg
+            if (!msg.startsWith("Couldn't")) onDataChanged()
         }) { Text("Rename") }
         OutlinedButton(onClick = {
-            message = duplicateTrack(sessionStore, trackId)
+            val msg = duplicateTrack(sessionStore, trackId)
+            message = msg
+            if (!msg.startsWith("Couldn't")) onDataChanged()
         }) { Text("Duplicate") }
         OutlinedButton(onClick = {
-            message = archiveTrack(sessionStore, trackId)
+            val msg = archiveTrack(sessionStore, trackId)
+            message = msg
+            if (!msg.startsWith("Couldn't")) onDataChanged()
         }) { Text("Archive") }
     }
     message?.let { msg ->
@@ -850,7 +888,11 @@ private fun ProfileLifecycleSection(trackId: String, sessionStore: LocalSessionS
  * is promoted to a V2 profile before editing so a real aggregate always backs the edit.
  */
 @Composable
-private fun EditCourseSection(trackId: String, sessionStore: LocalSessionStore) {
+private fun EditCourseSection(
+    trackId: String,
+    sessionStore: LocalSessionStore,
+    onDataChanged: () -> Unit,
+) {
     val payload = remember(trackId) {
         (sessionStore.loadTrack(trackId) as? LoadResult.Loaded<TrackPayloadV1>)?.value
     }
@@ -860,7 +902,7 @@ private fun EditCourseSection(trackId: String, sessionStore: LocalSessionStore) 
     var message by remember(trackId) { mutableStateOf<String?>(null) }
 
     val current = profile
-    if (current == null || payload == null) {
+    if (current == null) {
         Spacer(Modifier.height(6.dp))
         Text(
             text = "Course editing unavailable for this entry.",
@@ -904,7 +946,7 @@ private fun EditCourseSection(trackId: String, sessionStore: LocalSessionStore) 
 
     // Edit over the latest revision's canonical reference line + course setup.
     val latest = current.latestRevision
-    val referenceLine = latest?.referenceLine ?: payload.track.referenceLine
+    val referenceLine = latest?.referenceLine ?: payload?.track?.referenceLine
     if (referenceLine == null || referenceLine.points.isEmpty()) {
         Spacer(Modifier.height(6.dp))
         Text(
@@ -926,13 +968,14 @@ private fun EditCourseSection(trackId: String, sessionStore: LocalSessionStore) 
                 profileId = current.profileId,
                 referenceLine = referenceLine,
                 courseSetup = setup,
-                app = payload.app,
+                app = trackApp(sessionStore, trackId) ?: uiFallbackAppMetadata(),
                 sourceMarkingSessionId = latest?.sourceMarkingSessionId,
             )) {
                 is AppendRevisionResult.Appended -> {
                     profile = result.profile
                     editing = false
                     message = "Saved revision ${result.revision.ordinal}."
+                    onDataChanged()
                 }
                 is AppendRevisionResult.Rejected -> {
                     message = "Couldn't save: ${result.reason}."
@@ -1050,6 +1093,14 @@ internal fun duplicateTrack(
 /** The app metadata stamped on the V1 Track payload backing [trackId], or null if absent. */
 private fun trackApp(store: LocalSessionStore, trackId: String): AppMetadata? =
     (store.loadTrack(trackId) as? LoadResult.Loaded<TrackPayloadV1>)?.value?.app
+        ?: (store.loadProfile(trackId) as? LoadResult.Loaded<TrackProfile>)?.let {
+            uiFallbackAppMetadata()
+        }
+
+private fun uiFallbackAppMetadata(): AppMetadata = AppMetadata(
+    appVersion = "0.5.0",
+    platform = "shared-ui",
+)
 
 /** Wall-clock epoch millis that never throws (mirrors the controller guard). */
 private fun nowEpochMillisSafeUi(): Long = try {
