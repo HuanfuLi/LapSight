@@ -225,8 +225,10 @@ fun lapsightTypography(): Typography {
         bodySmall = TextStyle(fontFamily = inter, fontSize = 13.sp, fontWeight = FontWeight.Normal, lineHeight = 18.sp),
         // Label (UI-SPEC Label 14/600/1.2) and smaller caption labels.
         labelLarge = TextStyle(fontFamily = inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, lineHeight = 17.sp, fontFeatureSettings = TABULAR_FIGURES),
-        labelMedium = TextStyle(fontFamily = inter, fontSize = 12.sp, fontWeight = FontWeight.Bold, lineHeight = 16.sp, fontFeatureSettings = TABULAR_FIGURES),
-        labelSmall = TextStyle(fontFamily = inter, fontSize = 11.sp, fontWeight = FontWeight.Bold, lineHeight = 14.sp, fontFeatureSettings = TABULAR_FIGURES),
+        // Caption/eyebrow roles carry letterspacing — uppercase section labels
+        // and status chips read as instrument engraving, not shouting.
+        labelMedium = TextStyle(fontFamily = inter, fontSize = 12.sp, fontWeight = FontWeight.Bold, lineHeight = 16.sp, letterSpacing = 1.sp, fontFeatureSettings = TABULAR_FIGURES),
+        labelSmall = TextStyle(fontFamily = inter, fontSize = 11.sp, fontWeight = FontWeight.Bold, lineHeight = 14.sp, letterSpacing = 0.8.sp, fontFeatureSettings = TABULAR_FIGURES),
     )
 }
 

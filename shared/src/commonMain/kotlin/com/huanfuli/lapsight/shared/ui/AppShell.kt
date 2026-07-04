@@ -1,30 +1,20 @@
-package com.huanfuli.lapsight.shared.ui
+﻿package com.huanfuli.lapsight.shared.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,8 +24,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DriveDisplayController
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
@@ -44,8 +33,6 @@ import com.huanfuli.lapsight.shared.LocationSampleProvider
 import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.OrientationController
 import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
-import com.huanfuli.lapsight.shared.SpeedUnit
-import com.huanfuli.lapsight.shared.ThemeMode
 import com.huanfuli.lapsight.shared.export.ExportShareTarget
 import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
 import com.huanfuli.lapsight.shared.session.DraftRecoveryAction
@@ -54,6 +41,8 @@ import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.session.SourceMetadata
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
+import com.huanfuli.lapsight.shared.ui.components.LapDialog
+import com.huanfuli.lapsight.shared.ui.components.LapDialogTextButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -159,35 +148,32 @@ fun AppShell(
     // Recovery prompt: Resume / Save / Discard; never auto-promotes to history (D-16).
     recoveryPrompt?.let { prompt ->
         if (confirmDiscardDraft) {
-            AlertDialog(
+            LapDialog(
+                title = "Discard unfinished session?",
+                text = "Discard unfinished session? Recorded data will be lost.",
                 onDismissRequest = { confirmDiscardDraft = false },
-                title = { Text("Discard unfinished session?") },
-                text = { Text("Discard unfinished session? Recorded data will be lost.") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            confirmDiscardDraft = false
-                            sessionController.handleRecoveryAction(prompt, DraftRecoveryAction.Discard)
-                            recoveryPrompt = null
-                        },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    ) { Text("Discard") }
+                confirmText = "Discard",
+                destructiveConfirm = true,
+                onConfirm = {
+                    confirmDiscardDraft = false
+                    sessionController.handleRecoveryAction(prompt, DraftRecoveryAction.Discard)
+                    recoveryPrompt = null
                 },
-                dismissButton = {
-                    TextButton(onClick = { confirmDiscardDraft = false }) { Text("Cancel") }
-                },
+                dismissText = "Cancel",
             )
         } else {
-            AlertDialog(
+            LapDialog(
+                title = "Unfinished session found",
+                text = "You have a session that wasn't saved.",
                 onDismissRequest = { /* require an explicit choice */ },
-                title = { Text("Unfinished session found") },
-                text = { Text("You have a session that wasn't saved.") },
-                confirmButton = {
+                buttons = {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
                     ) {
-                        TextButton(
+                        LapDialogTextButton(
+                            text = "Resume",
+                            enabled = !recoveryBusy,
                             onClick = {
                                 recoveryBusy = true
                                 uiScope.launch {
@@ -203,10 +189,11 @@ fun AppShell(
                                     tab = AppTab.Drive
                                 }
                             },
-                            enabled = !recoveryBusy,
-                        ) { Text("Resume") }
+                        )
                         if (DraftRecoveryAction.Save in prompt.availableActions) {
-                            TextButton(
+                            LapDialogTextButton(
+                                text = "Save",
+                                enabled = !recoveryBusy,
                                 onClick = {
                                     recoveryBusy = true
                                     uiScope.launch {
@@ -221,14 +208,14 @@ fun AppShell(
                                         savedVersion++
                                     }
                                 },
-                                enabled = !recoveryBusy,
-                            ) { Text("Save") }
+                            )
                         }
-                        TextButton(
-                            onClick = { confirmDiscardDraft = true },
+                        LapDialogTextButton(
+                            text = "Discard",
                             enabled = !recoveryBusy,
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        ) { Text("Discard") }
+                            destructive = true,
+                            onClick = { confirmDiscardDraft = true },
+                        )
                     }
                 },
             )
@@ -239,7 +226,9 @@ fun AppShell(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (showBottomNav) {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                Column {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     NavigationBarItem(
                         selected = tab == AppTab.Drive,
                         onClick = { tab = AppTab.Drive },
@@ -261,6 +250,7 @@ fun AppShell(
                         label = { Text("Settings") },
                         colors = navItemColors(),
                     )
+                    }
                 }
             }
         },
@@ -318,255 +308,7 @@ fun AppShell(
 private fun navItemColors() = NavigationBarItemDefaults.colors(
     selectedIconColor = MaterialTheme.colorScheme.primary,
     selectedTextColor = MaterialTheme.colorScheme.primary,
-    indicatorColor = MaterialTheme.colorScheme.surface,
+    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
 )
-
-/**
- * Display and mounted-phone behavior controls. Safety copy belongs here instead
- * of competing with live telemetry on the Drive surface.
- */
-@Composable
-private fun SettingsScreen(
-    settings: DriveDisplaySettings,
-    phoneGpsAvailable: Boolean,
-    phoneGpsPermissionGranted: Boolean,
-    locationFeedLocked: Boolean,
-    onRequestPhoneGps: () -> Unit,
-    onSettingsChanged: (DriveDisplaySettings) -> Unit,
-) {
-    val effectiveLocationFeedMode =
-        if (phoneGpsAvailable) settings.locationFeedMode else LocationFeedMode.Simulated
-    val spacing = LocalSpacing.current
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(spacing.md),
-        verticalArrangement = Arrangement.spacedBy(spacing.xs),
-    ) {
-        Text(
-            text = "Settings",
-            color = MaterialTheme.colorScheme.primary,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Black,
-        )
-        Spacer(Modifier.height(spacing.md))
-        Text(
-            text = "SPEED UNIT",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelMedium,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-        ) {
-            UnitButton(
-                label = "km/h",
-                selected = settings.speedUnit == SpeedUnit.KilometersPerHour,
-                onClick = {
-                    onSettingsChanged(settings.copy(speedUnit = SpeedUnit.KilometersPerHour))
-                },
-                modifier = Modifier.weight(1f),
-            )
-            UnitButton(
-                label = "mph",
-                selected = settings.speedUnit == SpeedUnit.MilesPerHour,
-                onClick = {
-                    onSettingsChanged(settings.copy(speedUnit = SpeedUnit.MilesPerHour))
-                },
-                modifier = Modifier.weight(1f),
-            )
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Text(
-            text = "LOCATION SOURCE",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelMedium,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-        ) {
-            SourceButton(
-                label = "Phone GPS",
-                selected = effectiveLocationFeedMode == LocationFeedMode.PhoneGps,
-                enabled = phoneGpsAvailable && !locationFeedLocked,
-                onClick = {
-                    if (phoneGpsPermissionGranted) {
-                        onSettingsChanged(settings.copy(locationFeedMode = LocationFeedMode.PhoneGps))
-                    } else {
-                        onRequestPhoneGps()
-                    }
-                },
-                modifier = Modifier.weight(1f),
-            )
-            SourceButton(
-                label = "Simulated",
-                selected = effectiveLocationFeedMode == LocationFeedMode.Simulated,
-                enabled = !locationFeedLocked,
-                onClick = {
-                    onSettingsChanged(settings.copy(locationFeedMode = LocationFeedMode.Simulated))
-                },
-                modifier = Modifier.weight(1f),
-            )
-        }
-        val sourceNote = when {
-            locationFeedLocked -> "Location source is locked while timing is active."
-            !phoneGpsAvailable -> "Phone GPS is not wired on this platform yet."
-            settings.locationFeedMode == LocationFeedMode.PhoneGps && !phoneGpsPermissionGranted ->
-                "Allow location permission before using Phone GPS."
-            else -> null
-        }
-        sourceNote?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.secondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Text(
-            text = "THEME",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelMedium,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-        ) {
-            ThemeButton(
-                label = "System",
-                selected = settings.themeMode == ThemeMode.System,
-                onClick = { onSettingsChanged(settings.copy(themeMode = ThemeMode.System)) },
-                modifier = Modifier.weight(1f),
-            )
-            ThemeButton(
-                label = "Dark",
-                selected = settings.themeMode == ThemeMode.Dark,
-                onClick = { onSettingsChanged(settings.copy(themeMode = ThemeMode.Dark)) },
-                modifier = Modifier.weight(1f),
-            )
-            ThemeButton(
-                label = "Light",
-                selected = settings.themeMode == ThemeMode.Light,
-                onClick = { onSettingsChanged(settings.copy(themeMode = ThemeMode.Light)) },
-                modifier = Modifier.weight(1f),
-            )
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        SettingToggleRow(
-            label = "Fullscreen while timing",
-            checked = settings.fullscreenWhileTiming,
-            onCheckedChange = {
-                onSettingsChanged(settings.copy(fullscreenWhileTiming = it))
-            },
-        )
-        SettingToggleRow(
-            label = "Keep screen awake while timing",
-            checked = settings.keepScreenAwakeWhileTiming,
-            onCheckedChange = {
-                onSettingsChanged(settings.copy(keepScreenAwakeWhileTiming = it))
-            },
-        )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        SettingToggleRow(
-            label = "Speed trace",
-            checked = settings.showSpeedTrace,
-            onCheckedChange = {
-                onSettingsChanged(settings.copy(showSpeedTrace = it))
-            },
-        )
-        SettingToggleRow(
-            label = "GPS diagnostics",
-            checked = settings.showGpsDiagnostics,
-            onCheckedChange = {
-                onSettingsChanged(settings.copy(showGpsDiagnostics = it))
-            },
-        )
-        Spacer(Modifier.height(spacing.md))
-        Text(
-            text = "Closed-course/private-track use only. Configure the display while stationary.",
-            color = MaterialTheme.colorScheme.secondary,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
-@Composable
-private fun SourceButton(
-    label: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (selected) {
-        Button(onClick = onClick, enabled = enabled, modifier = modifier) {
-            Text(label)
-        }
-    } else {
-        OutlinedButton(onClick = onClick, enabled = enabled, modifier = modifier) {
-            Text(label)
-        }
-    }
-}
-
-@Composable
-private fun UnitButton(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (selected) {
-        Button(onClick = onClick, modifier = modifier) {
-            Text(label)
-        }
-    } else {
-        OutlinedButton(onClick = onClick, modifier = modifier) {
-            Text(label)
-        }
-    }
-}
-
-@Composable
-private fun ThemeButton(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (selected) {
-        Button(onClick = onClick, modifier = modifier) {
-            Text(label)
-        }
-    } else {
-        OutlinedButton(onClick = onClick, modifier = modifier) {
-            Text(label)
-        }
-    }
-}
-
-@Composable
-private fun SettingToggleRow(
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    val spacing = LocalSpacing.current
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = spacing.sm),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            color = MaterialTheme.colorScheme.onBackground,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f),
-        )
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
-    }
-}
