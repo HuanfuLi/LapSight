@@ -1,9 +1,7 @@
 package com.huanfuli.lapsight.shared
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -15,11 +13,7 @@ import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.ui.AppShell
-import com.huanfuli.lapsight.shared.ui.LocalSpacing
-import com.huanfuli.lapsight.shared.ui.Spacing
-import com.huanfuli.lapsight.shared.ui.lapsightDarkColors
-import com.huanfuli.lapsight.shared.ui.lapsightLightColors
-import com.huanfuli.lapsight.shared.ui.lapsightTypography
+import com.huanfuli.lapsight.shared.ui.LapSightTheme
 
 /**
  * LapSight root composable (Plan 03-05 refactor).
@@ -57,25 +51,20 @@ fun App(
         ThemeMode.Light -> false
     }
 
-    MaterialTheme(
-        colorScheme = if (useDarkTheme) lapsightDarkColors else lapsightLightColors,
-        typography = lapsightTypography,
-    ) {
-        CompositionLocalProvider(LocalSpacing provides Spacing()) {
-            AppShell(
-                orientationController = orientationController,
-                driveDisplayController = driveDisplayController,
-                displaySettings = displaySettings,
-                onDisplaySettingsChanged = { updated ->
-                    displaySettings = updated
-                    displaySettingsStore.save(updated)
-                },
-                simulatedGpsProvider = simulatedGpsProvider,
-                phoneGpsProvider = phoneGpsProvider,
-                phoneGpsPermission = phoneGpsPermission,
-                sessionStore = sessionStore,
-                exportShareTarget = exportShareTarget,
-            )
-        }
+    LapSightTheme(useDarkTheme = useDarkTheme) {
+        AppShell(
+            orientationController = orientationController,
+            driveDisplayController = driveDisplayController,
+            displaySettings = displaySettings,
+            onDisplaySettingsChanged = { updated ->
+                displaySettings = updated
+                displaySettingsStore.save(updated)
+            },
+            simulatedGpsProvider = simulatedGpsProvider,
+            phoneGpsProvider = phoneGpsProvider,
+            phoneGpsPermission = phoneGpsPermission,
+            sessionStore = sessionStore,
+            exportShareTarget = exportShareTarget,
+        )
     }
 }
