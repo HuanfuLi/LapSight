@@ -34,6 +34,9 @@ enum class LapButtonStyle {
 
     /** Borderless text action — inline/low-emphasis. */
     Ghost,
+
+    /** Borderless destructive text action (Discard-class). */
+    GhostDestructive,
 }
 
 /** Height class. Standard = 48dp floor; Large = 56dp for timing-active controls. */
@@ -109,14 +112,18 @@ fun LapButton(
             ),
         ) { label() }
 
-        LapButtonStyle.Ghost -> TextButton(
+        LapButtonStyle.Ghost, LapButtonStyle.GhostDestructive -> TextButton(
             onClick = onClick,
             modifier = sized,
             enabled = enabled,
             shape = shape,
             contentPadding = padding,
             colors = ButtonDefaults.textButtonColors(
-                contentColor = MaterialTheme.colorScheme.primary,
+                contentColor = if (style == LapButtonStyle.GhostDestructive) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
             ),
         ) { label() }
     }
