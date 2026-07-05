@@ -113,6 +113,11 @@ data class LapSightColors(
     val chartAxisLabel: Color,
     val dashBackground: Color,
     val cardBorder: Color,
+    // Explicit disabled tokens: Material's default 38%-alpha disabled content is
+    // illegible on the near-black theme, so disabled controls read through these.
+    val disabledContent: Color,
+    val disabledContainer: Color,
+    val disabledBorder: Color,
 )
 
 val lapSightDarkExtendedColors = LapSightColors(
@@ -135,6 +140,9 @@ val lapSightDarkExtendedColors = LapSightColors(
     chartAxisLabel = Color(0xFF9AA8B8),
     dashBackground = Color(0xFF05070A),
     cardBorder = Color(0xFF24303D),
+    disabledContent = Color(0xFF64748B),
+    disabledContainer = Color(0xFF16202C),
+    disabledBorder = Color(0xFF1C2733),
 )
 
 val lapSightLightExtendedColors = LapSightColors(
@@ -157,6 +165,9 @@ val lapSightLightExtendedColors = LapSightColors(
     chartAxisLabel = Color(0xFF516173),
     dashBackground = Color(0xFFF5F8FB),
     cardBorder = Color(0xFFCBD5E1),
+    disabledContent = Color(0xFF8B99AB),
+    disabledContainer = Color(0xFFE8EDF3),
+    disabledBorder = Color(0xFFD8E0E9),
 )
 
 val LocalLapSightColors = staticCompositionLocalOf { lapSightDarkExtendedColors }
@@ -248,6 +259,11 @@ object LapSightAutoSize {
     val deltaMin = 22.sp
     val deltaMax = 44.sp
     val deltaMaxCompact = 32.sp
+
+    // Single-line control labels (buttons, segments): shrink before clipping
+    // under long labels or large system font scale.
+    val labelMin = 11.sp
+    val labelMax = 14.sp
 }
 
 /**

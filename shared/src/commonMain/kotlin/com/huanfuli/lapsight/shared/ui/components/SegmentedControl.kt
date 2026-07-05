@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -18,7 +19,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.huanfuli.lapsight.shared.ui.LapSightAutoSize
 import com.huanfuli.lapsight.shared.ui.LapSightTheme
 
 /**
@@ -58,7 +61,7 @@ fun SegmentedControl(
                 val textColor = when {
                     selected -> MaterialTheme.colorScheme.onPrimary
                     enabled -> MaterialTheme.colorScheme.onSurfaceVariant
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    else -> LapSightTheme.colors.disabledContent
                 }
                 Box(
                     modifier = Modifier
@@ -70,14 +73,23 @@ fun SegmentedControl(
                             selected = selected,
                             enabled = enabled,
                             onClick = { onSelect(index) },
-                        ),
+                        )
+                        .padding(horizontal = LapSightTheme.spacing.xs),
                     contentAlignment = Alignment.Center,
                 ) {
+                    // Long options shrink before clipping; ellipsis is the last resort.
                     Text(
                         text = option,
                         style = MaterialTheme.typography.labelLarge,
                         color = textColor,
                         maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        autoSize = TextAutoSize.StepBased(
+                            minFontSize = LapSightAutoSize.labelMin,
+                            maxFontSize = LapSightAutoSize.labelMax,
+                            stepSize = LapSightAutoSize.step,
+                        ),
                     )
                 }
             }

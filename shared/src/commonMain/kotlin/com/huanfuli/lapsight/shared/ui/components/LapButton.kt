@@ -1,6 +1,7 @@
 package com.huanfuli.lapsight.shared.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,7 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.huanfuli.lapsight.shared.ui.LapSightAutoSize
 import com.huanfuli.lapsight.shared.ui.LapSightTheme
 
 /** Visual role of a [LapButton]. */
@@ -64,6 +67,10 @@ fun LapButton(
     val sized = modifier.heightIn(min = minHeight)
     val shape = MaterialTheme.shapes.medium
     val padding = PaddingValues(horizontal = LapSightTheme.spacing.md, vertical = LapSightTheme.spacing.sm)
+    // Explicit disabled tokens: Material's 38%-alpha default is illegible on the
+    // near-black theme, and a disabled control must still read as a control.
+    val disabledContent = LapSightTheme.colors.disabledContent
+    val disabledContainer = LapSightTheme.colors.disabledContainer
     val label: @Composable () -> Unit = {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -72,7 +79,19 @@ fun LapButton(
             if (icon != null) {
                 Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
             }
-            Text(text, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            // Long labels shrink before clipping; ellipsis is the last resort.
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                autoSize = TextAutoSize.StepBased(
+                    minFontSize = LapSightAutoSize.labelMin,
+                    maxFontSize = LapSightAutoSize.labelMax,
+                    stepSize = LapSightAutoSize.step,
+                ),
+            )
         }
     }
     when (style) {
@@ -85,6 +104,8 @@ fun LapButton(
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
+                disabledContainerColor = disabledContainer,
+                disabledContentColor = disabledContent,
             ),
         ) { label() }
 
@@ -94,9 +115,13 @@ fun LapButton(
             enabled = enabled,
             shape = shape,
             contentPadding = padding,
-            border = BorderStroke(1.dp, LapSightTheme.colors.cardBorder),
+            border = BorderStroke(
+                1.dp,
+                if (enabled) LapSightTheme.colors.cardBorder else LapSightTheme.colors.disabledBorder,
+            ),
             colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = MaterialTheme.colorScheme.onSurface,
+                disabledContentColor = disabledContent,
             ),
         ) { label() }
 
@@ -109,6 +134,8 @@ fun LapButton(
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.errorContainer,
                 contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                disabledContainerColor = disabledContainer,
+                disabledContentColor = disabledContent,
             ),
         ) { label() }
 
@@ -124,6 +151,7 @@ fun LapButton(
                 } else {
                     MaterialTheme.colorScheme.primary
                 },
+                disabledContentColor = disabledContent,
             ),
         ) { label() }
     }
