@@ -66,6 +66,7 @@ import kotlinx.coroutines.delay
 internal fun TimingRunSurface(
     timingRun: TimingRunSnapshot,
     orientation: DashOrientation,
+    isLandscapeWindow: Boolean,
     displaySettings: DriveDisplaySettings,
     locationFeedMode: LocationFeedMode,
     onToggleOrientation: () -> Unit,
@@ -177,7 +178,11 @@ internal fun TimingRunSurface(
         .fillMaxSize()
         .background(LapSightTheme.colors.dashBackground)
         .padding(padding)
-    if (orientation == DashOrientation.Landscape) {
+    // Layout follows the ACTUAL window shape, not the requested lock: on
+    // platforms where the lock is a no-op (iOS NoOpOrientationController) the
+    // toggle state and the real window can disagree, and a portrait column
+    // painted into a landscape window would clip the controls.
+    if (isLandscapeWindow) {
         Row(
             modifier = dashModifier,
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),

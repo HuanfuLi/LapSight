@@ -40,6 +40,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -156,6 +158,7 @@ internal fun DriveSurface(
                 TimingRunSurface(
                     timingRun = timingRun,
                     orientation = orientation,
+                    isLandscapeWindow = isLandscape,
                     displaySettings = displaySettings,
                     locationFeedMode = locationFeedMode,
                     onToggleOrientation = onToggleOrientation,
@@ -899,6 +902,13 @@ private fun TrackPickerDialog(
     onClose: () -> Unit,
 ) {
     val spacing = LapSightTheme.spacing
+    // Cap the list against the real window: the AlertDialog text slot has no
+    // height weighting, so a fixed 420dp list would push the dialog buttons
+    // off a ~360dp-tall landscape screen.
+    val windowHeight = with(LocalDensity.current) {
+        LocalWindowInfo.current.containerSize.height.toDp()
+    }
+    val listMaxHeight = minOf(420.dp, windowHeight * 0.45f)
     LapDialog(
         title = "Choose track",
         onDismissRequest = onClose,
@@ -913,7 +923,7 @@ private fun TrackPickerDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = listMaxHeight)
                     .verticalScroll(rememberScrollState())
                     .padding(top = spacing.sm),
                 verticalArrangement = Arrangement.spacedBy(spacing.sm),
