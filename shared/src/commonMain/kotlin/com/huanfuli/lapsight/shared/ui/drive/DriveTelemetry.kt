@@ -24,6 +24,7 @@ import com.huanfuli.lapsight.shared.session.RawRecordingSnapshot
 import com.huanfuli.lapsight.shared.session.ReadyBlocker
 import com.huanfuli.lapsight.shared.session.ReadyState
 import com.huanfuli.lapsight.shared.session.ReadyThresholds
+import com.huanfuli.lapsight.shared.ui.DriveMarkingPhase
 import com.huanfuli.lapsight.shared.ui.DriveMarkingSnapshot
 import com.huanfuli.lapsight.shared.ui.LapSightTheme
 import com.huanfuli.lapsight.shared.ui.components.ChipTone
@@ -80,6 +81,12 @@ internal fun DriveStatusBar(
     val readyLabel: String
     val readyColor: Color
     when {
+        // Marking capture in progress: the header must describe THIS activity,
+        // not scare with "NOT READY - no track" while the user records a course.
+        snapshot.phase == DriveMarkingPhase.Capturing -> {
+            readyLabel = "MARKING - recording course"
+            readyColor = LapSightTheme.colors.recording
+        }
         rawRecordingActive -> {
             readyLabel = "RAW REC - ${rawSnapshot.sampleCount} pts"
             readyColor = LapSightTheme.colors.statusCaution

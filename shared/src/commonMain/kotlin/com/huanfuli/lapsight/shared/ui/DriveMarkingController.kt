@@ -66,6 +66,8 @@ data class DriveMarkingSnapshot(
     val selectableProfiles: List<TrackProfileRow> = emptyList(),
     /** The persisted Course Direction of the current selection (D-18); Recorded when none. */
     val selectedDirection: CourseDirection = CourseDirection.Recorded,
+    /** The marking trace captured so far; non-empty only while Capturing (live feedback). */
+    val capturedSamples: List<LocationSample> = emptyList(),
 ) {
     val speedKmhLabel: String
         get() = latestSample?.speedMetersPerSecond
@@ -179,6 +181,7 @@ class DriveMarkingController(
             needsTrackSelection = !canStart,
             selectableProfiles = selectableProfiles,
             selectedDirection = selected?.direction ?: CourseDirection.Recorded,
+            capturedSamples = if (phase == DriveMarkingPhase.Capturing) captured.toList() else emptyList(),
         )
     }
 

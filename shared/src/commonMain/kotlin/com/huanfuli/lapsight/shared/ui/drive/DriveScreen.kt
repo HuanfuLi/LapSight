@@ -278,6 +278,7 @@ fun DriveScreen(
         displaySettings = displaySettings,
         locationFeedMode = locationFeedMode,
         phoneGpsPermission = phoneGpsPermission,
+        sessionStore = sessionStore,
         onToggleOrientation = onToggleOrientation,
         onSelectProfile = { profileId ->
             // Explicit user selection only (D-02/D-03); the controller never auto-derives.
