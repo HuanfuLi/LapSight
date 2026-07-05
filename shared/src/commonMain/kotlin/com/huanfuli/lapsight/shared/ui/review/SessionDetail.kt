@@ -97,25 +97,7 @@ internal fun TimingSessionReviewDetail(
 
     val spacing = LapSightTheme.spacing
     Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
-        // ── Compact header: name + badges, date, headline times ─────────────
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-        ) {
-            Text(
-                text = summary.trackName,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            if (summary.isDemo) StatusChip(text = "DEMO", tone = ChipTone.Demo)
-        }
-        Text(
-            text = formatEpochMillis(summary.createdAtEpochMillis),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // ── Headline times (identity lives in the detail screen's top bar) ──
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(spacing.xs),

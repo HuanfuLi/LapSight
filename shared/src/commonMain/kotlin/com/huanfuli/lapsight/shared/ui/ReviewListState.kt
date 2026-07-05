@@ -21,6 +21,7 @@ data class ReviewRowViewModel(
     val sourceLabel: String,
     val sampleCount: Int?,
     val payloadPath: String,
+    val bestLapMillis: Long? = null,
 ) {
     /** Human-readable type label for the row. */
     val typeLabel: String
@@ -57,6 +58,7 @@ object ReviewListState {
             sourceLabel = label,
             sampleCount = row.sampleCount,
             payloadPath = row.payloadPath,
+            bestLapMillis = row.bestLapMillis,
         )
     }
 }

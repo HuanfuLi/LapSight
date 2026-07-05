@@ -100,3 +100,47 @@ val StopActionIcon: ImageVector by lazy {
 }
 
 val RotateScreenIcon: ImageVector get() = Icons.Filled.ScreenRotation
+
+/** Chevron back for detail screens (core icon set omits ArrowBack's style match). */
+val BackIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "lapsight-back",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(
+            fill = null,
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 2.4f,
+            strokeLineCap = StrokeCap.Round,
+        ) {
+            moveTo(14.5f, 5.5f)
+            lineTo(8f, 12f)
+            lineTo(14.5f, 18.5f)
+        }
+    }.build()
+}
+
+/** Vertical-dots overflow for detail-screen action menus. */
+val MoreActionsIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "lapsight-more",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        listOf(5.5f, 12f, 18.5f).forEach { cy ->
+            path(fill = SolidColor(Color.White)) {
+                moveTo(12f, cy - 1.6f)
+                curveTo(12.9f, cy - 1.6f, 13.6f, cy - 0.9f, 13.6f, cy)
+                curveTo(13.6f, cy + 0.9f, 12.9f, cy + 1.6f, 12f, cy + 1.6f)
+                curveTo(11.1f, cy + 1.6f, 10.4f, cy + 0.9f, 10.4f, cy)
+                curveTo(10.4f, cy - 0.9f, 11.1f, cy - 1.6f, 12f, cy - 1.6f)
+                close()
+            }
+        }
+    }.build()
+}

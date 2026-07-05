@@ -25,25 +25,31 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
 import com.huanfuli.lapsight.shared.export.ExportShareTarget
 import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
+import com.huanfuli.lapsight.shared.lap.formatLapTime
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.ui.components.ChipTone
 import com.huanfuli.lapsight.shared.ui.components.LapCard
 import com.huanfuli.lapsight.shared.ui.components.SectionHeader
 import com.huanfuli.lapsight.shared.ui.components.StatusChip
+import com.huanfuli.lapsight.shared.ui.components.TimingText
 
 /**
- * Review tab (D-27, D-28): lists saved Tracks and marking entries from the
- * local-first store, with visible `DEMO` badges and source metadata (D-42,
- * T-03-10). Re-reads the index whenever the Drive tab saves a track
- * ([savedVersion] changes). Shows the empty state when nothing is saved yet.
+ * Review tab (D-27, D-28): lists saved Sessions, Tracks, and raw captures from
+ * the local-first store with visible `DEMO` provenance (D-42, T-03-10).
  *
- * Row-to-detail: tapping a row expands an inline detail summary.
+ * Navigation: the list shows compact, glanceable cards; tapping one pushes a
+ * full detail screen ([ReviewDetailScreen]) with a back affordance. Detail
+ * content never expands inline inside the list (that pattern produced the
+ * unbounded scrolling cards this screen replaced).
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ReviewScreen(
     sessionStore: LocalSessionStore,
@@ -52,13 +58,28 @@ fun ReviewScreen(
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
     var rows by remember { mutableStateOf(ReviewListState.from(sessionStore.readIndex())) }
-    var selectedId by remember { mutableStateOf<String?>(null) }
+    var openedKey by remember { mutableStateOf<String?>(null) }
     var localRefreshVersion by remember { mutableStateOf(0L) }
     val refreshRows: () -> Unit = { localRefreshVersion += 1L }
 
     // Re-read the index when the Drive tab reports a new save (D-27).
     LaunchedEffect(savedVersion, localRefreshVersion) {
         rows = ReviewListState.from(sessionStore.readIndex())
+    }
+
+    val openedRow = openedKey?.let { key -> rows.firstOrNull { it.key() == key } }
+    if (openedRow != null) {
+        BackHandler(enabled = true) { openedKey = null }
+        ReviewDetailScreen(
+            row = openedRow,
+            sessionStore = sessionStore,
+            displaySettings = displaySettings,
+            exportShareTarget = exportShareTarget,
+            refreshVersion = localRefreshVersion,
+            onDataChanged = refreshRows,
+            onBack = { openedKey = null },
+        )
+        return
     }
 
     if (rows.isEmpty()) {
@@ -78,22 +99,18 @@ fun ReviewScreen(
             .padding(spacing.md),
         verticalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
-        reviewSection("Sessions", sessions, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget, localRefreshVersion, refreshRows)
-        reviewSection("Tracks", tracks, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget, localRefreshVersion, refreshRows)
-        reviewSection("Raw captures", rawCaptures, selectedId, { selectedId = it }, sessionStore, displaySettings, exportShareTarget, localRefreshVersion, refreshRows)
+        reviewSection("Sessions", sessions) { openedKey = it }
+        reviewSection("Tracks", tracks) { openedKey = it }
+        reviewSection("Raw captures", rawCaptures) { openedKey = it }
     }
 }
+
+internal fun ReviewRowViewModel.key(): String = "${type.name}:$id"
 
 private fun LazyListScope.reviewSection(
     title: String,
     rows: List<ReviewRowViewModel>,
-    selectedId: String?,
-    onSelectedChanged: (String?) -> Unit,
-    sessionStore: LocalSessionStore,
-    displaySettings: DriveDisplaySettings,
-    exportShareTarget: ExportShareTarget,
-    refreshVersion: Long,
-    onDataChanged: () -> Unit,
+    onOpen: (String) -> Unit,
 ) {
     if (rows.isEmpty()) return
     item {
@@ -104,19 +121,7 @@ private fun LazyListScope.reviewSection(
         )
     }
     items(rows) { row ->
-        val key = "${row.type.name}:${row.id}"
-        ReviewRow(
-            row = row,
-            expanded = selectedId == key,
-            onClick = {
-                onSelectedChanged(if (selectedId == key) null else key)
-            },
-            sessionStore = sessionStore,
-            displaySettings = displaySettings,
-            exportShareTarget = exportShareTarget,
-            refreshVersion = refreshVersion,
-            onDataChanged = onDataChanged,
-        )
+        ReviewRow(row = row, onClick = { onOpen(row.key()) })
     }
 }
 
@@ -147,47 +152,65 @@ private fun EmptyState() {
     }
 }
 
+/**
+ * Compact list card: identity on the left, the row's one headline fact on the
+ * right (best lap for sessions), and a chevron that signals navigation. All
+ * fields come from the lightweight index — no payload I/O per row.
+ */
 @Composable
 private fun ReviewRow(
     row: ReviewRowViewModel,
-    expanded: Boolean,
     onClick: () -> Unit,
-    sessionStore: LocalSessionStore,
-    displaySettings: DriveDisplaySettings,
-    exportShareTarget: ExportShareTarget,
-    refreshVersion: Long,
-    onDataChanged: () -> Unit,
 ) {
+    val spacing = LapSightTheme.spacing
     LapCard(onClick = onClick) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(LapSightTheme.spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = row.displayTitle(),
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f),
-            )
-            if (row.isDemo) StatusChip(text = "DEMO", tone = ChipTone.Demo)
-        }
-        Text(
-            text = "${row.typeLabel} · ${row.sourceLabel}",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelLarge,
-        )
-        if (expanded) {
-            if (row.type == ReviewEntryType.TimingSession) {
-                TimingSessionReviewDetail(row.id, sessionStore, displaySettings, exportShareTarget)
-            } else {
-                RowDetail(row, sessionStore, exportShareTarget, refreshVersion, onDataChanged)
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                ) {
+                    Text(
+                        text = row.displayTitle(),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    if (row.isDemo) StatusChip(text = "DEMO", tone = ChipTone.Demo)
+                }
+                Text(
+                    text = formatEpochMillis(row.createdAtEpochMillis),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
+            if (row.type == ReviewEntryType.TimingSession && row.bestLapMillis != null) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "BEST",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    TimingText(
+                        text = row.bestLapMillis.formatLapTime(),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+            Text(
+                text = "›",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.titleLarge,
+            )
         }
     }
 }
 
 internal fun ReviewRowViewModel.displayTitle(): String = when (type) {
-    ReviewEntryType.TimingSession -> "Session ${formatEpochMillis(createdAtEpochMillis)}"
+    ReviewEntryType.TimingSession -> name.ifBlank { "Session" }
     else -> name.ifBlank { "Untitled $typeLabel" }
 }

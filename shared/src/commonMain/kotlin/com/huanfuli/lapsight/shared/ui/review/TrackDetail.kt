@@ -8,22 +8,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.huanfuli.lapsight.shared.export.ExportArtifact
-import com.huanfuli.lapsight.shared.export.ExportFailedException
-import com.huanfuli.lapsight.shared.export.ExportFileNames
-import com.huanfuli.lapsight.shared.export.ExportNotFoundException
-import com.huanfuli.lapsight.shared.export.ExportShareResult
-import com.huanfuli.lapsight.shared.export.ExportShareTarget
-import com.huanfuli.lapsight.shared.export.JsonExportService
 import com.huanfuli.lapsight.shared.nowEpochMillis
 import com.huanfuli.lapsight.shared.session.AppMetadata
 import com.huanfuli.lapsight.shared.storage.LoadResult
@@ -50,133 +43,94 @@ import com.huanfuli.lapsight.shared.track.TrackPayloadV1
 import com.huanfuli.lapsight.shared.track.TrackProfile
 import com.huanfuli.lapsight.shared.track.TrackProfileController
 import com.huanfuli.lapsight.shared.ui.components.ChipTone
+import com.huanfuli.lapsight.shared.ui.components.DisclosureSection
 import com.huanfuli.lapsight.shared.ui.components.LapButton
 import com.huanfuli.lapsight.shared.ui.components.LapButtonStyle
 import com.huanfuli.lapsight.shared.ui.components.LapSwitchRow
 import com.huanfuli.lapsight.shared.ui.components.MetricCell
 import com.huanfuli.lapsight.shared.ui.components.MetricCellSize
 import com.huanfuli.lapsight.shared.ui.components.SectionHeader
+import com.huanfuli.lapsight.shared.ui.components.StatusChip
 import com.huanfuli.lapsight.shared.ui.components.StatusMessage
 
-/** Detail body for Track / Raw-capture rows. */
+/**
+ * Track detail body: course map first, readiness at a glance, two visible
+ * actions (Set as current — D-02 — and Edit course), and everything
+ * diagnostic (IDs, payload path, revision log) behind a Details disclosure.
+ * Lifecycle actions (rename/duplicate/archive/export) live in the detail
+ * screen's overflow menu, not here.
+ */
 @Composable
-internal fun RowDetail(
+internal fun TrackDetailBody(
     row: ReviewRowViewModel,
     sessionStore: LocalSessionStore,
-    exportShareTarget: ExportShareTarget,
     refreshVersion: Long,
     onDataChanged: () -> Unit,
 ) {
-    var exportMessage by remember { mutableStateOf<String?>(null) }
     val spacing = LapSightTheme.spacing
     Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
-        MetricCell(label = "ID", value = row.id, size = MetricCellSize.Row)
-        MetricCell(label = "Type", value = row.typeLabel, size = MetricCellSize.Row)
-        MetricCell(label = "Source", value = row.sourceLabel, size = MetricCellSize.Row)
-        if (row.sampleCount != null) {
-            MetricCell(label = "Samples", value = row.sampleCount.toString(), size = MetricCellSize.Row)
-        }
-        MetricCell(label = "Payload", value = row.payloadPath, size = MetricCellSize.Row)
+        TrackCourseDetailSection(
+            row = row,
+            sessionStore = sessionStore,
+            refreshVersion = refreshVersion,
+            onDataChanged = onDataChanged,
+        )
+    }
+}
 
-        // Track detail uses a single beautified course map. Edit mode switches this
-        // map in place instead of rendering a second identical editor map.
-        if (row.type == ReviewEntryType.Track) {
-            TrackCourseDetailSection(
-                trackId = row.id,
-                sessionStore = sessionStore,
-                refreshVersion = refreshVersion,
-                onDataChanged = onDataChanged,
-            )
-        } else if (row.type == ReviewEntryType.TrackMarking) {
-            TrackTraceSection(
-                rowId = row.id,
-                type = row.type,
-                sessionStore = sessionStore,
-                refreshVersion = refreshVersion,
-            )
-        }
-
-        // DEMO provenance stays visible in the expanded detail too (T-03-10).
+/** Raw-capture detail body: the marking trace plus collapsed diagnostics. */
+@Composable
+internal fun RawCaptureDetailBody(
+    row: ReviewRowViewModel,
+    sessionStore: LocalSessionStore,
+    refreshVersion: Long,
+) {
+    val spacing = LapSightTheme.spacing
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
+        TrackTraceSection(
+            rowId = row.id,
+            type = row.type,
+            sessionStore = sessionStore,
+            refreshVersion = refreshVersion,
+        )
         if (row.isDemo) {
             StatusMessage(text = "Simulated data — not live history.", tone = ChipTone.Demo)
         }
-
-        // Set as current track (D-02): make this Track the explicit current selection
-        // from detail, WITHOUT starting a session. Older V1-only Tracks are promoted to
-        // a V2 profile on demand so selection always resolves a real aggregate.
-        if (row.type == ReviewEntryType.Track) {
-            Spacer(Modifier.height(spacing.xs))
-            var selectMessage by remember(row.id) { mutableStateOf<String?>(null) }
-            LapButton(
-                text = "Set as current track",
-                style = LapButtonStyle.Secondary,
-                onClick = { selectMessage = setAsCurrentTrack(sessionStore, row.id) },
-            )
-            selectMessage?.let { msg ->
-                StatusMessage(
-                    text = msg,
-                    tone = if (msg.startsWith("Couldn't")) ChipTone.Error else ChipTone.Ready,
-                )
-            }
-        }
-
-        // Profile lifecycle (SC-01, D-12/D-16, D-01/D-03): rename, archive, and duplicate
-        // a saved Track profile without deleting or rebinding history.
-        if (row.type == ReviewEntryType.Track) {
-            ProfileLifecycleSection(
-                trackId = row.id,
-                sessionStore = sessionStore,
-                onDataChanged = onDataChanged,
-            )
-        }
-
-        // Export actions (D-40): explicit button tap on Track Review detail only.
-        if (row.type == ReviewEntryType.Track) {
-            Spacer(Modifier.height(spacing.xs))
-            LapButton(
-                text = "Export JSON",
-                style = LapButtonStyle.Secondary,
-                onClick = {
-                    exportMessage = try {
-                        val bytes = JsonExportService(sessionStore).exportTrack(row.id)
-                        val name = ExportFileNames.forTrack(row.name, row.createdAtEpochMillis)
-                        val artifact = ExportArtifact(name, "application/json", bytes)
-                        when (exportShareTarget.share(artifact)) {
-                            is ExportShareResult.Shared, is ExportShareResult.Saved ->
-                                "Exported $name"
-                            is ExportShareResult.Cancelled -> null
-                            is ExportShareResult.Failed -> "Export failed. Check device storage and try again."
-                        }
-                    } catch (e: ExportNotFoundException) {
-                        "Export failed. Check device storage and try again."
-                    } catch (e: ExportFailedException) {
-                        "Export failed. Check device storage and try again."
-                    }
-                },
-            )
-            exportMessage?.let { msg ->
-                StatusMessage(
-                    text = msg,
-                    tone = if (msg.startsWith("Exported")) ChipTone.Ready else ChipTone.Error,
-                )
-            }
+        Text(
+            text = "Raw captures are diagnostic recordings — they never produce lap times.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        DisclosureSection(title = "Details") {
+            EntryMetadata(row)
         }
     }
 }
 
+/** Index metadata lines shared by the Details disclosures. */
+@Composable
+private fun EntryMetadata(row: ReviewRowViewModel) {
+    MetricCell(label = "ID", value = row.id, size = MetricCellSize.Row)
+    MetricCell(label = "Source", value = row.sourceLabel, size = MetricCellSize.Row)
+    if (row.sampleCount != null) {
+        MetricCell(label = "Samples", value = row.sampleCount.toString(), size = MetricCellSize.Row)
+    }
+    MetricCell(label = "Payload", value = row.payloadPath, size = MetricCellSize.Row)
+}
+
 /**
- * Single Track course surface for Review detail.
- *
- * This replaces the previous split between a read-only `TraceView` and a second
- * `TrackEditorScreen`. The same beautified map is used for browse and edit mode.
+ * Single Track course surface for Review detail: one beautified map for both
+ * browse and edit mode (edit switches the same map in place). Editing appends
+ * an immutable revision — edits never move recorded GPS data.
  */
 @Composable
 private fun TrackCourseDetailSection(
-    trackId: String,
+    row: ReviewRowViewModel,
     sessionStore: LocalSessionStore,
     refreshVersion: Long,
     onDataChanged: () -> Unit,
 ) {
+    val trackId = row.id
     val payload = remember(trackId, refreshVersion) {
         (sessionStore.loadTrack(trackId) as? LoadResult.Loaded<TrackPayloadV1>)?.value
     }
@@ -192,9 +146,6 @@ private fun TrackCourseDetailSection(
     val initialSetup = latest?.courseSetup ?: legacyCourseSetup(payload?.track)
 
     val spacing = LapSightTheme.spacing
-    Spacer(Modifier.height(spacing.sm))
-    SectionHeader(text = "Trace")
-    Spacer(Modifier.height(spacing.xs))
 
     val pathResult = remember(referenceLine) {
         referenceLine?.let { ClosedReferencePath.fromReferenceLine(it) }
@@ -205,90 +156,50 @@ private fun TrackCourseDetailSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
-    } else {
-        val path = pathResult.path
-        var editor by remember(trackId, refreshVersion, editing, path) {
-            mutableStateOf(seedCourseProfileEditor(path, initialSetup))
+        if (row.isDemo) {
+            StatusMessage(text = "Simulated data — not live history.", tone = ChipTone.Demo)
         }
-        TrackCourseMapCanvas(
-            referenceLine = referenceLine,
-            editor = editor,
-            editingEnabled = editing,
-            height = 260.dp,
-            onPlaceStartFinish = { local -> editor = editor.placeStartFinish(local) },
-            onDragStartFinishBy = { deltaMeters -> editor = editor.dragStartFinishBy(deltaMeters) },
-            onDragBoundaryBy = { id, deltaMeters -> editor = editor.dragBoundaryBy(id, deltaMeters) },
-        )
+        DisclosureSection(title = "Details") {
+            EntryMetadata(row)
+        }
+        return
+    }
 
-        if (current == null) {
-            Spacer(Modifier.height(spacing.xs))
+    val path = pathResult.path
+    var editor by remember(trackId, refreshVersion, editing, path) {
+        mutableStateOf(seedCourseProfileEditor(path, initialSetup))
+    }
+    TrackCourseMapCanvas(
+        referenceLine = referenceLine,
+        editor = editor,
+        editingEnabled = editing,
+        height = 260.dp,
+        onPlaceStartFinish = { local -> editor = editor.placeStartFinish(local) },
+        onDragStartFinishBy = { deltaMeters -> editor = editor.dragStartFinishBy(deltaMeters) },
+        onDragBoundaryBy = { id, deltaMeters -> editor = editor.dragBoundaryBy(id, deltaMeters) },
+    )
+
+    // Readiness at a glance: timing needs a confirmed start/finish (D-11).
+    val timingReady = (latest?.courseSetup?.startFinish ?: payload?.track?.startFinish) != null
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+    ) {
+        if (timingReady) {
+            StatusChip(text = "Timing-ready", tone = ChipTone.Ready)
+        } else {
+            StatusChip(text = "Needs start/finish", tone = ChipTone.Caution)
+        }
+        latest?.let {
             Text(
-                text = "Course editing unavailable for this entry.",
+                text = "Rev ${it.ordinal}",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
-        } else {
-            CourseRevisionAndEditControls(
-                profile = current,
-                editing = editing,
-                editor = editor,
-                message = message,
-                onStartEditing = {
-                    editing = true
-                    message = null
-                },
-                onEditorChanged = { editor = it },
-                onCancelEditing = {
-                    editing = false
-                    message = null
-                },
-                onSave = {
-                    val controller = TrackProfileController(sessionStore)
-                    when (val result = controller.appendRevision(
-                        profileId = current.profileId,
-                        referenceLine = referenceLine,
-                        courseSetup = editor.toCourseSetup(),
-                        app = trackApp(sessionStore, trackId) ?: uiFallbackAppMetadata(),
-                        sourceMarkingSessionId = latest?.sourceMarkingSessionId,
-                    )) {
-                        is AppendRevisionResult.Appended -> {
-                            profile = result.profile
-                            editing = false
-                            message = "Saved revision ${result.revision.ordinal}."
-                            onDataChanged()
-                        }
-                        is AppendRevisionResult.Rejected -> {
-                            message = "Couldn't save: ${result.reason}."
-                        }
-                    }
-                },
-            )
         }
     }
-}
-
-@Composable
-private fun CourseRevisionAndEditControls(
-    profile: TrackProfile,
-    editing: Boolean,
-    editor: CourseProfileEditor,
-    message: String?,
-    onStartEditing: () -> Unit,
-    onEditorChanged: (CourseProfileEditor) -> Unit,
-    onCancelEditing: () -> Unit,
-    onSave: () -> Unit,
-) {
-    val spacing = LapSightTheme.spacing
-    Spacer(Modifier.height(spacing.sm))
-    SectionHeader(text = "Revision history")
-    profile.revisions.sortedBy { it.ordinal }.forEach { revision ->
-        val ready = revision.courseSetup.startFinish != null
-        Text(
-            text = "Rev ${revision.ordinal} · ${formatEpochMillis(revision.createdAtEpochMillis)} · " +
-                if (ready) "timing-ready" else "needs start/finish",
-            color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.bodySmall,
-        )
+    if (row.isDemo) {
+        StatusMessage(text = "Simulated data — not live history.", tone = ChipTone.Demo)
     }
 
     message?.let { msg ->
@@ -302,30 +213,110 @@ private fun CourseRevisionAndEditControls(
         )
     }
 
-    if (!editing) {
+    if (current == null) {
+        Text(
+            text = "Course editing unavailable for this entry.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    } else if (!editing) {
         Spacer(Modifier.height(spacing.xs))
+        // Set as current track (D-02): explicit selection from detail, WITHOUT
+        // starting a session. V1-only Tracks are promoted to V2 on demand.
+        var selectMessage by remember(trackId) { mutableStateOf<String?>(null) }
+        LapButton(
+            text = "Set as current track",
+            onClick = { selectMessage = setAsCurrentTrack(sessionStore, trackId) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        selectMessage?.let { msg ->
+            StatusMessage(
+                text = msg,
+                tone = if (msg.startsWith("Couldn't")) ChipTone.Error else ChipTone.Ready,
+            )
+        }
         LapButton(
             text = "Edit course",
             style = LapButtonStyle.Secondary,
-            onClick = onStartEditing,
+            onClick = {
+                editing = true
+                message = null
+            },
+            modifier = Modifier.fillMaxWidth(),
         )
-        return
+    } else {
+        CourseEditControls(
+            editor = editor,
+            onEditorChanged = { editor = it },
+            onCancelEditing = {
+                editing = false
+                message = null
+            },
+            onSave = {
+                val controller = TrackProfileController(sessionStore)
+                when (val result = controller.appendRevision(
+                    profileId = current.profileId,
+                    referenceLine = referenceLine,
+                    courseSetup = editor.toCourseSetup(),
+                    app = trackApp(sessionStore, trackId) ?: uiFallbackAppMetadata(),
+                    sourceMarkingSessionId = latest?.sourceMarkingSessionId,
+                )) {
+                    is AppendRevisionResult.Appended -> {
+                        profile = result.profile
+                        editing = false
+                        message = "Saved revision ${result.revision.ordinal}."
+                        onDataChanged()
+                    }
+                    is AppendRevisionResult.Rejected -> {
+                        message = "Couldn't save: ${result.reason}."
+                    }
+                }
+            },
+        )
     }
 
-    Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
-        val placed = editor.startFinishProgress != null
-        LapButton(
-            text = if (editor.startFinishConfirmed) "Start/finish confirmed" else "Confirm start/finish",
-            style = LapButtonStyle.Secondary,
-            enabled = placed && !editor.startFinishConfirmed,
-            onClick = { if (editor.startFinishProgress != null) onEditorChanged(editor.confirmStartFinish()) },
-        )
+    Spacer(Modifier.height(spacing.xs))
+    DisclosureSection(title = "Details") {
+        EntryMetadata(row)
+        current?.let { prof ->
+            Spacer(Modifier.height(spacing.xs))
+            SectionHeader(text = "Revision history")
+            prof.revisions.sortedBy { it.ordinal }.forEach { revision ->
+                val ready = revision.courseSetup.startFinish != null
+                Text(
+                    text = "Rev ${revision.ordinal} · ${formatEpochMillis(revision.createdAtEpochMillis)} · " +
+                        if (ready) "timing-ready" else "needs start/finish",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
     }
+}
+
+/** Edit-mode controls: start/finish confirm, sector setup, validation, save. */
+@Composable
+private fun CourseEditControls(
+    editor: CourseProfileEditor,
+    onEditorChanged: (CourseProfileEditor) -> Unit,
+    onCancelEditing: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val spacing = LapSightTheme.spacing
+    Spacer(Modifier.height(spacing.xs))
+    val placed = editor.startFinishProgress != null
     if (editor.startFinishProgress == null) {
         Text(
             text = "Tap the trace to place the start/finish line.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
+        )
+    } else if (!editor.startFinishConfirmed) {
+        LapButton(
+            text = "Confirm start/finish",
+            style = LapButtonStyle.Secondary,
+            enabled = placed,
+            onClick = { onEditorChanged(editor.confirmStartFinish()) },
         )
     }
 
@@ -337,7 +328,7 @@ private fun CourseRevisionAndEditControls(
     if (editor.sectorsEnabled) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             LapButton(
                 text = "-",
@@ -471,83 +462,7 @@ internal fun TrackTraceSection(
     )
 
     if (layers.isNotEmpty()) {
-        Spacer(Modifier.height(LapSightTheme.spacing.sm))
-        SectionHeader(text = "Trace")
-        Spacer(Modifier.height(LapSightTheme.spacing.xs))
         TraceView(layers = layers, minHeight = 180.dp, maxHeight = 260.dp)
-    }
-}
-
-/**
- * Profile lifecycle controls on Track detail (SC-01; D-12 rename, D-16 archive/duplicate;
- * D-01/D-03 selection clearing).
- *
- * Rename updates the profile's display name without touching its immutable revisions;
- * Archive removes the profile from active selectors while retaining every revision/session/
- * Ghost and — when it was the current Track — clears the selection so Drive returns to the
- * explicit no-selection state rather than auto-picking another Track; Duplicate forks an
- * independent profile with fresh identities. None of these deletes data. A V1-only Track is
- * promoted to a V2 profile on demand so a real aggregate always backs the action.
- */
-@Composable
-private fun ProfileLifecycleSection(
-    trackId: String,
-    sessionStore: LocalSessionStore,
-    onDataChanged: () -> Unit,
-) {
-    val spacing = LapSightTheme.spacing
-    Spacer(Modifier.height(spacing.sm))
-    SectionHeader(text = "Profile")
-
-    var message by remember(trackId) { mutableStateOf<String?>(null) }
-    var renameValue by remember(trackId) { mutableStateOf("") }
-
-    // Rename: a non-geometric metadata change (D-12). Blank/unsafe names are rejected by
-    // the controller and never form a storage path.
-    Spacer(Modifier.height(spacing.xs))
-    OutlinedTextField(
-        value = renameValue,
-        onValueChange = { renameValue = it },
-        label = { Text("Rename profile") },
-        singleLine = true,
-        shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(Modifier.height(spacing.xs))
-    Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
-        LapButton(
-            text = "Rename",
-            style = LapButtonStyle.Secondary,
-            onClick = {
-                val msg = renameTrack(sessionStore, trackId, renameValue)
-                message = msg
-                if (!msg.startsWith("Couldn't")) onDataChanged()
-            },
-        )
-        LapButton(
-            text = "Duplicate",
-            style = LapButtonStyle.Secondary,
-            onClick = {
-                val msg = duplicateTrack(sessionStore, trackId)
-                message = msg
-                if (!msg.startsWith("Couldn't")) onDataChanged()
-            },
-        )
-        LapButton(
-            text = "Archive",
-            style = LapButtonStyle.Secondary,
-            onClick = {
-                val msg = archiveTrack(sessionStore, trackId)
-                message = msg
-                if (!msg.startsWith("Couldn't")) onDataChanged()
-            },
-        )
-    }
-    message?.let { msg ->
-        StatusMessage(
-            text = msg,
-            tone = if (msg.startsWith("Couldn't")) ChipTone.Error else ChipTone.Ready,
-        )
     }
 }
 
