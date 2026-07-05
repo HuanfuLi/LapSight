@@ -18,13 +18,43 @@ data class TracePoint(
 )
 
 /**
- * A named set of render-only trace points with color, stroke, and dash style.
- * Layering order is caller-managed; Canvas renders background layers first.
+ * Semantic role of a trace layer. The review/data layer never carries colors —
+ * the UI resolves each role against the active theme's canvas palette
+ * (`LapSightColors.trace*`), so light/dark and any future palette change never
+ * touch recorded data or layer builders.
+ */
+enum class TraceRole {
+    /** Track reference line baseline. */
+    Reference,
+
+    /** Driven session trace. */
+    Session,
+
+    /** Raw marking capture trace. */
+    Marking,
+
+    /** Outlier/degraded sections (rendered dashed and translucent). */
+    Outlier,
+
+    /** Start/finish line. */
+    StartFinish,
+
+    /** Sector boundary lines. */
+    Sector,
+
+    /** Selected/best lap highlight (motorsport purple). */
+    BestLap,
+}
+
+/**
+ * A named set of render-only trace points with a semantic [role], stroke, and
+ * dash style. Layering order is caller-managed; Canvas renders background
+ * layers first.
  */
 data class TraceLayer(
     val name: String,
     val points: List<TracePoint>,
-    val color: Long,
+    val role: TraceRole,
     val strokeWidth: Float,
     val dashed: Boolean = false,
 )

@@ -15,21 +15,17 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.review.TraceLayer
+import com.huanfuli.lapsight.shared.review.TraceRole
 
 /**
  * Offline vector trace renderer (SESS-03, D-33 through D-36).
  *
- * Renders a list of [TraceLayer]s onto a Compose [Canvas] using the UI-SPEC
- * color/stroke contract. No map tiles, no external map SDKs, no geocoding.
- * Canonical lat/lon stays in saved data; only projected render points enter
- * the Canvas (D-34).
- *
- * Colors and strokes per UI-SPEC:
- * - Reference line / best-lap highlight: cyan #62E3FF, 3px / 4px
- * - Marking trace / session trace: muted #9AA8B8, 2px
- * - Outlier sections: orange #FFB84D 50% alpha, 2px dashed
- * - Start/finish line: green #8CFF9B, 3px
- * - Sector lines: amber #FFD166, 2px
+ * Renders a list of [TraceLayer]s onto a Compose [Canvas]. No map tiles, no
+ * external map SDKs, no geocoding. Canonical lat/lon stays in saved data; only
+ * projected render points enter the Canvas (D-34). Each layer carries a
+ * semantic [TraceRole] which resolves to the active theme's canvas palette
+ * here — this is the single place trace roles become colors, shared by
+ * Review traces and the course editor.
  *
  * @param layers    trace layers to render (background to foreground).
  * @param modifier  optional Compose modifier.
@@ -61,6 +57,9 @@ fun TraceView(
         val w = with(density) { canvasWidth.toPx() }
         val h = with(density) { canvasHeight.toPx() }
 
+        // Resolve every role up front — DrawScope is not composable.
+        val roleColors = TraceRole.entries.associateWith { it.traceColor() }
+
         Canvas(
             modifier = Modifier
                 .fillMaxSize(),
@@ -68,7 +67,7 @@ fun TraceView(
             for (layer in layers) {
                 if (layer.points.size < 2) continue
 
-                val color = Color(layer.color)
+                val color = roleColors.getValue(layer.role)
                 val strokePx = with(density) { layer.strokeWidth.dp.toPx() }
 
                 if (layer.dashed) {
@@ -88,6 +87,18 @@ fun TraceView(
             }
         }
     }
+}
+
+/** Resolves a [TraceRole] to the active theme's canvas palette. */
+@Composable
+internal fun TraceRole.traceColor(): Color = when (this) {
+    TraceRole.Reference -> LapSightTheme.colors.traceReference
+    TraceRole.Session -> LapSightTheme.colors.traceSession
+    TraceRole.Marking -> LapSightTheme.colors.traceMarking
+    TraceRole.Outlier -> LapSightTheme.colors.traceOutlier.copy(alpha = 0.5f)
+    TraceRole.StartFinish -> LapSightTheme.colors.traceStartFinish
+    TraceRole.Sector -> LapSightTheme.colors.traceSector
+    TraceRole.BestLap -> LapSightTheme.colors.traceBestLap
 }
 
 /**

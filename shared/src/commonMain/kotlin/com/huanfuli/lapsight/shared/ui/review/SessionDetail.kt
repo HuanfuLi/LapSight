@@ -316,7 +316,7 @@ private fun SpeedTelemetryChart(
     selectedIndex: Int,
     modifier: Modifier = Modifier,
 ) {
-    val lineColor = LapSightTheme.colors.traceSession
+    val lineColor = MaterialTheme.colorScheme.primary
     val axisColor = LapSightTheme.colors.chartGrid
     val cursorColor = LapSightTheme.colors.statusCaution
     val surfaceColor = MaterialTheme.colorScheme.surface

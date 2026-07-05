@@ -35,7 +35,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.huanfuli.lapsight.shared.ui.LapSightAutoSize
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
 import com.huanfuli.lapsight.shared.LocationFeedMode
@@ -275,9 +275,9 @@ private fun PrimaryTimingReadouts(
             maxLines = 1,
             softWrap = false,
             autoSize = TextAutoSize.StepBased(
-                minFontSize = 24.sp,
-                maxFontSize = if (compact) 44.sp else 56.sp,
-                stepSize = 2.sp,
+                minFontSize = LapSightAutoSize.heroMin,
+                maxFontSize = if (compact) LapSightAutoSize.heroMaxCompact else LapSightAutoSize.heroMax,
+                stepSize = LapSightAutoSize.step,
             ),
             style = MaterialTheme.typography.displayLarge.copy(fontFamily = mono),
         )
@@ -304,9 +304,9 @@ private fun PrimaryTimingReadouts(
                         maxLines = 1,
                         softWrap = false,
                         autoSize = TextAutoSize.StepBased(
-                            minFontSize = 20.sp,
-                            maxFontSize = if (compact) 34.sp else 40.sp,
-                            stepSize = 2.sp,
+                            minFontSize = LapSightAutoSize.speedMin,
+                            maxFontSize = if (compact) LapSightAutoSize.speedMaxCompact else LapSightAutoSize.speedMax,
+                            stepSize = LapSightAutoSize.step,
                         ),
                         style = MaterialTheme.typography.displaySmall.copy(fontFamily = mono),
                     )
@@ -511,9 +511,9 @@ private fun DeltaReadout(
         maxLines = 1,
         softWrap = false,
         autoSize = TextAutoSize.StepBased(
-            minFontSize = 22.sp,
-            maxFontSize = if (compact) 32.sp else 44.sp,
-            stepSize = 2.sp,
+            minFontSize = LapSightAutoSize.deltaMin,
+            maxFontSize = if (compact) LapSightAutoSize.deltaMaxCompact else LapSightAutoSize.deltaMax,
+            stepSize = LapSightAutoSize.step,
         ),
         style = MaterialTheme.typography.displayMedium.copy(fontFamily = LapSightTheme.monoFamily),
     )

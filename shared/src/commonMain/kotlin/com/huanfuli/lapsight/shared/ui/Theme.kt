@@ -125,9 +125,9 @@ val lapSightDarkExtendedColors = LapSightColors(
     recording = Color(0xFFFF6B6B),
     demo = Color(0xFFFFD166),
     traceReference = Color(0xFF62E3FF),
-    traceSession = Color(0xFF8CFF9B),
+    traceSession = Color(0xFF9AA8B8),
     traceMarking = Color(0xFF5B6B7C),
-    traceOutlier = Color(0xFFFF6B6B),
+    traceOutlier = Color(0xFFFFB84D),
     traceStartFinish = Color(0xFF8CFF9B),
     traceSector = Color(0xFFFFD166),
     traceBestLap = Color(0xFFB48CFF),
@@ -147,9 +147,9 @@ val lapSightLightExtendedColors = LapSightColors(
     recording = Color(0xFFB8343A),
     demo = Color(0xFF9A6400),
     traceReference = Color(0xFF007B94),
-    traceSession = Color(0xFF1F8F4D),
+    traceSession = Color(0xFF64748B),
     traceMarking = Color(0xFF94A3B8),
-    traceOutlier = Color(0xFFB8343A),
+    traceOutlier = Color(0xFFB45309),
     traceStartFinish = Color(0xFF1F8F4D),
     traceSector = Color(0xFF9A6400),
     traceBestLap = Color(0xFF7C3AED),
@@ -230,6 +230,24 @@ fun lapsightTypography(): Typography {
         labelMedium = TextStyle(fontFamily = inter, fontSize = 12.sp, fontWeight = FontWeight.Bold, lineHeight = 16.sp, letterSpacing = 1.sp, fontFeatureSettings = TABULAR_FIGURES),
         labelSmall = TextStyle(fontFamily = inter, fontSize = 11.sp, fontWeight = FontWeight.Bold, lineHeight = 14.sp, letterSpacing = 0.8.sp, fontFeatureSettings = TABULAR_FIGURES),
     )
+}
+
+/**
+ * AutoSize bounds for the dash glance readouts (D-31): the display roles
+ * anchor the type and autoSize shrinks within these bounds so long values
+ * never clip. Part of the type scale, so they live with the other tokens.
+ */
+object LapSightAutoSize {
+    val step = 2.sp
+    val heroMin = 24.sp
+    val heroMax = 56.sp
+    val heroMaxCompact = 44.sp
+    val speedMin = 20.sp
+    val speedMax = 40.sp
+    val speedMaxCompact = 34.sp
+    val deltaMin = 22.sp
+    val deltaMax = 44.sp
+    val deltaMaxCompact = 32.sp
 }
 
 /**

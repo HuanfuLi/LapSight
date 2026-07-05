@@ -258,30 +258,30 @@ fun buildTrackTraceLayers(
 
     fun layer(
         name: String,
-        color: Long,
+        role: TraceRole,
         strokeWidth: Float,
         dashed: Boolean,
         points: List<TracePoint>,
-    ): TraceLayer = TraceLayer(name = name, points = points, color = color, strokeWidth = strokeWidth, dashed = dashed)
+    ): TraceLayer = TraceLayer(name = name, points = points, role = role, strokeWidth = strokeWidth, dashed = dashed)
 
     val layers = mutableListOf<TraceLayer>()
     var idx = 0
 
     // Layer 1: Full marking trace (context)
     if (markingDtos.isNotEmpty()) {
-        layers += layer("Marking trace", 0xFF9AA8B8, 2f, false, projected[idx])
+        layers += layer("Marking trace", TraceRole.Marking, 2f, false, projected[idx])
         idx++
     }
 
     // Layer 2: Reference line (highlighted baseline)
     if (refDtos.isNotEmpty()) {
-        layers += layer("Reference line", 0xFF62E3FF, 3f, false, projected[idx])
+        layers += layer("Reference line", TraceRole.Reference, 3f, false, projected[idx])
         idx++
     }
 
     // Layer 3: Outlier sections
     if (outlierDtos.isNotEmpty()) {
-        layers += layer("Outlier sections", 0x80FFB84D, 2f, true, projected[idx])
+        layers += layer("Outlier sections", TraceRole.Outlier, 2f, true, projected[idx])
         idx++
     }
 
@@ -292,7 +292,7 @@ fun buildTrackTraceLayers(
             // First 2 points are start/finish
             val sf = linePoints.take(2)
             if (sf.size == 2) {
-                layers += layer("Start/finish", 0xFF8CFF9B, 3f, false, sf)
+                layers += layer("Start/finish", TraceRole.StartFinish, 3f, false, sf)
             }
         }
         val sectorStarts = if (startFinish != null) 2 else 0
@@ -301,7 +301,7 @@ fun buildTrackTraceLayers(
             sectors.forEachIndexed { index, sector ->
                 val points = sectorPoints.drop(index * 2).take(2)
                 if (points.size == 2) {
-                    layers += layer(sector.name.ifBlank { "Sector ${sector.order + 1}" }, 0xFFFFD166, 2f, false, points)
+                    layers += layer(sector.name.ifBlank { "Sector ${sector.order + 1}" }, TraceRole.Sector, 2f, false, points)
                 }
             }
         }
@@ -314,12 +314,13 @@ fun buildTrackTraceLayers(
 /**
  * Build trace layers for the Timing Session Review offline vector trace (D-36).
  *
- * Layers rendered in order (background first):
- * 1. Reference line baseline — cyan #62E3FF, 3px
- * 2. Session trace — muted #9AA8B8, 2px
- * 3. Start/finish line — green #8CFF9B, 3px
- * 4. Sector lines — amber #FFD166, 2px
- * 5. Selected/best lap highlight — cyan #62E3FF, 4px (empty until a lap is selected)
+ * Layers rendered in order (background first); colors resolve from the theme's
+ * canvas palette via each layer's [TraceRole]:
+ * 1. Reference line baseline — [TraceRole.Reference], 3px
+ * 2. Session trace — [TraceRole.Session], 2px
+ * 3. Start/finish line — [TraceRole.StartFinish], 3px
+ * 4. Sector lines — [TraceRole.Sector], 2px
+ * 5. Selected/best lap highlight — [TraceRole.BestLap], 4px (empty until a lap is selected)
  *
  * @param referenceLinePoints  track reference line points.
  * @param sessionSamples       timing session raw samples.
@@ -374,24 +375,24 @@ fun buildTimingTraceLayers(
 
     fun layer(
         name: String,
-        color: Long,
+        role: TraceRole,
         strokeWidth: Float,
         dashed: Boolean,
         points: List<TracePoint>,
-    ): TraceLayer = TraceLayer(name = name, points = points, color = color, strokeWidth = strokeWidth, dashed = dashed)
+    ): TraceLayer = TraceLayer(name = name, points = points, role = role, strokeWidth = strokeWidth, dashed = dashed)
 
     val layers = mutableListOf<TraceLayer>()
     var idx = 0
 
     // Layer 1: Reference line baseline
     if (referenceLinePoints.isNotEmpty()) {
-        layers += layer("Reference baseline", 0xFF62E3FF, 3f, false, projected[idx])
+        layers += layer("Reference baseline", TraceRole.Reference, 3f, false, projected[idx])
         idx++
     }
 
     // Layer 2: Session trace
     if (sessionDtos.isNotEmpty()) {
-        layers += layer("Session trace", 0xFF9AA8B8, 2f, false, projected[idx])
+        layers += layer("Session trace", TraceRole.Session, 2f, false, projected[idx])
         idx++
     }
 
@@ -401,7 +402,7 @@ fun buildTimingTraceLayers(
         if (startFinish != null) {
             val sf = linePoints.take(2)
             if (sf.size == 2) {
-                layers += layer("Start/finish", 0xFF8CFF9B, 3f, false, sf)
+                layers += layer("Start/finish", TraceRole.StartFinish, 3f, false, sf)
             }
         }
         val sectorStarts = if (startFinish != null) 2 else 0
@@ -410,16 +411,17 @@ fun buildTimingTraceLayers(
             sectors.forEachIndexed { index, sector ->
                 val points = sectorPoints.drop(index * 2).take(2)
                 if (points.size == 2) {
-                    layers += layer(sector.name.ifBlank { "Sector ${sector.order + 1}" }, 0xFFFFD166, 2f, false, points)
+                    layers += layer(sector.name.ifBlank { "Sector ${sector.order + 1}" }, TraceRole.Sector, 2f, false, points)
                 }
             }
         }
         idx++
     }
 
-    // Layer 5: Selected/best lap highlight
+    // Layer 5: Selected/best lap highlight — motorsport purple, distinct from
+    // the cyan reference baseline it used to share a color with.
     if (highlightDtos.isNotEmpty()) {
-        layers += layer("Best lap highlight", 0xFF62E3FF, 4f, false, projected[idx])
+        layers += layer("Best lap highlight", TraceRole.BestLap, 4f, false, projected[idx])
         idx++
     }
 
