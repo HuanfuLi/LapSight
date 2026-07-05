@@ -224,28 +224,29 @@ class TraceProjectionTest {
             geo(39.8130, -86.1062), // ~100m north
             geo(39.8121, -86.1052), // ~100m east
         )
-        // Use a tall, narrow canvas: width=200, height=600.
+        // Use a tall, narrow view box: width=200, height=600.
         // With padding=0, the projected points should fit proportionally.
+        val width = 200.0
+        val height = 600.0
         val result = TraceProjection.project(
             layers = listOf(points),
-            width = 200.0,
-            height = 600.0,
+            width = width,
+            height = height,
             padding = 0.0,
         )
         assertEquals(1, result.size)
         val proj = result[0]
-        // The bounding box aspect ratio should be preserved — the points
-        // span roughly equal distances in lat and lon directions.
-        val xSpan = proj.maxOf { it.x } - proj.minOf { it.x }
-        val ySpan = proj.maxOf { it.y } - proj.minOf { it.y }
-        // In a tall canvas, the vertical span should NOT be 3x the horizontal
-        // span (which would happen if aspect ratio is ignored and points are
-        // just mapped 1:1 to canvas dimensions). The actual span ratio should
-        // be close to the geographic aspect ratio (~1:1 here).
-        assertTrue(xSpan > 0.0, "horizontal span > 0")
-        assertTrue(ySpan > 0.0, "vertical span > 0")
+        // Normalized coordinates are relative to the view box, so geographic
+        // aspect is preserved in PIXEL space: normalized span × view-box
+        // dimension. For a ~square input, the pixel spans must be ~equal —
+        // NOT the raw normalized spans (equal normalized spans on a 200×600
+        // view box would render 1:3 distorted).
+        val xSpanPx = (proj.maxOf { it.x } - proj.minOf { it.x }) * width
+        val ySpanPx = (proj.maxOf { it.y } - proj.minOf { it.y }) * height
+        assertTrue(xSpanPx > 0.0, "horizontal pixel span > 0")
+        assertTrue(ySpanPx > 0.0, "vertical pixel span > 0")
         // The ratio should be close to 1.0 (±30%) since the input is roughly square.
-        val ratio = xSpan / ySpan
-        assertTrue(ratio > 0.7 && ratio < 1.3, "aspect ratio should be ~1:1, got xSpan/ySpan=$ratio")
+        val ratio = xSpanPx / ySpanPx
+        assertTrue(ratio > 0.7 && ratio < 1.3, "pixel aspect should be ~1:1, got xSpanPx/ySpanPx=$ratio")
     }
 }

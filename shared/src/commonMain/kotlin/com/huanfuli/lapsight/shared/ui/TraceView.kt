@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.review.TraceLayer
+import com.huanfuli.lapsight.shared.review.TracePoint
 import com.huanfuli.lapsight.shared.review.TraceRole
 
 /**
@@ -27,10 +28,12 @@ import com.huanfuli.lapsight.shared.review.TraceRole
  * here — this is the single place trace roles become colors, shared by
  * Review traces and the course editor.
  *
- * @param layers    trace layers to render (background to foreground).
- * @param modifier  optional Compose modifier.
- * @param minHeight the minimum height of the trace area in dp.
- * @param maxHeight the maximum height of the trace area in dp.
+ * @param layers     trace layers to render (background to foreground).
+ * @param modifier   optional Compose modifier.
+ * @param minHeight  the minimum height of the trace area in dp.
+ * @param maxHeight  the maximum height of the trace area in dp.
+ * @param fillParent when true, fill all space the parent grants (e.g. a
+ *                   `weight(1f)` pane) instead of the fixed height chain.
  */
 @Composable
 fun TraceView(
@@ -38,6 +41,7 @@ fun TraceView(
     modifier: Modifier = Modifier,
     minHeight: Dp = 200.dp,
     maxHeight: Dp = 320.dp,
+    fillParent: Boolean = false,
 ) {
     if (layers.isEmpty()) return
 
@@ -45,17 +49,25 @@ fun TraceView(
     val height = if (maxHeight < minHeight) minHeight else maxHeight
 
     BoxWithConstraints(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height),
+        modifier = if (fillParent) {
+            modifier.fillMaxSize()
+        } else {
+            modifier
+                .fillMaxWidth()
+                .height(height)
+        },
     ) {
-        val canvasWidth = maxWidth
-        val canvasHeight = height
+        val canvasWidth = this.maxWidth
+        val boundedHeight = this.maxHeight
+        val canvasHeight = if (fillParent && boundedHeight.value.isFinite()) boundedHeight else height
 
         if (canvasWidth.value <= 0f || canvasHeight.value <= 0f) return@BoxWithConstraints
 
         val w = with(density) { canvasWidth.toPx() }
         val h = with(density) { canvasHeight.toPx() }
+        // Draw the projection view box at its own aspect ratio, centered — the
+        // normalized points are only geometrically true at that aspect (D-34).
+        val frame = TraceCanvasFrame(w, h)
 
         // Resolve every role up front — DrawScope is not composable.
         val roleColors = TraceRole.entries.associateWith { it.traceColor() }
@@ -72,14 +84,14 @@ fun TraceView(
 
                 if (layer.dashed) {
                     drawTracePath(
-                        points = layer.points.map { Offset(it.x.toFloat() * w, it.y.toFloat() * h) },
+                        points = layer.points.map { frame.toCanvas(it) },
                         color = color,
                         strokeWidth = strokePx,
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f),
                     )
                 } else {
                     drawTraceLines(
-                        points = layer.points.map { Offset(it.x.toFloat() * w, it.y.toFloat() * h) },
+                        points = layer.points.map { frame.toCanvas(it) },
                         color = color,
                         strokeWidth = strokePx,
                     )
@@ -87,6 +99,50 @@ fun TraceView(
             }
         }
     }
+}
+
+/** Every course/track projection in the app uses a 400×300 view box. */
+internal const val TRACE_VIEW_BOX_ASPECT: Float = 4f / 3f
+
+/**
+ * Letterboxed mapping between the projection's normalized [0..1] view box and
+ * an actual canvas: the view box renders at [TRACE_VIEW_BOX_ASPECT] centered
+ * inside the canvas, so course geometry keeps true proportions in any pane
+ * shape. Shared by [TraceView] and the course editor canvas — the editor's
+ * inverse pointer mapping must mirror the same frame or drags would land on
+ * the wrong course point.
+ */
+internal class TraceCanvasFrame(
+    canvasWidth: Float,
+    canvasHeight: Float,
+    viewBoxAspect: Float = TRACE_VIEW_BOX_ASPECT,
+) {
+    val drawWidth: Float
+    val drawHeight: Float
+    val offsetX: Float
+    val offsetY: Float
+
+    init {
+        val aspect = if (viewBoxAspect > 0f) viewBoxAspect else 1f
+        drawWidth = minOf(canvasWidth, canvasHeight * aspect)
+        drawHeight = drawWidth / aspect
+        offsetX = (canvasWidth - drawWidth) / 2f
+        offsetY = (canvasHeight - drawHeight) / 2f
+    }
+
+    /** Normalized view-box point → canvas pixels. */
+    fun toCanvas(point: TracePoint): Offset = Offset(
+        offsetX + point.x.toFloat() * drawWidth,
+        offsetY + point.y.toFloat() * drawHeight,
+    )
+
+    /** Canvas pixel x → normalized view-box x (inverse of [toCanvas]). */
+    fun toNormalizedX(px: Float): Double =
+        if (drawWidth > 0f) ((px - offsetX) / drawWidth).toDouble() else 0.0
+
+    /** Canvas pixel y → normalized view-box y (inverse of [toCanvas]). */
+    fun toNormalizedY(py: Float): Double =
+        if (drawHeight > 0f) ((py - offsetY) / drawHeight).toDouble() else 0.0
 }
 
 /** Resolves a [TraceRole] to the active theme's canvas palette. */

@@ -106,13 +106,11 @@ internal fun TrackCourseMapCanvas(
                     detectDragGestures(
                         onDragStart = { pos ->
                             val current = latestEditor.value
-                            val w = size.width.toFloat()
-                            val h = size.height.toFloat()
+                            val frame = TraceCanvasFrame(size.width.toFloat(), size.height.toFloat())
                             val pick = pickHandle(
                                 pos = pos,
                                 viewport = viewport,
-                                width = w,
-                                height = h,
+                                frame = frame,
                                 startFinishLine = current.buildStartFinishLine(),
                                 boundaries = current.buildBoundaries(),
                             )
@@ -129,7 +127,7 @@ internal fun TrackCourseMapCanvas(
                                 }
                                 current.startFinishProgress == null -> {
                                     onPlaceStartFinish(
-                                        viewport.screenToLocal(pos, size.width.toFloat(), size.height.toFloat()),
+                                        viewport.screenToLocal(pos, frame),
                                     )
                                     draggingStartFinish = true
                                     draggingBoundaryId = null
@@ -167,8 +165,7 @@ internal fun TrackCourseMapCanvas(
                                     progress = progress,
                                     previous = change.previousPosition,
                                     current = change.position,
-                                    width = size.width.toFloat(),
-                                    height = size.height.toFloat(),
+                                    frame = TraceCanvasFrame(size.width.toFloat(), size.height.toFloat()),
                                 )
                                 if (abs(deltaProgress) >= 0.001 || abs(dragAmount.x) + abs(dragAmount.y) == 0f) {
                                     when {
@@ -185,23 +182,22 @@ internal fun TrackCourseMapCanvas(
         Canvas(
             modifier = canvasModifier,
         ) {
-            val w = size.width
-            val h = size.height
+            // Aspect-true letterbox: same frame the pointer inverse uses.
+            val frame = TraceCanvasFrame(size.width, size.height)
 
             // Closed reference loop (full interval coverage), accent-colored.
             val loop = viewport.projectLayer(referenceLine.points)
-            drawClosedLoop(loop, w, h, halo = haloColor, line = loopColor)
+            drawClosedLoop(loop, frame, halo = haloColor, line = loopColor)
 
             // Start/finish line + handle.
             startFinishLine?.let { line ->
                 val a = viewport.geoToNormalized(line.pointA)
                 val b = viewport.geoToNormalized(line.pointB)
-                drawTraceSegment(a, b, w, h, haloColor, 9f)
-                drawTraceSegment(a, b, w, h, startFinishColor, 5f)
+                drawTraceSegment(a, b, frame, haloColor, 9f)
+                drawTraceSegment(a, b, frame, startFinishColor, 5f)
                 drawHandle(
                     center = midpoint(a, b),
-                    width = w,
-                    height = h,
+                    frame = frame,
                     color = startFinishColor,
                     haloColor = haloColor,
                     coreColor = handleCoreColor,
@@ -213,12 +209,11 @@ internal fun TrackCourseMapCanvas(
             for (boundary in boundaries) {
                 val a = viewport.geoToNormalized(boundary.pointA)
                 val b = viewport.geoToNormalized(boundary.pointB)
-                drawTraceSegment(a, b, w, h, haloColor, 7f)
-                drawTraceSegment(a, b, w, h, sectorColor, 3.5f)
+                drawTraceSegment(a, b, frame, haloColor, 7f)
+                drawTraceSegment(a, b, frame, sectorColor, 3.5f)
                 drawHandle(
                     center = midpoint(a, b),
-                    width = w,
-                    height = h,
+                    frame = frame,
                     color = sectorColor,
                     haloColor = haloColor,
                     coreColor = handleCoreColor,
@@ -235,11 +230,8 @@ private const val START_FINISH_HANDLE = "@start-finish"
 private const val HANDLE_HIT_RADIUS_PX = 48f
 
 /** Convert a screen-pixel position to local meters via the invertible viewport. */
-private fun TraceViewport.screenToLocal(pos: Offset, width: Float, height: Float): LocalPoint {
-    val nx = if (width > 0f) pos.x / width else 0.0f
-    val ny = if (height > 0f) pos.y / height else 0.0f
-    return normalizedToLocal(nx.toDouble(), ny.toDouble())
-}
+private fun TraceViewport.screenToLocal(pos: Offset, frame: TraceCanvasFrame): LocalPoint =
+    normalizedToLocal(frame.toNormalizedX(pos.x), frame.toNormalizedY(pos.y))
 
 private fun dragDeltaAlongTrace(
     viewport: TraceViewport,
@@ -247,11 +239,10 @@ private fun dragDeltaAlongTrace(
     progress: Double,
     previous: Offset,
     current: Offset,
-    width: Float,
-    height: Float,
+    frame: TraceCanvasFrame,
 ): Double {
-    val prevLocal = viewport.screenToLocal(previous, width, height)
-    val currentLocal = viewport.screenToLocal(current, width, height)
+    val prevLocal = viewport.screenToLocal(previous, frame)
+    val currentLocal = viewport.screenToLocal(current, frame)
     val tangent = path.tangentAt(progress)
     return (currentLocal.x - prevLocal.x) * tangent.x + (currentLocal.y - prevLocal.y) * tangent.y
 }
@@ -264,8 +255,7 @@ private fun dragDeltaAlongTrace(
 private fun pickHandle(
     pos: Offset,
     viewport: TraceViewport,
-    width: Float,
-    height: Float,
+    frame: TraceCanvasFrame,
     startFinishLine: StartFinishLineDto?,
     boundaries: List<SectorBoundary>,
 ): String? {
@@ -274,7 +264,7 @@ private fun pickHandle(
 
     startFinishLine?.let { line ->
         val mid = midpoint(viewport.geoToNormalized(line.pointA), viewport.geoToNormalized(line.pointB))
-        val d = handleDistance(pos, mid, width, height)
+        val d = handleDistance(pos, mid, frame)
         if (d <= bestDist) {
             bestDist = d
             best = START_FINISH_HANDLE
@@ -282,7 +272,7 @@ private fun pickHandle(
     }
     for (boundary in boundaries) {
         val mid = midpoint(viewport.geoToNormalized(boundary.pointA), viewport.geoToNormalized(boundary.pointB))
-        val d = handleDistance(pos, mid, width, height)
+        val d = handleDistance(pos, mid, frame)
         if (d < bestDist) {
             bestDist = d
             best = boundary.id
@@ -291,8 +281,10 @@ private fun pickHandle(
     return best
 }
 
-private fun handleDistance(pos: Offset, normalized: TracePoint, width: Float, height: Float): Double =
-    hypot(pos.x - normalized.x * width, pos.y - normalized.y * height)
+private fun handleDistance(pos: Offset, normalized: TracePoint, frame: TraceCanvasFrame): Double {
+    val center = frame.toCanvas(normalized)
+    return hypot((pos.x - center.x).toDouble(), (pos.y - center.y).toDouble())
+}
 
 private fun midpoint(a: TracePoint, b: TracePoint): TracePoint =
     TracePoint((a.x + b.x) / 2.0, (a.y + b.y) / 2.0)
@@ -303,8 +295,7 @@ private fun midpointGeo(a: GeoPointDto, b: GeoPointDto): GeoPointDto =
 /** Draw the closed reference loop, connecting the last vertex back to the first. */
 private fun DrawScope.drawClosedLoop(
     points: List<TracePoint>,
-    width: Float,
-    height: Float,
+    frame: TraceCanvasFrame,
     halo: Color,
     line: Color,
 ) {
@@ -312,27 +303,26 @@ private fun DrawScope.drawClosedLoop(
     val outerStroke = 11f
     val innerStroke = 6f
     for (i in 1 until points.size) {
-        drawStyledTrackSegment(points[i - 1], points[i], width, height, halo, outerStroke)
+        drawStyledTrackSegment(points[i - 1], points[i], frame, halo, outerStroke)
     }
-    drawStyledTrackSegment(points.last(), points.first(), width, height, halo, outerStroke)
+    drawStyledTrackSegment(points.last(), points.first(), frame, halo, outerStroke)
     for (i in 1 until points.size) {
-        drawStyledTrackSegment(points[i - 1], points[i], width, height, line, innerStroke)
+        drawStyledTrackSegment(points[i - 1], points[i], frame, line, innerStroke)
     }
-    drawStyledTrackSegment(points.last(), points.first(), width, height, line, innerStroke)
+    drawStyledTrackSegment(points.last(), points.first(), frame, line, innerStroke)
 }
 
 private fun DrawScope.drawStyledTrackSegment(
     a: TracePoint,
     b: TracePoint,
-    width: Float,
-    height: Float,
+    frame: TraceCanvasFrame,
     color: Color,
     strokeWidth: Float,
 ) {
     drawLine(
         color = color,
-        start = Offset((a.x * width).toFloat(), (a.y * height).toFloat()),
-        end = Offset((b.x * width).toFloat(), (b.y * height).toFloat()),
+        start = frame.toCanvas(a),
+        end = frame.toCanvas(b),
         strokeWidth = strokeWidth,
         cap = StrokeCap.Round,
     )
@@ -342,15 +332,14 @@ private fun DrawScope.drawStyledTrackSegment(
 private fun DrawScope.drawTraceSegment(
     a: TracePoint,
     b: TracePoint,
-    width: Float,
-    height: Float,
+    frame: TraceCanvasFrame,
     color: Color,
     strokeWidth: Float,
 ) {
     drawLine(
         color = color,
-        start = Offset((a.x * width).toFloat(), (a.y * height).toFloat()),
-        end = Offset((b.x * width).toFloat(), (b.y * height).toFloat()),
+        start = frame.toCanvas(a),
+        end = frame.toCanvas(b),
         strokeWidth = strokeWidth,
         cap = StrokeCap.Round,
     )
@@ -359,8 +348,7 @@ private fun DrawScope.drawTraceSegment(
 /** Draw a draggable circular handle at a normalized midpoint. */
 private fun DrawScope.drawHandle(
     center: TracePoint,
-    width: Float,
-    height: Float,
+    frame: TraceCanvasFrame,
     color: Color,
     haloColor: Color,
     coreColor: Color,
@@ -368,7 +356,7 @@ private fun DrawScope.drawHandle(
 ) {
     val radius = if (active) 17f else 13f
     val innerRadius = if (active) 9f else 7f
-    val offset = Offset((center.x * width).toFloat(), (center.y * height).toFloat())
+    val offset = frame.toCanvas(center)
     drawCircle(
         color = haloColor,
         radius = radius + 4f,
