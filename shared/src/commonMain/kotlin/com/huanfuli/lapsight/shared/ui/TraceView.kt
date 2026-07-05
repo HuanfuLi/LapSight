@@ -65,9 +65,9 @@ fun TraceView(
 
         val w = with(density) { canvasWidth.toPx() }
         val h = with(density) { canvasHeight.toPx() }
-        // Draw the projection view box at its own aspect ratio, centered — the
-        // normalized points are only geometrically true at that aspect (D-34).
-        val frame = TraceCanvasFrame(w, h)
+        // Zoom-to-fit: one uniform scale that fills the pane with the drawn
+        // content while keeping course geometry true (D-34).
+        val frame = TraceCanvasFrame(layers.flatMap { it.points }, w, h)
 
         // Resolve every role up front — DrawScope is not composable.
         val roleColors = TraceRole.entries.associateWith { it.traceColor() }
@@ -105,44 +105,74 @@ fun TraceView(
 internal const val TRACE_VIEW_BOX_ASPECT: Float = 4f / 3f
 
 /**
- * Letterboxed mapping between the projection's normalized [0..1] view box and
- * an actual canvas: the view box renders at [TRACE_VIEW_BOX_ASPECT] centered
- * inside the canvas, so course geometry keeps true proportions in any pane
- * shape. Shared by [TraceView] and the course editor canvas — the editor's
- * inverse pointer mapping must mirror the same frame or drags would land on
- * the wrong course point.
+ * Content-fit mapping between projected trace points and an actual canvas.
+ *
+ * Projected points are normalized to a view box whose aspect
+ * ([TRACE_VIEW_BOX_ASPECT]) makes them geometrically true. The frame restores
+ * that aspect, takes the bounding box of the content it is given, and applies
+ * ONE uniform zoom that fits the box inside the canvas with a small margin —
+ * the course fills any pane shape on its constraining axis with no
+ * distortion. Shared by [TraceView] and the course editor canvas; the
+ * editor's inverse pointer mapping must mirror the same frame (built from the
+ * same points) or drags would land on the wrong course point. The editor
+ * builds its frame from the static reference loop only, so the zoom never
+ * shifts mid-drag.
  */
 internal class TraceCanvasFrame(
+    points: List<TracePoint>,
     canvasWidth: Float,
     canvasHeight: Float,
     viewBoxAspect: Float = TRACE_VIEW_BOX_ASPECT,
+    paddingFraction: Float = 0.05f,
 ) {
-    val drawWidth: Float
-    val drawHeight: Float
-    val offsetX: Float
-    val offsetY: Float
+    private val aspect: Float = if (viewBoxAspect > 0f) viewBoxAspect else 1f
+    private val scale: Float
+    private val offsetX: Float
+    private val offsetY: Float
 
     init {
-        val aspect = if (viewBoxAspect > 0f) viewBoxAspect else 1f
-        drawWidth = minOf(canvasWidth, canvasHeight * aspect)
-        drawHeight = drawWidth / aspect
-        offsetX = (canvasWidth - drawWidth) / 2f
-        offsetY = (canvasHeight - drawHeight) / 2f
+        var uMin = Float.POSITIVE_INFINITY
+        var uMax = Float.NEGATIVE_INFINITY
+        var vMin = Float.POSITIVE_INFINITY
+        var vMax = Float.NEGATIVE_INFINITY
+        for (p in points) {
+            // Aspect-true space: the view box spans aspect × 1.
+            val u = p.x.toFloat() * aspect
+            val v = p.y.toFloat()
+            if (u < uMin) uMin = u
+            if (u > uMax) uMax = u
+            if (v < vMin) vMin = v
+            if (v > vMax) vMax = v
+        }
+        if (points.isEmpty() || canvasWidth <= 0f || canvasHeight <= 0f) {
+            scale = 1f
+            offsetX = 0f
+            offsetY = 0f
+        } else {
+            val spanU = (uMax - uMin).coerceAtLeast(1e-6f)
+            val spanV = (vMax - vMin).coerceAtLeast(1e-6f)
+            val pad = paddingFraction.coerceIn(0f, 0.4f)
+            val usableW = canvasWidth * (1f - 2f * pad)
+            val usableH = canvasHeight * (1f - 2f * pad)
+            scale = minOf(usableW / spanU, usableH / spanV)
+            offsetX = (canvasWidth - spanU * scale) / 2f - uMin * scale
+            offsetY = (canvasHeight - spanV * scale) / 2f - vMin * scale
+        }
     }
 
     /** Normalized view-box point → canvas pixels. */
     fun toCanvas(point: TracePoint): Offset = Offset(
-        offsetX + point.x.toFloat() * drawWidth,
-        offsetY + point.y.toFloat() * drawHeight,
+        offsetX + point.x.toFloat() * aspect * scale,
+        offsetY + point.y.toFloat() * scale,
     )
 
     /** Canvas pixel x → normalized view-box x (inverse of [toCanvas]). */
     fun toNormalizedX(px: Float): Double =
-        if (drawWidth > 0f) ((px - offsetX) / drawWidth).toDouble() else 0.0
+        if (scale > 0f) ((px - offsetX) / scale / aspect).toDouble() else 0.0
 
     /** Canvas pixel y → normalized view-box y (inverse of [toCanvas]). */
     fun toNormalizedY(py: Float): Double =
-        if (drawHeight > 0f) ((py - offsetY) / drawHeight).toDouble() else 0.0
+        if (scale > 0f) ((py - offsetY) / scale).toDouble() else 0.0
 }
 
 /** Resolves a [TraceRole] to the active theme's canvas palette. */

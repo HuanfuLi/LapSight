@@ -68,6 +68,11 @@ internal fun TrackCourseMapCanvas(
     val viewport = remember(referenceLine) {
         TraceViewport.fromLayers(listOf(referenceLine.points), 400.0, 300.0, padding)
     }
+    // The canvas frame zooms to the static reference loop (never the movable
+    // handles) so the map does not re-zoom while a handle is dragged.
+    val loopPoints = remember(viewport) {
+        viewport?.projectLayer(referenceLine.points) ?: emptyList()
+    }
     val latestEditor = rememberUpdatedState(editor)
     var activeHandle by remember { mutableStateOf<String?>(null) }
 
@@ -106,7 +111,7 @@ internal fun TrackCourseMapCanvas(
                     detectDragGestures(
                         onDragStart = { pos ->
                             val current = latestEditor.value
-                            val frame = TraceCanvasFrame(size.width.toFloat(), size.height.toFloat())
+                            val frame = TraceCanvasFrame(loopPoints, size.width.toFloat(), size.height.toFloat())
                             val pick = pickHandle(
                                 pos = pos,
                                 viewport = viewport,
@@ -165,7 +170,7 @@ internal fun TrackCourseMapCanvas(
                                     progress = progress,
                                     previous = change.previousPosition,
                                     current = change.position,
-                                    frame = TraceCanvasFrame(size.width.toFloat(), size.height.toFloat()),
+                                    frame = TraceCanvasFrame(loopPoints, size.width.toFloat(), size.height.toFloat()),
                                 )
                                 if (abs(deltaProgress) >= 0.001 || abs(dragAmount.x) + abs(dragAmount.y) == 0f) {
                                     when {
@@ -182,12 +187,11 @@ internal fun TrackCourseMapCanvas(
         Canvas(
             modifier = canvasModifier,
         ) {
-            // Aspect-true letterbox: same frame the pointer inverse uses.
-            val frame = TraceCanvasFrame(size.width, size.height)
+            // Zoom-to-fit on the reference loop: same frame the pointer inverse uses.
+            val frame = TraceCanvasFrame(loopPoints, size.width, size.height)
 
             // Closed reference loop (full interval coverage), accent-colored.
-            val loop = viewport.projectLayer(referenceLine.points)
-            drawClosedLoop(loop, frame, halo = haloColor, line = loopColor)
+            drawClosedLoop(loopPoints, frame, halo = haloColor, line = loopColor)
 
             // Start/finish line + handle.
             startFinishLine?.let { line ->
