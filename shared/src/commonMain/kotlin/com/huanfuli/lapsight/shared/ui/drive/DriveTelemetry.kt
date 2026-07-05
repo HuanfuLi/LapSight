@@ -34,7 +34,8 @@ import com.huanfuli.lapsight.shared.ui.components.StatusChip
 
 /**
  * Stationary GPS/readiness status bar (D-13/D-14/D-32): source + Ready state
- * chips over a row of speed/accuracy/samples/rate metric cells.
+ * chips over speed/accuracy/samples/rate metric cells — one row of four in
+ * portrait, a 2×2 [grid] inside the narrow landscape control rail.
  */
 @Composable
 internal fun DriveStatusBar(
@@ -46,7 +47,7 @@ internal fun DriveStatusBar(
     rawRecordingActive: Boolean,
     rawSnapshot: RawRecordingSnapshot,
     modifier: Modifier = Modifier,
-    compact: Boolean = false,
+    grid: Boolean = false,
 ) {
     val speedMultiplier = when (displaySettings.speedUnit) {
         SpeedUnit.KilometersPerHour -> 3.6
@@ -128,34 +129,26 @@ internal fun DriveStatusBar(
                     textAlign = TextAlign.End,
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing.xs),
-            ) {
-                MetricCell(
-                    label = "SPEED",
-                    value = "$speedLabel $speedUnit",
-                    modifier = Modifier.weight(1f),
-                    size = MetricCellSize.Compact,
-                )
-                MetricCell(
-                    label = "ACCURACY",
-                    value = "${snapshot.accuracyLabel} m",
-                    modifier = Modifier.weight(1f),
-                    size = MetricCellSize.Compact,
-                )
-                MetricCell(
-                    label = "SAMPLES",
-                    value = snapshot.feedSampleCount.toString(),
-                    modifier = Modifier.weight(1f),
-                    size = MetricCellSize.Compact,
-                )
-                MetricCell(
-                    label = "RATE",
-                    value = "$rateLabel Hz",
-                    modifier = Modifier.weight(1f),
-                    size = MetricCellSize.Compact,
-                )
+            val cells = listOf(
+                "SPEED" to "$speedLabel $speedUnit",
+                "ACCURACY" to "${snapshot.accuracyLabel} m",
+                "SAMPLES" to snapshot.feedSampleCount.toString(),
+                "RATE" to "$rateLabel Hz",
+            )
+            cells.chunked(if (grid) 2 else cells.size).forEach { rowCells ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                ) {
+                    rowCells.forEach { (label, value) ->
+                        MetricCell(
+                            label = label,
+                            value = value,
+                            modifier = Modifier.weight(1f),
+                            size = MetricCellSize.Compact,
+                        )
+                    }
+                }
             }
         }
     }

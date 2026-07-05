@@ -9,13 +9,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -39,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
 import com.huanfuli.lapsight.shared.LocationFeedMode
+import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.lap.formatLapTime
 import com.huanfuli.lapsight.shared.review.buildTrackTraceLayers
@@ -60,7 +69,6 @@ import com.huanfuli.lapsight.shared.ui.RotateScreenIcon
 import com.huanfuli.lapsight.shared.ui.StopActionIcon
 import com.huanfuli.lapsight.shared.ui.TraceView
 import com.huanfuli.lapsight.shared.ui.components.LapButton
-import com.huanfuli.lapsight.shared.ui.components.LapButtonSize
 import com.huanfuli.lapsight.shared.ui.components.LapButtonStyle
 import com.huanfuli.lapsight.shared.ui.components.LapDialog
 import com.huanfuli.lapsight.shared.ui.components.MetricCell
@@ -109,16 +117,29 @@ internal fun DriveSurface(
         val padding = if (isCompactLandscape) spacing.sm else spacing.md
 
         if (snapshot.phase == DriveMarkingPhase.Review) {
-            // Track Review replaces the dash controls (D-31).
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .safeContentPadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(padding),
-                verticalArrangement = Arrangement.spacedBy(spacing.md),
-            ) {
-                reviewContent()
+            // Track Review replaces the dash controls (D-31). Portrait scrolls a
+            // card; landscape gets bounded height so the review lays out as a
+            // fixed two-pane spread with no scrolling.
+            if (isLandscape) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .safeContentPadding()
+                        .padding(padding),
+                ) {
+                    reviewContent()
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .safeContentPadding()
+                        .verticalScroll(rememberScrollState())
+                        .padding(padding),
+                    verticalArrangement = Arrangement.spacedBy(spacing.md),
+                ) {
+                    reviewContent()
+                }
             }
             return@BoxWithConstraints
         }
@@ -147,43 +168,31 @@ internal fun DriveSurface(
         }
 
         if (isLandscape) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = spacing.sm, vertical = spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(spacing.sm),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                DriveStatusBar(
-                    snapshot = snapshot,
-                    displaySettings = displaySettings,
-                    locationFeedMode = locationFeedMode,
-                    phoneGpsPermission = phoneGpsPermission,
-                    dashReady = dashReady,
-                    rawRecordingActive = rawRecordingActive,
-                    rawSnapshot = rawSnapshot,
-                    modifier = Modifier.fillMaxWidth(),
-                    compact = isCompactLandscape,
-                )
-                ControlPanel(
-                    snapshot = snapshot,
-                    orientation = orientation,
-                    sessionStore = sessionStore,
-                    onToggleOrientation = onToggleOrientation,
-                    onSelectProfile = onSelectProfile,
-                    onSelectDirection = onSelectDirection,
-                    onStartTiming = onStartTiming,
-                    onBeginMarking = onBeginMarking,
-                    onStopMarking = onStopMarking,
-                    onStartRawRecording = onStartRawRecording,
-                    onStopRawRecording = onStopRawRecording,
-                    dashReady = dashReady,
-                    rawRecordingActive = rawRecordingActive,
-                    modifier = Modifier.fillMaxWidth(),
-                    compact = isCompactLandscape,
-                    startTimingBlockedMessage = startTimingBlockedMessage,
-                )
-            }
+            // Two-pane cockpit: the course visual owns the left pane, controls
+            // live in a fixed-width right rail with the actions bottom-anchored.
+            // Everything fits without scrolling, and the rotate toggle is
+            // reachable in every state — in landscape it is the only way back
+            // (the bottom navigation is hidden, D-29).
+            LandscapeCockpit(
+                snapshot = snapshot,
+                orientation = orientation,
+                sessionStore = sessionStore,
+                displaySettings = displaySettings,
+                locationFeedMode = locationFeedMode,
+                phoneGpsPermission = phoneGpsPermission,
+                onToggleOrientation = onToggleOrientation,
+                onSelectProfile = onSelectProfile,
+                onSelectDirection = onSelectDirection,
+                onStartTiming = onStartTiming,
+                onBeginMarking = onBeginMarking,
+                onStopMarking = onStopMarking,
+                onStartRawRecording = onStartRawRecording,
+                onStopRawRecording = onStopRawRecording,
+                dashReady = dashReady,
+                rawRecordingActive = rawRecordingActive,
+                rawSnapshot = rawSnapshot,
+                startTimingBlockedMessage = startTimingBlockedMessage,
+            )
         } else {
             // Portrait: the middle of the screen belongs to the course — a live
             // marking trace while capturing, the selected track's map otherwise —
@@ -224,6 +233,250 @@ internal fun DriveSurface(
                     fillHeight = true,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Landscape pre-timing cockpit: course visual left, control rail right.
+ *
+ * The left pane shows the thing that matters for the current phase — the
+ * selected course, the live marking trace, or the empty state. The right rail
+ * stacks status (2×2 metrics), the phase's controls, and bottom-anchors the
+ * action row so Start/Stop and the orientation toggle sit in the same corner
+ * in every state. Nothing scrolls; every control is on screen.
+ */
+@Composable
+private fun LandscapeCockpit(
+    snapshot: DriveMarkingSnapshot,
+    orientation: DashOrientation,
+    sessionStore: LocalSessionStore,
+    displaySettings: DriveDisplaySettings,
+    locationFeedMode: LocationFeedMode,
+    phoneGpsPermission: PhoneGpsPermissionState,
+    onToggleOrientation: () -> Unit,
+    onSelectProfile: (String) -> Unit,
+    onSelectDirection: (CourseDirection) -> Unit,
+    onStartTiming: () -> Unit,
+    onBeginMarking: () -> Unit,
+    onStopMarking: () -> Unit,
+    onStartRawRecording: () -> Unit,
+    onStopRawRecording: () -> Unit,
+    dashReady: ReadyState,
+    rawRecordingActive: Boolean,
+    rawSnapshot: RawRecordingSnapshot,
+    startTimingBlockedMessage: String?,
+) {
+    val spacing = LapSightTheme.spacing
+    var showTrackPicker by remember { mutableStateOf(false) }
+    if (showTrackPicker) {
+        TrackPickerDialog(
+            snapshot = snapshot,
+            onSelectProfile = onSelectProfile,
+            onBeginMarking = onBeginMarking,
+            onClose = { showTrackPicker = false },
+        )
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            // Keep panes clear of the camera cutout, which sits on a side
+            // edge in landscape; the Scaffold only pads the system bars.
+            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+            .padding(spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(spacing.md),
+    ) {
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            when {
+                snapshot.phase == DriveMarkingPhase.Capturing -> MarkingTracePane(
+                    samples = snapshot.capturedSamples,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                snapshot.currentTrackName != null -> SelectedTrackPreview(
+                    profileId = snapshot.timingReadyTrackId,
+                    sessionStore = sessionStore,
+                    compact = false,
+                    fillParent = true,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                rawRecordingActive -> Text(
+                    text = "Recording raw GPS for diagnosis.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+                else -> NoTrackState(
+                    hasSavedTracks = snapshot.selectableProfiles.isNotEmpty(),
+                    onChooseTrack = { showTrackPicker = true },
+                    onBeginMarking = onBeginMarking,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier.width(300.dp).fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            DriveStatusBar(
+                snapshot = snapshot,
+                displaySettings = displaySettings,
+                locationFeedMode = locationFeedMode,
+                phoneGpsPermission = phoneGpsPermission,
+                dashReady = dashReady,
+                rawRecordingActive = rawRecordingActive,
+                rawSnapshot = rawSnapshot,
+                modifier = Modifier.fillMaxWidth(),
+                grid = true,
+            )
+            when {
+                snapshot.phase == DriveMarkingPhase.Capturing -> {
+                    MarkingMetricsRow(snapshot = snapshot)
+                    Text(
+                        text = "Drive at least 3 continuous loops of the course, then stop marking.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    DriveActionRow(
+                        primaryIcon = StopActionIcon,
+                        primaryLabel = "Stop marking",
+                        primaryDescription = "Stop marking",
+                        primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
+                        primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        primaryEnabled = true,
+                        onPrimary = onStopMarking,
+                        orientation = orientation,
+                        onToggleOrientation = onToggleOrientation,
+                    )
+                }
+                rawRecordingActive -> {
+                    Text(
+                        text = "Recording raw GPS for diagnosis. No lap timing is running.",
+                        color = LapSightTheme.colors.statusCaution,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    DriveActionRow(
+                        primaryIcon = StopActionIcon,
+                        primaryLabel = "Stop raw recording",
+                        primaryDescription = "Stop raw recording",
+                        primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
+                        primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        primaryEnabled = true,
+                        onPrimary = onStopRawRecording,
+                        orientation = orientation,
+                        onToggleOrientation = onToggleOrientation,
+                    )
+                }
+                else -> {
+                    TrackSelectorSection(
+                        snapshot = snapshot,
+                        onClick = { showTrackPicker = true },
+                    )
+                    if (snapshot.canStartTiming) {
+                        DirectionSelectorSection(
+                            selected = snapshot.selectedDirection,
+                            onSelectDirection = onSelectDirection,
+                        )
+                    }
+                    startTimingBlockedMessage?.let { message ->
+                        Text(
+                            text = message,
+                            color = LapSightTheme.colors.statusCaution,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                    DriveActionRow(
+                        primaryIcon = PlayActionIcon,
+                        primaryLabel = "Start Timing",
+                        primaryDescription = "Start timing",
+                        primaryContainerColor = MaterialTheme.colorScheme.primary,
+                        primaryContentColor = MaterialTheme.colorScheme.onPrimary,
+                        primaryEnabled = snapshot.canStartTiming,
+                        onPrimary = onStartTiming,
+                        orientation = orientation,
+                        onToggleOrientation = onToggleOrientation,
+                    )
+                    if (dashReady is ReadyState.NotReady) {
+                        LapButton(
+                            text = "Record raw GPS (diagnostic)",
+                            onClick = onStartRawRecording,
+                            style = LapButtonStyle.Ghost,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** MARKING TIME + POINTS cells shared by the portrait stack and the rail. */
+@Composable
+private fun MarkingMetricsRow(
+    snapshot: DriveMarkingSnapshot,
+    modifier: Modifier = Modifier,
+) {
+    val spacing = LapSightTheme.spacing
+    val samples = snapshot.capturedSamples
+    val elapsedMillis = if (samples.size >= 2) {
+        samples.last().elapsedMillis - samples.first().elapsedMillis
+    } else {
+        0L
+    }
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+    ) {
+        MetricCell(
+            label = "MARKING TIME",
+            value = elapsedMillis.formatLapTime(),
+            modifier = Modifier.weight(1f),
+            size = MetricCellSize.Compact,
+        )
+        MetricCell(
+            label = "POINTS",
+            value = samples.size.toString(),
+            modifier = Modifier.weight(1f),
+            size = MetricCellSize.Compact,
+        )
+    }
+}
+
+/**
+ * The accumulating marking trace, filling a landscape pane. Redraws every ~10
+ * samples so canvas work stays off the per-sample hot path.
+ */
+@Composable
+private fun MarkingTracePane(
+    samples: List<LocationSample>,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier) {
+        val layerStep = samples.size / 10
+        val layers = remember(layerStep) {
+            buildTrackTraceLayers(
+                markingSamples = samples.map { it.toDto() },
+                referenceLine = null,
+                startFinish = null,
+                sectors = emptyList(),
+                outlierSamples = emptyList(),
+                viewWidth = 400.0,
+                viewHeight = 300.0,
+            )
+        }
+        if (layers.isNotEmpty()) {
+            TraceView(layers = layers, fillParent = true)
+        } else {
+            Text(
+                text = "Waiting for the first GPS fix…",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.align(Alignment.Center),
+            )
         }
     }
 }
@@ -292,12 +545,19 @@ private fun ControlPanel(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 if (fillHeight) Spacer(Modifier.weight(1f))
-                LapButton(
-                    text = "Stop raw recording",
-                    onClick = onStopRawRecording,
-                    style = LapButtonStyle.Destructive,
-                    size = LapButtonSize.Large,
-                    modifier = Modifier.fillMaxWidth(),
+                // The rotate toggle stays reachable while raw recording — it
+                // must never be possible to strand the user in an orientation.
+                DriveActionRow(
+                    primaryIcon = StopActionIcon,
+                    primaryLabel = "Stop raw recording",
+                    primaryDescription = "Stop raw recording",
+                    primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
+                    primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    primaryEnabled = true,
+                    onPrimary = onStopRawRecording,
+                    orientation = orientation,
+                    onToggleOrientation = onToggleOrientation,
+                    compact = compact,
                 )
             } else {
                 var showTrackPicker by remember { mutableStateOf(false) }
@@ -388,32 +648,11 @@ private fun MarkingLiveSection(
 ) {
     val spacing = LapSightTheme.spacing
     val samples = snapshot.capturedSamples
-    val elapsedMillis = if (samples.size >= 2) {
-        samples.last().elapsedMillis - samples.first().elapsedMillis
-    } else {
-        0L
-    }
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(spacing.xs),
-        ) {
-            MetricCell(
-                label = "MARKING TIME",
-                value = elapsedMillis.formatLapTime(),
-                modifier = Modifier.weight(1f),
-                size = MetricCellSize.Compact,
-            )
-            MetricCell(
-                label = "POINTS",
-                value = samples.size.toString(),
-                modifier = Modifier.weight(1f),
-                size = MetricCellSize.Compact,
-            )
-        }
+        MarkingMetricsRow(snapshot = snapshot)
         // Rebuild the drawn layers in coarse steps, not on every GPS sample.
         val layerStep = samples.size / 10
         val layers = remember(layerStep) {
@@ -459,6 +698,7 @@ private fun SelectedTrackPreview(
     sessionStore: LocalSessionStore,
     compact: Boolean,
     modifier: Modifier = Modifier,
+    fillParent: Boolean = false,
 ) {
     if (profileId == null) return
     val profile = remember(profileId) {
@@ -487,11 +727,19 @@ private fun SelectedTrackPreview(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(spacing.xs),
     ) {
-        TraceView(
-            layers = layers,
-            minHeight = if (compact) 120.dp else 200.dp,
-            maxHeight = if (compact) 180.dp else 360.dp,
-        )
+        if (fillParent) {
+            TraceView(
+                layers = layers,
+                modifier = Modifier.weight(1f),
+                fillParent = true,
+            )
+        } else {
+            TraceView(
+                layers = layers,
+                minHeight = if (compact) 120.dp else 200.dp,
+                maxHeight = if (compact) 180.dp else 360.dp,
+            )
+        }
         val sectorCount = latest.courseSetup.boundaries.size
         Text(
             text = buildString {
@@ -539,25 +787,31 @@ private fun NoTrackState(
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(spacing.md))
-        if (hasSavedTracks) {
-            LapButton(
-                text = "Choose track",
-                onClick = onChooseTrack,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(spacing.sm))
-            LapButton(
-                text = "Mark New Track",
-                onClick = onBeginMarking,
-                style = LapButtonStyle.Secondary,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            LapButton(
-                text = "Mark New Track",
-                onClick = onBeginMarking,
-                modifier = Modifier.fillMaxWidth(),
-            )
+        // Cap the action width so buttons stay hand-sized inside a wide
+        // landscape pane while still filling a portrait column.
+        Column(
+            modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            if (hasSavedTracks) {
+                LapButton(
+                    text = "Choose track",
+                    onClick = onChooseTrack,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                LapButton(
+                    text = "Mark New Track",
+                    onClick = onBeginMarking,
+                    style = LapButtonStyle.Secondary,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                LapButton(
+                    text = "Mark New Track",
+                    onClick = onBeginMarking,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
