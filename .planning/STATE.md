@@ -3,20 +3,20 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 7 planned — ready to execute (6 plans, verification passed)
-last_updated: "2026-07-06T20:38:26.227Z"
+stopped_at: Phase 7 plan 07-04 complete — ready for 07-05 phone UX + real-glasses gate
+last_updated: "2026-07-06T22:04:23.096Z"
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 43
-  completed_plans: 37
+  completed_plans: 40
   percent: 60
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5.1 complete. Plans 05.1-01 through 05.1-08 are complete, with the final `5.1-GO-NOGO.md` decision recorded as **Go — Android phone MVP validated for post-5.1 peripheral planning**. Latest device validation installed and launched the debug APK on `56031FDCH005PL` / Pixel 10 Pro (`lastUpdateTime=2026-07-06 04:20:11`), with `:shared:testAndroidHostTest`, `:androidApp:assembleDebug`, and launch smoke passing. The Android field-UAT gate is accepted by the product owner; iOS real-device UAT remains an explicit unvalidated risk. Phase 6 external GNSS is deferred because no suitable receiver is currently available for validation; Phase 7 is the selected next phase because real Meta Display Glasses are available for testing.
+**Current Status:** Phase 5.1 complete and Phase 7 is in progress. Phase 7 plans 07-01 through 07-04 are complete: DAT build integration, SessionController/HudModel seam, GlassesBridge lifecycle/render loop, and the full DAT HUD renderer are implemented. The Android field-UAT gate is accepted by the product owner; iOS real-device UAT remains an explicit unvalidated risk. Phase 6 external GNSS is deferred because no suitable receiver is currently available for validation; Phase 7 continues because real Meta Display Glasses are available for testing.
 
 ## Project Reference
 
@@ -26,19 +26,19 @@ See: `.planning/PROJECT.md`
 
 ## Current Focus
 
-**Phase 7 readiness — DAT Display bridge after Phase 5.1**
+**Phase 7 execution — DAT Display bridge after Phase 5.1**
 
 Phase 5.1 froze feature expansion, hardened the mounted-phone Android MVP, and
 closed the validation gate with an Android-phone Go decision. The phone app
 remains the source of truth for GPS, sessions, lap engine state, and future HUD
 outputs.
 
-Next step: start Phase 7 planning for an Android-first Meta Wearables DAT
-Display bridge. Phase 6 external GNSS remains deferred until suitable hardware
-is available; do not mark Phase 6 complete from simulator-only work. Phase 7
-must consume the existing phone-owned timing state and must not duplicate GPS,
-lap detection, session storage, or ghost-delta logic in the glasses display
-layer.
+Next step: execute 07-05 (Settings Glasses area + Drive cast/status/page
+controls + real-glasses verification). Phase 6 external GNSS remains deferred
+until suitable hardware is available; do not mark Phase 6 complete from
+simulator-only work. Phase 7 must consume the existing phone-owned timing state
+and must not duplicate GPS, lap detection, session storage, or ghost-delta logic
+in the glasses display layer.
 
 ## Working Assumptions
 
@@ -53,7 +53,7 @@ layer.
 
 ## Next Command Candidates
 
-- Start Phase 7: Phone-to-Glasses DAT Display Bridge.
+- Continue Phase 7 with plan 07-05: Phone UX for Settings Glasses area, Drive cast/status/page controls, and real-glasses gate.
 - Preserve the Android phone source-of-truth boundary; the DAT Display layer must consume summarized timing state from the existing timing pipeline.
 - Keep Phase 6 deferred until external GNSS hardware is available for real-device validation.
 - Keep iOS real-device UAT tracked as an explicit platform risk.
@@ -147,6 +147,7 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Quick task 260702-uju hardened Track editor after field feedback: start/finish and sector boundaries now drag by relative course progress instead of repeated nearest-point taps; the circuit illustration uses thicker outer/inner strokes and larger handles; Review refreshes after profile mutations; duplicated V2-only profiles stay editable. Verification: focused editor/profile tests, full `:shared:testAndroidHostTest`, and `:androidApp:assembleDebug` passed.
 - Quick task 260702-vn1 fixed the Track detail duplicate-map regression: the original `Trace` now uses the shared beautified circuit canvas, and `Edit course` switches that same map into edit mode in place. Verification: `:shared:testAndroidHostTest`, `:androidApp:assembleDebug`, `:androidApp:installDebug`, and ADB launch on device `25053RT47C` passed.
 - Phase 6 external GNSS is deferred until suitable hardware is available for real-device validation. Phase 7 is allowed to proceed first because the user has real Meta Display Glasses available, and the glasses bridge consumes summarized phone-owned timing state rather than owning GPS, lap detection, storage, or ghost logic.
+- Phase 7 plan 07-04 completed the full DAT HudRenderer/DeltaPill path and replaced the 07-03 placeholder render. `HudRenderSmokeTest` compiles and inspects generated DAT content trees directly; full MockDeviceKit Display-session testing remains impossible with `mwdat-mockdevice:0.8.0` because it has no Display capability handler. Real-glasses validation is deferred to 07-05.
 
 ## Performance Metrics
 
@@ -160,6 +161,7 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 | 05.1-05 | 14min | 3 tasks | 6 files |
 | 05.1-06 | 12min | 2 tasks | 2 files |
 | 05.1-04 | 30min | 2 tasks | 2 files |
+| Phase 07 P04 | 45 min | 3 tasks | 4 files |
 
 ## Quick Tasks Completed
 
@@ -172,9 +174,9 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 ## Session Continuity
 
 **Last session:** 2026-07-06T09:19:36.756Z
-**Stopped At:** Phase 7 planned — ready to execute (6 plans, verification passed)
-**Resume File:** .planning/phases/07-phone-to-glasses-dat-display-bridge/07-01-PLAN.md
+**Stopped At:** Phase 7 plan 07-04 complete — ready for 07-05 phone UX + real-glasses gate
+**Resume File:** .planning/phases/07-phone-to-glasses-dat-display-bridge/07-05-PLAN.md
 
 ---
 
-*Last updated: 2026-07-06 after Phase 6 defer / Phase 7 DAT Display bridge planning pivot*
+*Last updated: 2026-07-06 after Phase 7 plan 07-04 HUD renderer execution*

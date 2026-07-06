@@ -477,7 +477,7 @@ Plans:
 
 **Requirements:** MR-01, MR-02, MR-03
 
-**Plans:** 3/6 plans executed
+**Plans:** 4/6 plans executed
 
 Plans:
 
@@ -492,7 +492,7 @@ Plans:
 
 **Wave 3** *(after Wave 2)*
 
-- [ ] 07-04-PLAN.md — HudRenderer + DeltaPill: three pages, delta pill, idle/stale/sector-flash
+- [x] 07-04-PLAN.md — HudRenderer + DeltaPill: three pages, delta pill, idle/stale/sector-flash
 
 **Wave 4** *(after Wave 3)*
 
