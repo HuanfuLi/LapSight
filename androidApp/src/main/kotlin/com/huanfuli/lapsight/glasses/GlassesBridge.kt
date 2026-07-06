@@ -2,9 +2,14 @@ package com.huanfuli.lapsight.glasses
 
 import android.util.Log
 import androidx.annotation.GuardedBy
+import com.huanfuli.lapsight.shared.GpsFixStatus
 import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
 import com.huanfuli.lapsight.shared.glasses.GlassesDeviceSummary
+import com.huanfuli.lapsight.shared.glasses.GlassesGpsState
+import com.huanfuli.lapsight.shared.glasses.HudModel
+import com.huanfuli.lapsight.shared.glasses.HudPage
 import com.huanfuli.lapsight.shared.session.SessionController
+import com.huanfuli.lapsight.shared.session.TimingRunSnapshot
 import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.selectors.SpecificDeviceSelector
 import com.meta.wearable.dat.core.session.DeviceSession
@@ -15,12 +20,15 @@ import com.meta.wearable.dat.display.Display
 import com.meta.wearable.dat.display.addDisplay
 import com.meta.wearable.dat.display.removeDisplay
 import com.meta.wearable.dat.display.types.DisplayState
+import com.meta.wearable.dat.display.views.TextStyle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -41,8 +49,18 @@ import kotlinx.coroutines.launch
  * `devicesMetadata` are monitored continuously (read-only) so the device
  * picker (07-05) always has a fresh list; [connect] starts a session for a
  * user-picked device id, gates `addDisplay()` on `DeviceSessionState.STARTED`,
- * and tracks display readiness via `DisplayState.STARTED`. A terminal
- * `STOPPED` NEVER reuses the old session — [connect] always builds a fresh one.
+ * and gates the render loop on `DisplayState.STARTED`. A terminal `STOPPED`
+ * NEVER reuses the old session — [connect] always builds a fresh one — and,
+ * unless [stop] was called intentionally, the bridge silently recreates the
+ * session in the background (D-11): no user-facing alert, and
+ * [SessionController] is never touched, so phone timing keeps running.
+ *
+ * Once the display is `STARTED`, a single uniform coroutine (D-06) polls
+ * [SessionController.timingRunSnapshot] at ~2 Hz (D-05), builds the pure
+ * [HudModel], and pushes it via `sendContent` — with a frame-dedupe skip for
+ * byte-identical models to bound BLE traffic (RESEARCH Pitfall 3). There is no
+ * separate immediate-event path; lap completion / sector flashes simply appear
+ * on the next beat.
  *
  * One instance is owned by `MainActivity` for the Activity's lifetime and
  * stopped via [stop] in `onDestroy`.
@@ -50,9 +68,13 @@ import kotlinx.coroutines.launch
 class GlassesBridge(
     private val sessionController: SessionController,
     private val scope: CoroutineScope,
+    private val idleGpsState: () -> GlassesGpsState = { GlassesGpsState.idle() },
 ) {
     private companion object {
         private const val TAG = "GlassesBridge"
+
+        /** ~2 Hz uniform render-and-push cadence (D-05); tunable per RESEARCH Pitfall 3. */
+        private const val POLL_INTERVAL_MILLIS = 500L
     }
 
     /** Guards every mutable session/display/job field below (mirrors DisplayViewModel's `sessionLock`). */
@@ -63,10 +85,12 @@ class GlassesBridge(
     @GuardedBy("lock") private var sessionStateJob: Job? = null
     @GuardedBy("lock") private var sessionErrorJob: Job? = null
     @GuardedBy("lock") private var displayStateJob: Job? = null
+    @GuardedBy("lock") private var renderLoopJob: Job? = null
     @GuardedBy("lock") private var targetDeviceId: DeviceIdentifier? = null
     @GuardedBy("lock") private var intentionalStop: Boolean = false
 
     @Volatile private var displayReady: Boolean = false
+    private var lastSentModel: HudModel? = null
 
     private val deviceMonitoringJobs = mutableMapOf<DeviceIdentifier, Job>()
     private val _deviceMetadata = MutableStateFlow<Map<DeviceIdentifier, Device>>(emptyMap())
@@ -80,6 +104,12 @@ class GlassesBridge(
 
     /** Platform-free, continuously-updated device list for 07-05's device picker. */
     val devices: StateFlow<List<GlassesDeviceSummary>> = _devices.asStateFlow()
+
+    /** Active HUD page (D-01); mutated by the phone-side page selector (07-05). */
+    @Volatile var page: HudPage = HudPage.FOCUSED
+
+    /** Sector-flash window end (D-04); set by lap-crossing detection wired in a later plan. */
+    @Volatile var flashUntilEpochMs: Long? = null
 
     init {
         // Read-only device monitoring (mirrors WearablesRepository.startMonitoring): populates
@@ -180,9 +210,14 @@ class GlassesBridge(
             DisplayState.STARTED -> {
                 displayReady = true
                 _connectionState.value = GlassesConnectionState.Connected
+                startRenderLoop()
             }
             DisplayState.STOPPED, DisplayState.CLOSED -> {
                 displayReady = false
+                synchronized(lock) {
+                    renderLoopJob?.cancel()
+                    renderLoopJob = null
+                }
             }
             else -> Unit
         }
@@ -191,6 +226,8 @@ class GlassesBridge(
     private fun handleSessionStopped(identifier: DeviceIdentifier) {
         displayReady = false
         synchronized(lock) {
+            renderLoopJob?.cancel()
+            renderLoopJob = null
             displayStateJob?.cancel()
             displayStateJob = null
             display = null
@@ -208,12 +245,72 @@ class GlassesBridge(
         }
     }
 
+    private fun startRenderLoop() {
+        synchronized(lock) { renderLoopJob?.cancel() }
+        val loopJob = scope.launch {
+            while (isActive && displayReady) {
+                val currentDisplay = synchronized(lock) { display }
+                if (currentDisplay != null) {
+                    pushFrame(currentDisplay)
+                }
+                delay(POLL_INTERVAL_MILLIS)
+            }
+        }
+        synchronized(lock) { renderLoopJob = loopJob }
+    }
+
+    /**
+     * One render beat (D-06): poll [SessionController.timingRunSnapshot], build
+     * the pure [HudModel], and push it — a MINIMAL single-line placeholder here
+     * (the real 3-page renderer is 07-04's slice). Frame-dedupe (D-06
+     * discretion) skips `sendContent` for a byte-identical model to bound BLE
+     * traffic (RESEARCH Pitfall 3).
+     */
+    private suspend fun pushFrame(display: Display) {
+        val run = sessionController.timingRunSnapshot()
+        val gps = gpsStateFor(run)
+        val model = HudModel.from(
+            run = run,
+            gps = gps,
+            page = page,
+            nowEpochMs = System.currentTimeMillis(),
+            flashUntilEpochMs = flashUntilEpochMs,
+        )
+        if (model == lastSentModel) return
+
+        display.sendContent {
+            flexBox {
+                text(model.clockText, style = TextStyle.HEADING)
+            }
+        }.onFailure { error, _ -> Log.e(TAG, "sendContent failed: ${error.description}") }
+
+        lastSentModel = model
+    }
+
+    /**
+     * GPS/ready state for the [HudModel] (D-13/D-15). While a run is active,
+     * reuse the snapshot's own accuracy/rate (already sampled from the live
+     * feed) rather than probing `LocationSampleProvider` a second time (07-02's
+     * documented fallback — see 07-02-SUMMARY.md). Pre-timing, defer to
+     * [idleGpsState].
+     */
+    private fun gpsStateFor(run: TimingRunSnapshot): GlassesGpsState = if (run.isActive) {
+        GlassesGpsState.from(
+            fixStatus = GpsFixStatus.Live,
+            accuracyMeters = run.accuracyMeters,
+            sampleRateHz = run.sampleRateHz,
+        )
+    } else {
+        idleGpsState()
+    }
+
     private fun teardownSession() {
         val (jobsToCancel, sessionToStop) = synchronized(lock) {
-            val jobs = listOfNotNull(sessionStateJob, sessionErrorJob, displayStateJob)
+            val jobs = listOfNotNull(sessionStateJob, sessionErrorJob, displayStateJob, renderLoopJob)
             sessionStateJob = null
             sessionErrorJob = null
             displayStateJob = null
+            renderLoopJob = null
             val current = session
             session = null
             display = null
@@ -221,6 +318,7 @@ class GlassesBridge(
         }
         jobsToCancel.forEach { it.cancel() }
         displayReady = false
+        lastSentModel = null
         sessionToStop?.let { activeSession ->
             runCatching { activeSession.removeDisplay() }
                 .onFailure { Log.e(TAG, "removeDisplay threw", it) }
