@@ -3,6 +3,7 @@ package com.huanfuli.lapsight
 import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
+import android.os.Build
 import android.os.Looper
 import android.os.SystemClock
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -70,6 +71,17 @@ class AndroidFusedLocationSampleProvider(
             queue.removeFirstOrNull()
         }
 
+    override fun drainPending(): List<LocationSample> =
+        synchronized(queue) {
+            if (queue.isEmpty()) {
+                emptyList()
+            } else {
+                val drained = queue.toList()
+                queue.clear()
+                drained
+            }
+        }
+
     @SuppressLint("MissingPermission")
     private fun requestUpdates() {
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, UPDATE_INTERVAL_MILLIS)
@@ -116,6 +128,19 @@ class AndroidFusedLocationSampleProvider(
             altitudeMeters =
                 if (location.hasAltitude()) location.altitude else null,
             source = LocationSource.PhoneGps,
+            // Per-fix accuracy estimates are only exposed from API 26 (O) up.
+            speedAccuracyMetersPerSecond =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasSpeedAccuracy()) {
+                    location.speedAccuracyMetersPerSecond.toDouble()
+                } else {
+                    null
+                },
+            verticalAccuracyMeters =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
+                    location.verticalAccuracyMeters.toDouble()
+                } else {
+                    null
+                },
         )
 
         synchronized(queue) {

@@ -31,7 +31,7 @@ import com.huanfuli.lapsight.shared.storage.StoragePaths
 
 class MainActivity : ComponentActivity() {
     private val fineLocationPermissionGranted = mutableStateOf(false)
-    private var phoneGpsProvider: AndroidFusedLocationSampleProvider? = null
+    private var phoneGpsProvider: AndroidPhoneLocationProvider? = null
 
     private val requestLocationPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -93,9 +93,12 @@ class MainActivity : ComponentActivity() {
 
         val shareTarget = AndroidExportShareTarget(this)
         val displaySettingsStore = AndroidDisplaySettingsStore(this)
-        phoneGpsProvider = AndroidFusedLocationSampleProvider(this) {
-            hasFineLocationPermission()
-        }
+        phoneGpsProvider = AndroidPhoneLocationProvider(
+            context = this,
+            hasFineLocationPermission = { hasFineLocationPermission() },
+            // Read fresh each feed start so a settings toggle applies on next start.
+            useDirectGnss = { displaySettingsStore.load().useDirectGnss },
+        )
 
         setContent {
             App(
@@ -169,6 +172,7 @@ private class AndroidDisplaySettingsStore(
                     ?: LocationFeedMode.PhoneGps.name,
             )
         }.getOrDefault(LocationFeedMode.PhoneGps),
+        useDirectGnss = preferences.getBoolean("use_direct_gnss", false),
     )
 
     override fun save(settings: DriveDisplaySettings) {
@@ -180,6 +184,7 @@ private class AndroidDisplaySettingsStore(
             .putBoolean("show_gps_diagnostics", settings.showGpsDiagnostics)
             .putString("theme_mode", settings.themeMode.name)
             .putString("location_feed_mode", settings.locationFeedMode.name)
+            .putBoolean("use_direct_gnss", settings.useDirectGnss)
             .apply()
     }
 }

@@ -88,15 +88,19 @@ class RawRecordingController(
     }
 
     /**
-     * Advance the feed by one sample, accumulating it into the diagnostic trace.
-     * No-op (returns null) when not recording or the feed is stopped.
+     * Advance the feed by every sample ready this tick, accumulating them into the
+     * diagnostic trace. Draining the full backlog (rather than one sample per tick)
+     * means a real receiver's buffered fixes are never dropped at the poll rate.
+     * Returns the drained batch in arrival order (empty when not recording or the
+     * feed is stopped).
      */
-    fun tick(): LocationSample? {
-        if (phase != RawRecordingPhase.Recording) return null
-        if (!provider.isRunning) return null
-        val sample = provider.nextSample() ?: return null
-        samples.add(sample)
-        return sample
+    fun tick(): List<LocationSample> {
+        if (phase != RawRecordingPhase.Recording) return emptyList()
+        if (!provider.isRunning) return emptyList()
+        val batch = provider.drainPending()
+        if (batch.isEmpty()) return emptyList()
+        samples.addAll(batch)
+        return batch
     }
 
     /**

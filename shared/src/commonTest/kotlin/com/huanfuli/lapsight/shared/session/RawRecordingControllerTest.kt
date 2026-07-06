@@ -1,5 +1,8 @@
 package com.huanfuli.lapsight.shared.session
 
+import com.huanfuli.lapsight.shared.LocationSample
+import com.huanfuli.lapsight.shared.LocationSampleProvider
+import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.SimulatedGpsProvider
 import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
 import kotlin.test.Test
@@ -53,7 +56,7 @@ class RawRecordingControllerTest {
     @Test
     fun tickIsANoOpBeforeStart() {
         val controller = controller()
-        assertEquals(null, controller.tick())
+        assertTrue(controller.tick().isEmpty())
         assertEquals(0, controller.snapshot().sampleCount)
     }
 
@@ -76,5 +79,50 @@ class RawRecordingControllerTest {
         val snap = controller.snapshot()
         assertEquals(RawRecordingPhase.Stopped, snap.phase)
         assertFalse(snap.isActive)
+    }
+
+    @Test
+    fun tickDrainsEveryBufferedSampleInASingleCall() {
+        // A receiver that buffered a burst of fixes between poll ticks must have
+        // ALL of them consumed by one tick, never one-per-tick (which would drop or
+        // delay the backlog at the poll rate).
+        val provider = BurstQueueProvider()
+        val controller = RawRecordingController(provider = provider, now = { 1_700_000_000_000L })
+        controller.start()
+        provider.enqueue(sampleAt(0), sampleAt(100), sampleAt(200))
+
+        val drained = controller.tick()
+
+        assertEquals(3, drained.size)
+        assertEquals(listOf(0L, 100L, 200L), drained.map { it.elapsedMillis })
+        assertEquals(3, controller.snapshot().sampleCount)
+    }
+
+    private fun sampleAt(elapsedMillis: Long): LocationSample = LocationSample(
+        elapsedMillis = elapsedMillis,
+        latitude = 39.81 + elapsedMillis / 1_000_000.0,
+        longitude = -86.10,
+        horizontalAccuracyMeters = 4.0,
+        speedMetersPerSecond = 20.0,
+        headingDegrees = 90.0,
+        altitudeMeters = 220.0,
+        source = LocationSource.PhoneGps,
+    )
+
+    /** Finite-queue provider that buffers a burst and drains it whole per tick. */
+    private class BurstQueueProvider : LocationSampleProvider {
+        private val queue = ArrayDeque<LocationSample>()
+        private var running = false
+        override val isRunning: Boolean get() = running
+        override fun start() { running = true }
+        override fun stop() { running = false }
+        override fun reset() { running = false; queue.clear() }
+        fun enqueue(vararg samples: LocationSample) { queue.addAll(samples) }
+        override fun nextSample(): LocationSample? = queue.removeFirstOrNull()
+        override fun drainPending(): List<LocationSample> {
+            val drained = queue.toList()
+            queue.clear()
+            return drained
+        }
     }
 }

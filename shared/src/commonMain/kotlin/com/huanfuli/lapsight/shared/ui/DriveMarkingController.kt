@@ -251,17 +251,22 @@ class DriveMarkingController(
     }
 
     /**
-     * Advance the feed by one sample. Called on a UI timer. While capturing, the
-     * sample is also appended to the marking trace.
+     * Advance the feed by every sample ready this tick. Called on a UI timer.
+     * Draining the full backlog (rather than one sample per tick) means a real
+     * receiver that buffered several fixes between ticks never has them dropped or
+     * delayed at the poll rate. While capturing, each sample is also appended to
+     * the marking trace. Returns the drained batch in arrival order (possibly
+     * empty) so the timing path can ingest every sample.
      */
-    fun tick(): LocationSample? {
-        if (!provider.isRunning) return null
-        val sample = provider.nextSample() ?: return null
-        feedSamples.add(sample)
+    fun tick(): List<LocationSample> {
+        if (!provider.isRunning) return emptyList()
+        val batch = provider.drainPending()
+        if (batch.isEmpty()) return emptyList()
+        feedSamples.addAll(batch)
         if (phase == DriveMarkingPhase.Capturing) {
-            captured.add(sample)
+            captured.addAll(batch)
         }
-        return sample
+        return batch
     }
 
     /**

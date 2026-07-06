@@ -2,8 +2,10 @@ package com.huanfuli.lapsight.shared.ui.drive
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +47,8 @@ import kotlinx.coroutines.withContext
 
 private const val PHONE_GPS_PERMISSION_COPY =
     "Allow location permission to use Phone GPS."
+
+private const val DISCARD_SESSION_ARMED_TIMEOUT_MILLIS = 4500L
 
 /**
  * The Drive tab: selected GPS feed + Mark New Track capture + Track Review.
@@ -142,6 +146,35 @@ fun DriveScreen(
         snapshot = controller.snapshot()
     }
 
+    val phoneGpsPrewarmActive =
+        locationFeedMode == LocationFeedMode.PhoneGps &&
+            phoneGpsPermission.isGranted &&
+            !timingActive &&
+            !rawRecordingActive
+
+    LaunchedEffect(phoneGpsPrewarmActive, locationProvider) {
+        if (phoneGpsPrewarmActive) {
+            if (!locationProvider.isRunning) {
+                locationProvider.start()
+            }
+            snapshot = controller.snapshot()
+        }
+    }
+
+    LaunchedEffect(showStopSummary, confirmDiscardSession) {
+        if (showStopSummary && confirmDiscardSession) {
+            delay(DISCARD_SESSION_ARMED_TIMEOUT_MILLIS)
+            confirmDiscardSession = false
+        }
+    }
+
+    LaunchedEffect(startTimingBlockedMessage) {
+        if (startTimingBlockedMessage != null) {
+            delay(2400L)
+            startTimingBlockedMessage = null
+        }
+    }
+
     // Poll the provider on a timer while the demo feed runs (D-05). The feed
     // flows continuously as if the phone were physically moving around the
     // track, even before/after a marking capture or timing run.
@@ -155,16 +188,17 @@ fun DriveScreen(
                 rawSnapshot = rawController.snapshot()
                 continue
             }
-            val sample = controller.tick()
+            val samples = controller.tick()
             snapshot = controller.snapshot()
             if (timingActive) {
                 // Production sample pump: feed the active recorder through the
                 // controller (never recorderForTest) and read the timing/delta
-                // view back for the UI.
-                if (sample != null) {
+                // view back for the UI. Ingest every sample drained this tick so a
+                // buffered backlog is never dropped.
+                if (samples.isNotEmpty()) {
                     withContext(Dispatchers.Default) {
                         recorderMutex.withLock {
-                            sessionController.ingestSample(sample)
+                            samples.forEach { sessionController.ingestSample(it) }
                         }
                     }
                 }
@@ -213,63 +247,65 @@ fun DriveScreen(
         )
     }
 
-    // Stop summary sheet (D-14): Save Session / Discard with exact UI-SPEC copy.
+    // Stop summary sheet (D-14): one explicit Save/Discard choice, with the
+    // destructive branch armed in place instead of opening a second dialog.
     if (showStopSummary) {
-        if (confirmDiscardSession) {
-            LapDialog(
-                title = "Discard this session?",
-                text = "Discard this session? Recorded laps will be lost. This can't be undone.",
-                onDismissRequest = { confirmDiscardSession = false },
-                confirmText = "Discard",
-                destructiveConfirm = true,
-                onConfirm = {
-                    confirmDiscardSession = false
-                    showStopSummary = false
-                    sessionController.discardDraft()
-                    timingActive = false
-                    timingSnapshot = null
-                    timingRun = TimingRunSnapshot.inactive()
-                },
-                dismissText = "Keep",
-            )
-        } else {
-            val laps = timingSnapshot?.activeDraft?.checkpointedLapCount ?: 0
-            LapDialog(
-                title = "Session ended",
-                text = "Laps recorded: $laps. Save to Review, or Discard to discard this session.",
-                onDismissRequest = { /* require an explicit choice */ },
-                buttons = {
-                    LapDialogTextButton(
-                        text = "Discard",
-                        destructive = true,
-                        onClick = { confirmDiscardSession = true },
-                    )
-                    LapDialogTextButton(
-                        text = if (saveInProgress) "Saving..." else "Save Session",
-                        enabled = !saveInProgress,
-                        onClick = {
-                            saveInProgress = true
-                            uiScope.launch {
-                                val result = withContext(Dispatchers.Default) {
-                                    recorderMutex.withLock {
-                                        sessionController.saveStoppedDraft()
-                                    }
-                                }
-                                saveInProgress = false
-                                showStopSummary = false
-                                timingActive = false
-                                timingSnapshot = null
-                                timingRun = TimingRunSnapshot.inactive()
-                                if (result is SaveDraftResult.Saved) {
-                                    saveToast = "Session saved"
-                                    onSavedSession()
+        val laps = timingSnapshot?.activeDraft?.checkpointedLapCount ?: 0
+        LapDialog(
+            title = "Session ended",
+            text = if (confirmDiscardSession) {
+                "Laps recorded: $laps. Tap discard again to permanently delete this session."
+            } else {
+                "Laps recorded: $laps. Save this run to Review, or discard it."
+            },
+            onDismissRequest = {
+                if (confirmDiscardSession) confirmDiscardSession = false
+            },
+            buttons = {
+                Spacer(Modifier.weight(1f))
+                LapDialogTextButton(
+                    text = if (confirmDiscardSession) "Tap again to discard" else "Discard",
+                    destructive = confirmDiscardSession,
+                    enabled = !saveInProgress,
+                    onClick = {
+                        if (confirmDiscardSession) {
+                            confirmDiscardSession = false
+                            showStopSummary = false
+                            sessionController.discardDraft()
+                            timingActive = false
+                            timingSnapshot = null
+                            timingRun = TimingRunSnapshot.inactive()
+                        } else {
+                            confirmDiscardSession = true
+                        }
+                    },
+                )
+                LapDialogTextButton(
+                    text = if (saveInProgress) "Saving..." else "Save Session",
+                    enabled = !saveInProgress,
+                    onClick = {
+                        saveInProgress = true
+                        uiScope.launch {
+                            val result = withContext(Dispatchers.Default) {
+                                recorderMutex.withLock {
+                                    sessionController.saveStoppedDraft()
                                 }
                             }
-                        },
-                    )
-                },
-            )
-        }
+                            saveInProgress = false
+                            confirmDiscardSession = false
+                            showStopSummary = false
+                            timingActive = false
+                            timingSnapshot = null
+                            timingRun = TimingRunSnapshot.inactive()
+                            if (result is SaveDraftResult.Saved) {
+                                saveToast = "Session saved"
+                                onSavedSession()
+                            }
+                        }
+                    },
+                )
+            },
+        )
     }
 
     DriveSurface(
@@ -310,7 +346,7 @@ fun DriveScreen(
                         latestGps = latestGps,
                         preflightNowElapsedMillis = latestGps?.elapsedMillis ?: 0L,
                         recentRateHz = snapshot.feedQuality?.averageUpdateRateHz,
-                        // D-13: real runs only begin when the conservative Ready gate passes.
+                        // Hard Start gate only: low rate/accuracy remain visible warnings.
                         requireReady = true,
                     )
                 ) {
@@ -364,6 +400,7 @@ fun DriveScreen(
         onStopTiming = {
             if (timingActive) {
                 timingActive = false
+                confirmDiscardSession = false
                 uiScope.launch {
                     withContext(Dispatchers.Default) {
                         recorderMutex.withLock {
@@ -394,7 +431,6 @@ fun DriveScreen(
         timingActive = timingActive,
         timingSnapshot = timingSnapshot,
         timingRun = timingRun,
-        startTimingBlockedMessage = startTimingBlockedMessage,
         dashReady = dashReady,
         rawRecordingActive = rawRecordingActive,
         rawSnapshot = rawSnapshot,
@@ -408,32 +444,49 @@ fun DriveScreen(
         },
     )
 
-    // Transient save success toast (D-32), drawn over the surface.
-    saveToast?.let { toast ->
-        val spacing = LapSightTheme.spacing
-        LaunchedEffect(toast) {
+    // Transient save success / blocked-start toast, drawn over the surface so
+    // warning copy never reserves Drive layout space or shifts controls.
+    val blockedToast = startTimingBlockedMessage.takeIf { wrongCourseBlock == null }
+    val toast = blockedToast ?: saveToast
+    toast?.let { message ->
+        val isWarning = blockedToast != null
+        LaunchedEffect(message, isWarning) {
+            if (isWarning) return@LaunchedEffect
             delay(2000)
             saveToast = null
         }
-        Box(
-            modifier = Modifier.fillMaxSize().padding(spacing.md),
-            contentAlignment = Alignment.BottomCenter,
+        DriveToast(message = message, warning = isWarning)
+    }
+}
+
+@Composable
+private fun DriveToast(
+    message: String,
+    warning: Boolean,
+) {
+    val spacing = LapSightTheme.spacing
+    val color = if (warning) LapSightTheme.colors.statusCaution else LapSightTheme.colors.statusReady
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeContentPadding()
+            .padding(spacing.md),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, color),
         ) {
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, LapSightTheme.colors.statusReady),
-            ) {
-                Text(
-                    text = toast,
-                    color = LapSightTheme.colors.statusReady,
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.padding(
-                        horizontal = spacing.md,
-                        vertical = spacing.sm,
-                    ),
-                )
-            }
+            Text(
+                text = message,
+                color = color,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(
+                    horizontal = spacing.md,
+                    vertical = spacing.sm,
+                ),
+            )
         }
     }
 }

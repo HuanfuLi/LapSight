@@ -9,21 +9,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -33,10 +28,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,7 +50,11 @@ import com.huanfuli.lapsight.shared.LocationFeedMode
 import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.lap.formatLapTime
+import com.huanfuli.lapsight.shared.review.TraceLayer
+import com.huanfuli.lapsight.shared.review.TraceRole
+import com.huanfuli.lapsight.shared.review.buildTrackTrace
 import com.huanfuli.lapsight.shared.review.buildTrackTraceLayers
+import com.huanfuli.lapsight.shared.session.GeoPointDto
 import com.huanfuli.lapsight.shared.session.RawRecordingSnapshot
 import com.huanfuli.lapsight.shared.session.ReadyState
 import com.huanfuli.lapsight.shared.session.SessionControllerSnapshot
@@ -69,13 +71,18 @@ import com.huanfuli.lapsight.shared.ui.LapSightTheme
 import com.huanfuli.lapsight.shared.ui.PlayActionIcon
 import com.huanfuli.lapsight.shared.ui.RotateScreenIcon
 import com.huanfuli.lapsight.shared.ui.StopActionIcon
+import com.huanfuli.lapsight.shared.ui.TracePositionMarker
 import com.huanfuli.lapsight.shared.ui.TraceView
+import com.huanfuli.lapsight.shared.ui.courseMarker
 import com.huanfuli.lapsight.shared.ui.components.LapButton
 import com.huanfuli.lapsight.shared.ui.components.LapButtonStyle
 import com.huanfuli.lapsight.shared.ui.components.LapDialog
 import com.huanfuli.lapsight.shared.ui.components.MetricCell
 import com.huanfuli.lapsight.shared.ui.components.MetricCellSize
 import com.huanfuli.lapsight.shared.ui.components.SegmentedControl
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.hypot
 
 /**
  * Stationary Drive surface host: status bar + config controls, or the
@@ -102,7 +109,6 @@ internal fun DriveSurface(
     timingActive: Boolean,
     timingSnapshot: SessionControllerSnapshot?,
     timingRun: TimingRunSnapshot,
-    startTimingBlockedMessage: String?,
     dashReady: ReadyState,
     rawRecordingActive: Boolean,
     rawSnapshot: RawRecordingSnapshot,
@@ -149,24 +155,16 @@ internal fun DriveSurface(
         // While formal timing is active, show the fullscreen timing surface with
         // current/last/best/laps/speed/accuracy (D-29, D-42, SESS-01).
         if (timingActive) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(LapSightTheme.colors.dashBackground)
-                    .safeContentPadding(),
-            ) {
-                TimingRunSurface(
-                    timingRun = timingRun,
-                    orientation = orientation,
-                    isLandscapeWindow = isLandscape,
-                    displaySettings = displaySettings,
-                    locationFeedMode = locationFeedMode,
-                    onToggleOrientation = onToggleOrientation,
-                    onStopTiming = onStopTiming,
-                    isCompactLandscape = isCompactLandscape,
-                    padding = padding,
-                )
-            }
+            TimingRunSurface(
+                timingRun = timingRun,
+                orientation = orientation,
+                isLandscapeWindow = isLandscape,
+                displaySettings = displaySettings,
+                onToggleOrientation = onToggleOrientation,
+                onStopTiming = onStopTiming,
+                isCompactLandscape = isCompactLandscape,
+                padding = padding,
+            )
             return@BoxWithConstraints
         }
 
@@ -194,7 +192,6 @@ internal fun DriveSurface(
                 dashReady = dashReady,
                 rawRecordingActive = rawRecordingActive,
                 rawSnapshot = rawSnapshot,
-                startTimingBlockedMessage = startTimingBlockedMessage,
             )
         } else {
             // Portrait: the middle of the screen belongs to the course — a live
@@ -232,7 +229,6 @@ internal fun DriveSurface(
                     dashReady = dashReady,
                     rawRecordingActive = rawRecordingActive,
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    startTimingBlockedMessage = startTimingBlockedMessage,
                     fillHeight = true,
                 )
             }
@@ -268,7 +264,6 @@ private fun LandscapeCockpit(
     dashReady: ReadyState,
     rawRecordingActive: Boolean,
     rawSnapshot: RawRecordingSnapshot,
-    startTimingBlockedMessage: String?,
 ) {
     val spacing = LapSightTheme.spacing
     var showTrackPicker by remember { mutableStateOf(false) }
@@ -284,24 +279,30 @@ private fun LandscapeCockpit(
     Row(
         modifier = Modifier
             .fillMaxSize()
-            // Keep panes clear of the camera cutout, which sits on a side
-            // edge in landscape; the Scaffold only pads the system bars.
-            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+            // Fullscreen Drive still needs content-safe insets for rounded
+            // corners, front camera cutouts, system bars, and gesture edges.
+            // The parent background fills edge-to-edge; only controls move in.
+            .safeContentPadding()
             .padding(spacing.sm),
         horizontalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
-        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+        BoxWithConstraints(
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            val previewSize = minOf(maxWidth, maxHeight)
             when {
                 snapshot.phase == DriveMarkingPhase.Capturing -> MarkingTracePane(
                     samples = snapshot.capturedSamples,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.size(previewSize),
                 )
                 snapshot.currentTrackName != null -> SelectedTrackPreview(
                     profileId = snapshot.timingReadyTrackId,
                     sessionStore = sessionStore,
                     compact = false,
+                    livePosition = snapshot.latestSample,
                     fillParent = true,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.size(previewSize),
                 )
                 rawRecordingActive -> Text(
                     text = "Recording raw GPS for diagnosis.",
@@ -384,13 +385,6 @@ private fun LandscapeCockpit(
                             onSelectDirection = onSelectDirection,
                         )
                     }
-                    startTimingBlockedMessage?.let { message ->
-                        Text(
-                            text = message,
-                            color = LapSightTheme.colors.statusCaution,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
                     Spacer(Modifier.weight(1f))
                     DriveActionRow(
                         primaryIcon = PlayActionIcon,
@@ -449,6 +443,84 @@ private fun MarkingMetricsRow(
     }
 }
 
+/** Distance a fix must travel before the heading arrow re-aims (anti-jitter). */
+private const val HEADING_ANCHOR_METERS = 3.0
+
+/** Live-dot smoothing ticker period (~16 fps) and its bounded forward lead. */
+private const val LIVE_SMOOTHING_FRAME_MILLIS = 60L
+private const val LIVE_SMOOTHING_MAX_LEAD_MILLIS = 400L
+
+/**
+ * Smooths the live "you are here" dot between the receiver's ~1 Hz fixes.
+ *
+ * Phone GNSS solves a position about once a second, so the raw dot teleports.
+ * This drives [LiveTrackPredictor] off a lightweight ticker: between fixes it
+ * projects the dot forward along the last segment's velocity, re-syncing on every
+ * real fix. Forward lead is bounded (here and by the predictor's own cap) so a
+ * stale fix can never let the dot run away. Returns the raw fix until a second
+ * fix establishes a velocity, and null before the first fix.
+ */
+@Composable
+private fun rememberSmoothedLivePosition(
+    key: Any?,
+    livePosition: LocationSample?,
+): GeoPointDto? {
+    var previous by remember(key) { mutableStateOf<LocationSample?>(null) }
+    var latest by remember(key) { mutableStateOf<LocationSample?>(null) }
+    var latestArrivalMillis by remember(key) { mutableStateOf(0L) }
+
+    // Monotonic wall-clock ticker so the dot glides between fixes without waiting
+    // for a new fix to trigger recomposition.
+    val nowMillis by produceState(0L, key) {
+        while (true) {
+            delay(LIVE_SMOOTHING_FRAME_MILLIS)
+            value += LIVE_SMOOTHING_FRAME_MILLIS
+        }
+    }
+
+    LaunchedEffect(key, livePosition?.elapsedMillis) {
+        val fix = livePosition ?: return@LaunchedEffect
+        if (fix.elapsedMillis != latest?.elapsedMillis) {
+            previous = latest
+            latest = fix
+            latestArrivalMillis = nowMillis
+        }
+    }
+
+    val currentLatest = latest
+        ?: return livePosition?.let { GeoPointDto(it.latitude, it.longitude) }
+    val sinceArrival = (nowMillis - latestArrivalMillis)
+        .coerceIn(0L, LIVE_SMOOTHING_MAX_LEAD_MILLIS)
+    val predicted = LiveTrackPredictor.predict(
+        previous = previous,
+        latest = currentLatest,
+        atElapsedMillis = currentLatest.elapsedMillis + sinceArrival,
+    )
+    return GeoPointDto(predicted.latitude, predicted.longitude)
+}
+
+/** Rough planar distance between two fixes; ample for a few-meter heading gate. */
+private fun approxDistanceMeters(a: GeoPointDto, b: GeoPointDto): Double {
+    val metersPerDegLat = 111_320.0
+    val metersPerDegLon = 111_320.0 * cos(a.latitude * PI / 180.0)
+    val dLat = (b.latitude - a.latitude) * metersPerDegLat
+    val dLon = (b.longitude - a.longitude) * metersPerDegLon
+    return hypot(dLat, dLon)
+}
+
+/**
+ * Live "you are here" marker from the tail of the marking trace, or null when
+ * there are too few points to place it. Heading comes from a slightly older
+ * point so momentary GPS jitter does not spin the arrow; both points are the
+ * projected trace's own points, so the marker stays pinned to the drawn course.
+ */
+private fun liveHeadingMarker(layers: List<TraceLayer>): TracePositionMarker? {
+    val points = layers.firstOrNull { it.role == TraceRole.Marking }?.points ?: return null
+    val current = points.lastOrNull() ?: return null
+    val previous = points.getOrNull(points.size - 5)?.takeIf { it != current }
+    return TracePositionMarker(current = current, previous = previous)
+}
+
 /**
  * The accumulating marking trace, filling a landscape pane. Redraws every ~10
  * samples so canvas work stays off the per-sample hot path.
@@ -472,7 +544,11 @@ private fun MarkingTracePane(
             )
         }
         if (layers.isNotEmpty()) {
-            TraceView(layers = layers, fillParent = true)
+            TraceView(
+                layers = layers,
+                fillParent = true,
+                positionMarker = liveHeadingMarker(layers),
+            )
         } else {
             Text(
                 text = "Waiting for the first GPS fix…",
@@ -506,7 +582,6 @@ private fun ControlPanel(
     rawRecordingActive: Boolean,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
-    startTimingBlockedMessage: String? = null,
     fillHeight: Boolean = false,
 ) {
     val spacing = LapSightTheme.spacing
@@ -586,6 +661,7 @@ private fun ControlPanel(
                         profileId = snapshot.timingReadyTrackId,
                         sessionStore = sessionStore,
                         compact = compact,
+                        livePosition = snapshot.latestSample,
                         modifier = if (fillHeight) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth(),
                     )
                 } else {
@@ -601,13 +677,6 @@ private fun ControlPanel(
                     DirectionSelectorSection(
                         selected = snapshot.selectedDirection,
                         onSelectDirection = onSelectDirection,
-                    )
-                }
-                startTimingBlockedMessage?.let { message ->
-                    Text(
-                        text = message,
-                        color = LapSightTheme.colors.statusCaution,
-                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 DriveActionRow(
@@ -674,6 +743,7 @@ private fun MarkingLiveSection(
                 layers = layers,
                 minHeight = if (compact) 120.dp else 200.dp,
                 maxHeight = if (compact) 170.dp else 340.dp,
+                positionMarker = liveHeadingMarker(layers),
             )
         } else {
             Text(
@@ -700,6 +770,7 @@ private fun SelectedTrackPreview(
     profileId: String?,
     sessionStore: LocalSessionStore,
     compact: Boolean,
+    livePosition: LocationSample?,
     modifier: Modifier = Modifier,
     fillParent: Boolean = false,
 ) {
@@ -711,8 +782,8 @@ private fun SelectedTrackPreview(
     val referenceLine = latest?.referenceLine
     if (referenceLine == null || referenceLine.points.isEmpty()) return
 
-    val layers = remember(profileId, latest.ordinal) {
-        buildTrackTraceLayers(
+    val trace = remember(profileId, latest.ordinal) {
+        buildTrackTrace(
             markingSamples = emptyList(),
             referenceLine = referenceLine,
             startFinish = latest.courseSetup.startFinish,
@@ -724,7 +795,30 @@ private fun SelectedTrackPreview(
             viewHeight = 300.0,
         )
     }
-    if (layers.isEmpty()) return
+    if (trace.layers.isEmpty()) return
+
+    // Live "you are here": project the current fix through the map's own
+    // viewport so it lands on the drawn course. Heading comes from an earlier
+    // fix, advanced only once the driver has moved a few meters, so a parked car
+    // shows a steady arrow instead of chasing GPS jitter.
+    // Heading anchoring works off the raw ~1 Hz fixes (a parked car keeps a steady
+    // arrow); the drawn dot itself is smoothed between fixes via the predictor.
+    val rawCurrent = livePosition?.let { GeoPointDto(it.latitude, it.longitude) }
+    var headingAnchor by remember(profileId) { mutableStateOf<GeoPointDto?>(null) }
+    var headingFrom by remember(profileId) { mutableStateOf<GeoPointDto?>(null) }
+    LaunchedEffect(profileId, rawCurrent?.latitude, rawCurrent?.longitude) {
+        val c = rawCurrent ?: return@LaunchedEffect
+        val anchor = headingAnchor
+        if (anchor == null) {
+            headingAnchor = c
+        } else if (approxDistanceMeters(anchor, c) >= HEADING_ANCHOR_METERS) {
+            headingFrom = anchor
+            headingAnchor = c
+        }
+    }
+    val current = rememberSmoothedLivePosition(profileId, livePosition)
+    val marker = courseMarker(trace.viewport, current, headingFrom)
+
     val spacing = LapSightTheme.spacing
     Column(
         modifier = modifier,
@@ -732,15 +826,17 @@ private fun SelectedTrackPreview(
     ) {
         if (fillParent) {
             TraceView(
-                layers = layers,
+                layers = trace.layers,
                 modifier = Modifier.weight(1f),
                 fillParent = true,
+                positionMarker = marker,
             )
         } else {
             TraceView(
-                layers = layers,
+                layers = trace.layers,
                 minHeight = if (compact) 120.dp else 200.dp,
                 maxHeight = if (compact) 180.dp else 360.dp,
+                positionMarker = marker,
             )
         }
         val sectorCount = latest.courseSetup.boundaries.size
@@ -833,10 +929,11 @@ private fun DriveActionRow(
     compact: Boolean = false,
 ) {
     val spacing = LapSightTheme.spacing
-    val actionHeight = if (compact) 48.dp else 56.dp
+    val actionHeight = if (compact) 56.dp else 72.dp
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Button(
             onClick = onPrimary,
@@ -858,7 +955,7 @@ private fun DriveActionRow(
                 Icon(
                     imageVector = primaryIcon,
                     contentDescription = primaryDescription,
-                    modifier = Modifier.size(if (compact) 22.dp else 24.dp),
+                    modifier = Modifier.size(if (compact) 24.dp else 30.dp),
                 )
                 if (!compact) {
                     Text(
@@ -883,7 +980,7 @@ private fun DriveActionRow(
                 imageVector = RotateScreenIcon,
                 contentDescription =
                     if (orientation == DashOrientation.Portrait) "Switch to landscape" else "Switch to portrait",
-                modifier = Modifier.size(if (compact) 24.dp else 28.dp),
+                modifier = Modifier.size(if (compact) 28.dp else 32.dp),
             )
         }
     }

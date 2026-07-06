@@ -58,7 +58,13 @@ internal fun DriveStatusBar(
         SpeedUnit.MilesPerHour -> "mph"
     }
     val speedLabel = snapshot.latestSample?.speedMetersPerSecond
-        ?.let { (it * speedMultiplier).toInt().toString() }
+        ?.let { speed ->
+            when {
+                !speed.isFinite() -> "--"
+                speed < StationarySpeedDeadbandMetersPerSecond -> "0"
+                else -> (speed * speedMultiplier).toInt().toString()
+            }
+        }
         ?: "--"
     val sourceLabel: String
     val sourceTone: ChipTone
@@ -77,6 +83,18 @@ internal fun DriveStatusBar(
         }
     }
     val rateLabel = snapshot.feedQuality?.averageUpdateRateHz?.let { formatOneDecimal(it) } ?: "--"
+    // GNSS quality glance: satellites used and dual-frequency (L5) capability, only
+    // when a direct-GNSS fix actually reported them (null on simulated/Fused fixes).
+    val gnssLabel = snapshot.latestSample?.let { fix ->
+        val sats = fix.satellitesInUse
+        val dualFrequency = fix.usesDualFrequency == true
+        when {
+            sats != null && dualFrequency -> "$sats SAT · L5"
+            sats != null -> "$sats SAT"
+            dualFrequency -> "L5"
+            else -> null
+        }
+    }
     // Ready / not-Ready glance state (D-13/D-14/D-32). Same green/amber semantic
     // branches as the source chip so the dash reads consistently.
     val readyLabel: String
@@ -93,8 +111,14 @@ internal fun DriveStatusBar(
             readyColor = LapSightTheme.colors.statusCaution
         }
         dashReady is ReadyState.Ready -> {
-            readyLabel = "READY"
-            readyColor = LapSightTheme.colors.statusReady
+            val warning = gpsQualityWarning(snapshot)
+            if (warning != null) {
+                readyLabel = "READY - ${warning.dashLabel()}"
+                readyColor = LapSightTheme.colors.statusCaution
+            } else {
+                readyLabel = "READY"
+                readyColor = LapSightTheme.colors.statusReady
+            }
         }
         else -> {
             val primary = (dashReady as ReadyState.NotReady).reasons.firstOrNull()
@@ -119,6 +143,7 @@ internal fun DriveStatusBar(
                 horizontalArrangement = Arrangement.spacedBy(spacing.sm),
             ) {
                 StatusChip(text = sourceLabel, tone = sourceTone)
+                gnssLabel?.let { StatusChip(text = it, tone = ChipTone.Neutral) }
                 Text(
                     text = readyLabel,
                     color = readyColor,
@@ -168,17 +193,32 @@ internal fun ReadyBlocker.dashLabel(): String = when (this) {
     ReadyBlocker.PreflightUnavailable -> "course check"
 }
 
+private const val StationarySpeedDeadbandMetersPerSecond = 2.0
+
+private fun gpsQualityWarning(snapshot: DriveMarkingSnapshot): ReadyBlocker? {
+    val thresholds = ReadyThresholds.Default
+    val fix = snapshot.latestSample ?: return null
+    val accuracy = fix.horizontalAccuracyMeters
+    if (accuracy == null || !accuracy.isFinite() || accuracy < 0.0 ||
+        accuracy > thresholds.maxHorizontalAccuracyMeters
+    ) {
+        return ReadyBlocker.PoorAccuracy
+    }
+    val rate = snapshot.feedQuality?.averageUpdateRateHz
+    if (rate == null || !rate.isFinite() || rate < thresholds.minSampleRateHz) {
+        return ReadyBlocker.LowSampleRate
+    }
+    return null
+}
+
 /**
  * Conservative Ready preview computed from the stationary dash inputs
  * (D-13/D-14/D-32). It mirrors the authoritative [com.huanfuli.lapsight.shared.session.aggregateReady]
- * thresholds over the inputs the dash can see — GPS fix presence/validity,
- * horizontal accuracy, recent sample rate, and current-track selection. Freshness,
- * direction compatibility, and wrong-course preflight are enforced by the
- * authoritative gate in `SessionController.startTiming`; this preview never starts
- * timing on its own.
+ * thresholds over the hard inputs the dash can see — GPS fix presence/validity
+ * and current-track selection. GPS accuracy and update cadence are warnings in
+ * [DriveStatusBar], not Start Timing blockers.
  */
 internal fun dashReadyState(snapshot: DriveMarkingSnapshot): ReadyState {
-    val thresholds = ReadyThresholds.Default
     val reasons = mutableListOf<ReadyBlocker>()
     val fix = snapshot.latestSample
     if (fix == null) {
@@ -187,17 +227,6 @@ internal fun dashReadyState(snapshot: DriveMarkingSnapshot): ReadyState {
         fix.latitude !in -90.0..90.0 || fix.longitude !in -180.0..180.0
     ) {
         reasons += ReadyBlocker.NonFiniteFix
-    } else {
-        val accuracy = fix.horizontalAccuracyMeters
-        if (accuracy == null || !accuracy.isFinite() || accuracy < 0.0 ||
-            accuracy > thresholds.maxHorizontalAccuracyMeters
-        ) {
-            reasons += ReadyBlocker.PoorAccuracy
-        }
-    }
-    val rate = snapshot.feedQuality?.averageUpdateRateHz
-    if (rate == null || !rate.isFinite() || rate < thresholds.minSampleRateHz) {
-        reasons += ReadyBlocker.LowSampleRate
     }
     if (!snapshot.canStartTiming) {
         reasons += ReadyBlocker.NoCourseSelected

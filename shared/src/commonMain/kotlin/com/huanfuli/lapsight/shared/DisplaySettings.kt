@@ -30,6 +30,13 @@ data class DriveDisplaySettings(
     val showGpsDiagnostics: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.System,
     val locationFeedMode: LocationFeedMode = LocationFeedMode.Simulated,
+    /**
+     * Opt-in high-rate phone GNSS engine (Android only). When true, Phone GPS is
+     * fed by the raw `GPS_PROVIDER` for the fastest fixes the chipset offers plus
+     * satellite/L5 quality signals, instead of the battery-throttled Fused engine.
+     * Ignored on platforms without a direct-GNSS provider.
+     */
+    val useDirectGnss: Boolean = false,
 )
 
 interface DisplaySettingsStore {

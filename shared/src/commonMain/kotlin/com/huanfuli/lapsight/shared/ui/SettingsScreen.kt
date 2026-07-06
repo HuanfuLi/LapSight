@@ -114,6 +114,16 @@ internal fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            if (phoneGpsAvailable) {
+                LapSwitchRow(
+                    label = "High-rate GNSS",
+                    supporting = "Raw phone GPS for faster fixes and satellite/L5 quality. " +
+                        "Applies on the next feed start.",
+                    checked = settings.useDirectGnss,
+                    enabled = !locationFeedLocked,
+                    onCheckedChange = { onSettingsChanged(settings.copy(useDirectGnss = it)) },
+                )
+            }
         }
 
         LapCard(title = "Theme") {

@@ -29,6 +29,21 @@ data class LocationSample(
     val headingDegrees: Double?,
     val altitudeMeters: Double?,
     val source: LocationSource,
+    /**
+     * Per-fix quality signals a GNSS receiver reports alongside the position.
+     * All nullable so simulated feeds and legacy/persisted samples that never
+     * carried them decode cleanly. Estimated 1-sigma speed accuracy in m/s. */
+    val speedAccuracyMetersPerSecond: Double? = null,
+    /** Estimated 1-sigma vertical accuracy in meters. */
+    val verticalAccuracyMeters: Double? = null,
+    /** Satellites used in the position solution at this fix, when known. */
+    val satellitesInUse: Int? = null,
+    /**
+     * True when the fix was computed with a dual-frequency (e.g. L1+L5)
+     * constellation, which materially improves positional accuracy. Null when
+     * the capability was not observed (simulated/legacy).
+     */
+    val usesDualFrequency: Boolean? = null,
 )
 
 data class GpsProbeState(

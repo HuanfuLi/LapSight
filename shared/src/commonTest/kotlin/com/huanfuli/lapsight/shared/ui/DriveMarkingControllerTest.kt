@@ -165,7 +165,7 @@ class DriveMarkingControllerTest {
         assertTrue(controller.snapshot().feedSampleCount > 1)
 
         controller.restartFeedForTiming()
-        val firstTimingSample = controller.tick()
+        val firstTimingSample = controller.tick().single()
 
         assertEquals(GpsFixtureLibrary.cleanTenLoop().first(), firstTimingSample)
         assertEquals(1, controller.snapshot().feedSampleCount)

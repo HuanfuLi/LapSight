@@ -51,6 +51,12 @@ data class LocationSampleDto(
     val headingDegrees: Double? = null,
     val altitudeMeters: Double? = null,
     val source: LocationSource,
+    // Per-fix GNSS quality signals. All defaulted so payloads written before
+    // these fields existed decode cleanly (additive, backward-compatible).
+    val speedAccuracyMetersPerSecond: Double? = null,
+    val verticalAccuracyMeters: Double? = null,
+    val satellitesInUse: Int? = null,
+    val usesDualFrequency: Boolean? = null,
 )
 
 /** Source/provenance metadata so demo/simulated data stays visibly labeled (D-25, D-42). */
@@ -148,6 +154,10 @@ fun LocationSample.toDto(): LocationSampleDto = LocationSampleDto(
     headingDegrees = headingDegrees,
     altitudeMeters = altitudeMeters,
     source = source,
+    speedAccuracyMetersPerSecond = speedAccuracyMetersPerSecond,
+    verticalAccuracyMeters = verticalAccuracyMeters,
+    satellitesInUse = satellitesInUse,
+    usesDualFrequency = usesDualFrequency,
 )
 
 /** Maps a [LocationSampleDto] back to the domain [LocationSample]. */
@@ -160,6 +170,10 @@ fun LocationSampleDto.toModel(): LocationSample = LocationSample(
     headingDegrees = headingDegrees,
     altitudeMeters = altitudeMeters,
     source = source,
+    speedAccuracyMetersPerSecond = speedAccuracyMetersPerSecond,
+    verticalAccuracyMeters = verticalAccuracyMeters,
+    satellitesInUse = satellitesInUse,
+    usesDualFrequency = usesDualFrequency,
 )
 
 /** Derives a [GpsQualitySummary] from a captured sample list. */
