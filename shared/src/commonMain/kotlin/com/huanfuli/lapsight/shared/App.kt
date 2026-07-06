@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.huanfuli.lapsight.shared.export.ExportShareTarget
 import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
 import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
+import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.ui.AppShell
@@ -30,6 +31,10 @@ import com.huanfuli.lapsight.shared.ui.ProvideLocalizedStrings
  * @param sessionStore local-first store; defaults to an in-memory store so
  *   previews/tests need no platform storage root. The Android entrypoint
  *   injects a `FileSessionStore` over the real app-private root.
+ * @param onSessionControllerReady invoked exactly once with the hoisted
+ *   [SessionController] instance (Phase 7 MR-01 seam) so `MainActivity` can
+ *   poll the SAME controller the phone dash drives — e.g. for a Meta glasses
+ *   bridge. No second controller is ever constructed.
  */
 @Composable
 @Preview
@@ -41,6 +46,7 @@ fun App(
     phoneGpsPermission: PhoneGpsPermissionState = PhoneGpsPermissionState(),
     sessionStore: LocalSessionStore = InMemorySessionStore(),
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
+    onSessionControllerReady: (SessionController) -> Unit = {},
 ) {
     var displaySettings by remember { mutableStateOf(displaySettingsStore.load()) }
     val simulatedGpsProvider = remember {
@@ -67,6 +73,7 @@ fun App(
                 phoneGpsPermission = phoneGpsPermission,
                 sessionStore = sessionStore,
                 exportShareTarget = exportShareTarget,
+                onSessionControllerReady = onSessionControllerReady,
             )
         }
     }
