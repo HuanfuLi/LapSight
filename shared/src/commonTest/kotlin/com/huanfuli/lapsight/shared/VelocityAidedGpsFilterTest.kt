@@ -86,9 +86,43 @@ class VelocityAidedGpsFilterTest {
         }
         val rawRms = sqrt(rawSquaredError / scored)
         val filteredRms = sqrt(filteredSquaredError / scored)
+        // Light-touch by design: the filter trusts the chip's fixes closely
+        // (heavy smoothing measurably added lag on real drives), so expect a
+        // modest but strict improvement, not a dramatic one.
         assertTrue(
-            filteredRms < rawRms * 0.7,
-            "expected filtered RMS ($filteredRms m) well under raw RMS ($rawRms m)",
+            filteredRms < rawRms * 0.95,
+            "expected filtered RMS ($filteredRms m) under raw RMS ($rawRms m)",
+        )
+    }
+
+    @Test
+    fun noAlongTrackLagAtConstantSpeed() {
+        val filter = VelocityAidedGpsFilter()
+        val random = Random(5)
+        val speed = 20.0 // m/s due east
+        var alongTrackErrorSum = 0.0
+        var scored = 0
+        for (i in 0 until 60) {
+            val trueEast = speed * i
+            val fix = sample(
+                i * 1_000L,
+                east = trueEast + random.nextDouble(-2.0, 2.0),
+                north = random.nextDouble(-2.0, 2.0),
+                accuracy = 10.0,
+                speed = speed,
+                heading = 90.0,
+            )
+            val filtered = filter.update(fix)
+            if (i >= 5) {
+                alongTrackErrorSum += (filtered.longitude - baseLongitude) * metersPerDegreeLongitude - trueEast
+                scored += 1
+            }
+        }
+        val meanAlongTrackError = alongTrackErrorSum / scored
+        // The filtered trace must not systematically trail (or lead) reality.
+        assertTrue(
+            kotlin.math.abs(meanAlongTrackError) < 0.5,
+            "filtered trace shows systematic along-track bias of $meanAlongTrackError m",
         )
     }
 
@@ -110,7 +144,8 @@ class VelocityAidedGpsFilterTest {
                 scored += 1
             }
         }
-        assertTrue(sqrt(filteredSquaredError / scored) < sqrt(rawSquaredError / scored) * 0.6)
+        // Light-touch: modest, strict improvement (see straight-drive test).
+        assertTrue(sqrt(filteredSquaredError / scored) < sqrt(rawSquaredError / scored) * 0.95)
     }
 
     @Test
@@ -123,7 +158,7 @@ class VelocityAidedGpsFilterTest {
         // One 40 m multipath spike.
         val spiked = filter.update(sample(10_000L, 40.0, 0.0, accuracy = 5.0, speed = 0.0, heading = 0.0))
         assertTrue(
-            errorMeters(spiked, 0.0, 0.0) < 10.0,
+            errorMeters(spiked, 0.0, 0.0) < 6.0,
             "spike leaked ${errorMeters(spiked, 0.0, 0.0)} m through the gate",
         )
         // The stream recovers on the next honest fix.

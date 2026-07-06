@@ -9,17 +9,23 @@ import kotlin.math.sqrt
 /**
  * Velocity-aided position filter over raw GNSS fixes.
  *
- * A phone receiver's Doppler-derived speed/heading is roughly two orders of
- * magnitude more accurate (~0.1 m/s) than its position solution (meters), so
- * between fixes the position estimate coasts along the last reported velocity
- * and each arriving fix corrects it only as much as its reported accuracy
- * deserves — a scalar constant-velocity Kalman filter over a local
- * east/north-meters plane.
+ * A scalar constant-velocity Kalman filter over a local east/north-meters
+ * plane: between fixes the estimate coasts along the Doppler velocity
+ * (trapezoidally averaged across the interval), and each arriving fix corrects
+ * it weighted by that fix's noise.
  *
- * Robustness:
- * - Per-fix weighting: a tight fix pulls the estimate hard, a sloppy one barely
- *   nudges it ([LocationSample.horizontalAccuracyMeters], clamped, with a
- *   conservative default when absent).
+ * Tuned against real A/B drive sessions (Fused vs direct GNSS, Pixel 10 Pro,
+ * 2026-07-06), which showed two things that shape the constants:
+ * - The chip's fixes are already internally filtered: consecutive fixes agree
+ *   with the Doppler velocity to under a meter, so there is little white
+ *   position noise to remove and heavy smoothing only adds along-track lag.
+ * - [LocationSample.horizontalAccuracyMeters] estimates ABSOLUTE error
+ *   (~12 m typical), while the fix-to-fix RELATIVE noise the filter should
+ *   weigh is ~10x smaller (~1-2 m). The measurement sigma is therefore a
+ *   fraction of the reported accuracy, clamped to a sane band.
+ * The result is deliberately light-touch: on clean streams the output tracks
+ * the raw fixes closely (measured lap-overlay-neutral, |lag| < 0.1 m), and the
+ * real payload is robustness:
  * - Outlier gating: a fix far outside the innovation gate is heavily deweighted
  *   instead of trusted; several consecutive rejections mean the world moved
  *   (tunnel exit, feed hiccup) and the filter re-anchors on the measurement.
@@ -72,11 +78,15 @@ class VelocityAidedGpsFilter {
     fun update(sample: LocationSample): LocationSample {
         if (!sample.latitude.isFinite() || !sample.longitude.isFinite()) return sample
 
-        val accuracyMeters = (
-            sample.horizontalAccuracyMeters?.takeIf { it.isFinite() && it > 0.0 }
-                ?: DEFAULT_ACCURACY_METERS
-            ).coerceIn(MIN_ACCURACY_METERS, MAX_ACCURACY_METERS)
-        val measurementVariance = accuracyMeters * accuracyMeters
+        // Reported accuracy is an ABSOLUTE 1-sigma; the relative fix-to-fix
+        // noise the correction should weigh is a fraction of it (measured ~10x
+        // smaller on-device). Worse-reported fixes still get proportionally
+        // less pull.
+        val sigmaMeters = (
+            (sample.horizontalAccuracyMeters?.takeIf { it.isFinite() && it > 0.0 } ?: DEFAULT_ACCURACY_METERS) *
+                RELATIVE_NOISE_FRACTION
+            ).coerceIn(MIN_MEASUREMENT_SIGMA, MAX_MEASUREMENT_SIGMA)
+        val measurementVariance = sigmaMeters * sigmaMeters
 
         val dtSeconds = (sample.elapsedMillis - lastElapsedMillis) / 1000.0
         if (!hasEstimate || dtSeconds <= 0.0 || dtSeconds > RESET_GAP_SECONDS) {
@@ -84,12 +94,34 @@ class VelocityAidedGpsFilter {
             return sample
         }
 
-        // Predict: coast along the last Doppler velocity. Without Doppler the
+        // Predict: coast on the trapezoidal average of the previous fix's and
+        // this fix's Doppler velocities — measured noticeably less biased than
+        // coasting on the previous velocity alone. Without any Doppler the
         // estimate holds position with much wider uncertainty, so the next
         // measurement dominates instead of being dragged toward a stale point.
-        east += velocityEast * dtSeconds
-        north += velocityNorth * dtSeconds
-        val coastSigma = if (hasVelocity) {
+        val previousVelocityEast = velocityEast
+        val previousVelocityNorth = velocityNorth
+        val hadVelocity = hasVelocity
+        rememberVelocity(sample)
+        val coastVelocityEast: Double
+        val coastVelocityNorth: Double
+        when {
+            hadVelocity && hasVelocity -> {
+                coastVelocityEast = (previousVelocityEast + velocityEast) / 2.0
+                coastVelocityNorth = (previousVelocityNorth + velocityNorth) / 2.0
+            }
+            hasVelocity -> {
+                coastVelocityEast = velocityEast
+                coastVelocityNorth = velocityNorth
+            }
+            else -> {
+                coastVelocityEast = previousVelocityEast
+                coastVelocityNorth = previousVelocityNorth
+            }
+        }
+        east += coastVelocityEast * dtSeconds
+        north += coastVelocityNorth * dtSeconds
+        val coastSigma = if (hadVelocity || hasVelocity) {
             VELOCITY_SIGMA * dtSeconds + 0.5 * ACCELERATION_SIGMA * dtSeconds * dtSeconds
         } else {
             UNKNOWN_VELOCITY_SIGMA * dtSeconds
@@ -118,13 +150,13 @@ class VelocityAidedGpsFilter {
             consecutiveOutliers = 0
         }
 
-        // Scalar Kalman correction.
+        // Scalar Kalman correction. (This fix's Doppler velocity was already
+        // adopted for the next coast during the predict step above.)
         val gain = variance / (variance + effectiveVariance)
         east += gain * innovationEast
         north += gain * innovationNorth
         variance *= (1.0 - gain)
 
-        rememberVelocity(sample)
         lastElapsedMillis = sample.elapsedMillis
 
         return sample.copy(
@@ -171,10 +203,17 @@ class VelocityAidedGpsFilter {
         /** Longitude scale floor so polar latitudes can never divide by ~zero. */
         private const val MIN_METERS_PER_DEGREE_LONGITUDE = 1.0
 
-        /** Reported accuracy is clamped into this band; default when absent. */
-        private const val MIN_ACCURACY_METERS = 2.0
-        private const val MAX_ACCURACY_METERS = 50.0
+        /** Assumed reported accuracy when a fix carries none. */
         private const val DEFAULT_ACCURACY_METERS = 12.0
+
+        /**
+         * Fraction of the reported (absolute) accuracy taken as the relative
+         * fix-to-fix measurement sigma, and the band it is clamped into.
+         * Empirical: reported ~12 m corresponded to ~1-2 m relative noise.
+         */
+        private const val RELATIVE_NOISE_FRACTION = 0.15
+        private const val MIN_MEASUREMENT_SIGMA = 1.5
+        private const val MAX_MEASUREMENT_SIGMA = 6.0
 
         /** Elapsed gap beyond which fixes are treated as a new feed session. */
         private const val RESET_GAP_SECONDS = 3.0
@@ -182,8 +221,12 @@ class VelocityAidedGpsFilter {
         /** 1-sigma trust in Doppler velocity (chips report ~0.1 m/s; margin kept). */
         private const val VELOCITY_SIGMA = 0.5
 
-        /** 1-sigma unmodeled acceleration between fixes (braking/turn-in). */
-        private const val ACCELERATION_SIGMA = 4.0
+        /**
+         * 1-sigma unmodeled acceleration between fixes. High on purpose: with
+         * chip fixes this consistent the filter must never fight a real
+         * maneuver; tuning showed lower values only added corner lag.
+         */
+        private const val ACCELERATION_SIGMA = 8.0
 
         /** Coast uncertainty growth when the fix carried no Doppler velocity. */
         private const val UNKNOWN_VELOCITY_SIGMA = 15.0
@@ -194,8 +237,12 @@ class VelocityAidedGpsFilter {
         /** Never gate disagreements smaller than this, whatever the variances. */
         private const val MIN_GATE_METERS = 8.0
 
-        /** Variance multiplier applied to gated (distrusted) fixes. */
-        private const val OUTLIER_VARIANCE_INFLATION = 25.0
+        /**
+         * Variance multiplier applied to gated (distrusted) fixes. Strong,
+         * because the measurement channel itself is trusted tightly: a gated
+         * 40 m spike must still move the estimate only a few meters.
+         */
+        private const val OUTLIER_VARIANCE_INFLATION = 100.0
 
         /** Consecutive gated fixes before conceding the world really moved. */
         private const val MAX_CONSECUTIVE_OUTLIERS = 3
