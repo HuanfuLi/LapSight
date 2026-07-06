@@ -477,6 +477,31 @@ Plans:
 
 **Requirements:** MR-01, MR-02, MR-03
 
+**Plans:** 6 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — DAT build integration, credentials, manifest, minSdk (enabler)
+- [ ] 07-02-PLAN.md — SessionController hoist seam + pure host-tested HudModel mapper
+
+**Wave 2** *(after Wave 1)*
+
+- [ ] 07-03-PLAN.md — GlassesBridge DAT lifecycle + 2 Hz loop + silent reconnect + MockDeviceKit tests
+
+**Wave 3** *(after Wave 2)*
+
+- [ ] 07-04-PLAN.md — HudRenderer + DeltaPill: three pages, delta pill, idle/stale/sector-flash
+
+**Wave 4** *(after Wave 3)*
+
+- [ ] 07-05-PLAN.md — Phone UX: Settings Glasses area + Drive cast/status/page controls + real-glasses gate
+
+**Wave 5** *(after Wave 4; optional/experimental)*
+
+- [ ] 07-06-PLAN.md — Experimental captouch input (hardware-gated) — phase does not depend on it
+
 **Success Criteria:**
 
 1. Phone app exposes a minimal live timing state stream derived from the existing lap engine/session controller.
