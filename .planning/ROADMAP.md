@@ -503,5 +503,22 @@ Plans:
 
 - [ ] TBD (promote with `$gsd-review-backlog` when ready)
 
+### Phase 999.2: GPS Filter Track Validation and Timing-Path Integration (BACKLOG)
+
+**Goal:** Finish validating the velocity-aided GPS filter under real racing dynamics and decide its role in the timing path. The filter (`VelocityAidedGpsFilter`, tuned 2026-07-06 against public-road A/B sessions) is display-only and deliberately light-touch: it tracks the chip closely and its real payload is wild-fix rejection.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Captured scope:
+
+- **Track-session validation (hard braking):** the 2026-07-06 tuning data was a safe-pace public-road drive (~6.5 m/s, no hard braking), so filter behavior under racing deceleration (~10 m/s²) is unvalidated. Record a 5-10 lap timed session on an actual track with High-rate GNSS on, export the JSON, and replay it through the tuning harness to confirm no corner-entry lag (along-track lag should stay near zero; retune `ACCELERATION_SIGMA` upward if not).
+- **Fused vs direct GNSS at pace:** at gentle pace Fused overlaid slightly tighter (1.73 m vs 2.08 m lap-to-lap); its IMU smoothing may instead turn into lag under racing dynamics. The same track session, run once per engine, answers which engine should be the racing default.
+- **Step 2 — timing-path integration decision:** replay recorded sessions through crossing detection twice (raw vs filtered fixes); confirm lap counts identical and lap-time deltas within milliseconds. Given the tuned filter is overlay-neutral, the only timing value left is spike protection at the start/finish line — integrate only if the regression is clean and a session with real wild fixes shows a benefit; otherwise close this item and keep the filter display-only.
+- Tuning method (reusable): exact Python port of the filter replayed over exported session JSON; metrics = lap-to-lap overlay distance, along-track lag vs Doppler heading, RMS second-difference smoothness. Sessions live under `Debug/Sessions/` (gitignored — real GPS traces).
+
+Plans:
+
+- [ ] TBD (promote with `$gsd-review-backlog` when ready)
+
 ---
 *Roadmap created: 2026-06-25*
