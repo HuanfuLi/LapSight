@@ -484,5 +484,24 @@ Plans:
 3. Decide whether Compose Multiplatform UI is acceptable on iOS after a real-device prototype.
 4. Decide first supported external GNSS transport after phone GPS MVP validation.
 
+## Backlog
+
+### Phase 999.1: Advanced Map Visualization, Ghost Overlay, and AI Driving Analysis (BACKLOG)
+
+**Goal:** Captured for future planning: provide a richer map-based analysis surface after the phone companion has reliable timing state and higher-quality positioning options.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Captured scope:
+
+- Render real-world satellite/imagery basemaps behind recorded and live racing lines so users can see entry, apex, exit, and line placement relative to the physical circuit.
+- Support multiple map anchoring modes similar to navigation apps: north-up fixed map, current-position-centered map, and heading-up/car-up mode where the vehicle arrow stays oriented upward while the map pans/rotates.
+- Render a live ghost car position on future map timing panels so users can compare their current position and line against the fastest/reference lap in spatial context, not only as a numeric delta.
+- When positioning precision improves enough, analyze driving traces with AI to score line quality and provide coaching suggestions while preserving closed-course/private-track safety positioning.
+
+Plans:
+
+- [ ] TBD (promote with `$gsd-review-backlog` when ready)
+
 ---
 *Roadmap created: 2026-06-25*
