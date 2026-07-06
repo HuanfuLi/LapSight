@@ -477,14 +477,14 @@ Plans:
 
 **Requirements:** MR-01, MR-02, MR-03
 
-**Plans:** 6 plans
+**Plans:** 2/6 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — DAT build integration, credentials, manifest, minSdk (enabler)
-- [ ] 07-02-PLAN.md — SessionController hoist seam + pure host-tested HudModel mapper
+- [x] 07-01-PLAN.md — DAT build integration, credentials, manifest, minSdk (enabler)
+- [x] 07-02-PLAN.md — SessionController hoist seam + pure host-tested HudModel mapper
 
 **Wave 2** *(after Wave 1)*
 
