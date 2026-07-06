@@ -10,12 +10,19 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.huanfuli.lapsight.shared.export.ExportShareTarget
 import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
 import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
+import com.huanfuli.lapsight.shared.glasses.GlassesActions
+import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
+import com.huanfuli.lapsight.shared.glasses.GlassesDeviceSummary
+import com.huanfuli.lapsight.shared.glasses.HudPage
+import com.huanfuli.lapsight.shared.glasses.NoOpGlassesActions
 import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.ui.AppShell
 import com.huanfuli.lapsight.shared.ui.LapSightTheme
 import com.huanfuli.lapsight.shared.ui.ProvideLocalizedStrings
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * LapSight root composable (Plan 03-05 refactor).
@@ -47,6 +54,14 @@ fun App(
     sessionStore: LocalSessionStore = InMemorySessionStore(),
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
     onSessionControllerReady: (SessionController) -> Unit = {},
+    glassesConnectionState: StateFlow<GlassesConnectionState> =
+        MutableStateFlow(GlassesConnectionState.Idle),
+    glassesDevices: StateFlow<List<GlassesDeviceSummary>> =
+        MutableStateFlow(emptyList()),
+    glassesSelectedDeviceId: StateFlow<String?> = MutableStateFlow(null),
+    glassesCastingEnabled: StateFlow<Boolean> = MutableStateFlow(false),
+    glassesPage: StateFlow<HudPage> = MutableStateFlow(HudPage.FOCUSED),
+    glassesActions: GlassesActions = NoOpGlassesActions,
 ) {
     var displaySettings by remember { mutableStateOf(displaySettingsStore.load()) }
     val simulatedGpsProvider = remember {
@@ -74,6 +89,12 @@ fun App(
                 sessionStore = sessionStore,
                 exportShareTarget = exportShareTarget,
                 onSessionControllerReady = onSessionControllerReady,
+                glassesConnectionState = glassesConnectionState,
+                glassesDevices = glassesDevices,
+                glassesSelectedDeviceId = glassesSelectedDeviceId,
+                glassesCastingEnabled = glassesCastingEnabled,
+                glassesPage = glassesPage,
+                glassesActions = glassesActions,
             )
         }
     }

@@ -29,5 +29,8 @@ sealed interface GlassesConnectionState {
     data class Reconnecting(val reason: String? = null) : GlassesConnectionState
 
     /** A failure that needs user action (e.g. no eligible device, create-session failure). */
-    data class Error(val message: String) : GlassesConnectionState
+    data class Error(
+        val message: String,
+        val datAppUpdateRequired: Boolean = false,
+    ) : GlassesConnectionState
 }

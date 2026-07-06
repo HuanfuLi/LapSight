@@ -30,17 +30,25 @@ import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.ThemeMode
 import com.huanfuli.lapsight.shared.export.AndroidExportShareTarget
+import com.huanfuli.lapsight.shared.glasses.GlassesActions
+import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
+import com.huanfuli.lapsight.shared.glasses.GlassesDeviceSummary
+import com.huanfuli.lapsight.shared.glasses.HudPage
 import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.storage.StoragePaths
 import com.meta.wearable.dat.core.Wearables
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val fineLocationPermissionGranted = mutableStateOf(false)
     private var phoneGpsProvider: AndroidPhoneLocationProvider? = null
+    private lateinit var displaySettingsStore: AndroidDisplaySettingsStore
 
     /**
      * The single [SessionController] the phone dash drives, captured via
@@ -58,6 +66,65 @@ class MainActivity : ComponentActivity() {
      */
     private var glassesBridge: GlassesBridge? = null
     private val glassesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var glassesBridgeCollectionJobs: List<Job> = emptyList()
+    private val glassesConnectionState = MutableStateFlow<GlassesConnectionState>(GlassesConnectionState.Idle)
+    private val glassesDevices = MutableStateFlow<List<GlassesDeviceSummary>>(emptyList())
+    private val selectedGlassesDeviceId = MutableStateFlow<String?>(null)
+    private val glassesCastingEnabled = MutableStateFlow(false)
+    private val glassesPage = MutableStateFlow(HudPage.FOCUSED)
+    private val glassesPreferences by lazy {
+        getSharedPreferences("glasses_settings", Context.MODE_PRIVATE)
+    }
+
+    private val glassesActions = object : GlassesActions {
+        override fun register() {
+            runCatching { Wearables.startRegistration(this@MainActivity) }
+                .onFailure { Log.e("MainActivity", "Wearables.startRegistration failed", it) }
+        }
+
+        override fun pickDevice(id: String) {
+            selectedGlassesDeviceId.value = id
+            glassesPreferences.edit().putString(KEY_SELECTED_GLASSES_DEVICE_ID, id).apply()
+            if (glassesCastingEnabled.value) {
+                glassesBridge?.connect(id)
+            }
+        }
+
+        override fun startCasting() {
+            val deviceId = selectedGlassesDeviceId.value
+            if (deviceId == null) {
+                glassesConnectionState.value = GlassesConnectionState.Error("Select glasses in Settings first")
+                glassesCastingEnabled.value = false
+                return
+            }
+            glassesCastingEnabled.value = true
+            glassesBridge?.connect(deviceId)
+        }
+
+        override fun stopCasting() {
+            glassesCastingEnabled.value = false
+            glassesBridge?.stop()
+        }
+
+        override fun setPage(page: HudPage) {
+            glassesPage.value = page
+            glassesBridge?.page = page
+        }
+
+        override fun openFirmwareUpdate() {
+            Wearables.openFirmwareUpdate(this@MainActivity)
+                .onFailure { error, _ ->
+                    Log.e("MainActivity", "openFirmwareUpdate failed: ${error.description}")
+                }
+        }
+
+        override fun openDatAppUpdate() {
+            Wearables.openDATGlassesAppUpdate(this@MainActivity)
+                .onFailure { error, _ ->
+                    Log.e("MainActivity", "openDATGlassesAppUpdate failed: ${error.description}")
+                }
+        }
+    }
 
     private val requestLocationPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -123,7 +190,8 @@ class MainActivity : ComponentActivity() {
         StoragePaths.initialize(this)
 
         val shareTarget = AndroidExportShareTarget(this)
-        val displaySettingsStore = AndroidDisplaySettingsStore(this)
+        displaySettingsStore = AndroidDisplaySettingsStore(this)
+        selectedGlassesDeviceId.value = glassesPreferences.getString(KEY_SELECTED_GLASSES_DEVICE_ID, null)
         phoneGpsProvider = AndroidPhoneLocationProvider(
             context = this,
             hasFineLocationPermission = { hasFineLocationPermission() },
@@ -160,9 +228,14 @@ class MainActivity : ComponentActivity() {
                 sessionStore = StoragePaths.fileSessionStore(),
                 exportShareTarget = shareTarget,
                 onSessionControllerReady = { controller ->
-                    sessionController = controller
-                    glassesBridge = GlassesBridge(controller, glassesScope)
+                    installGlassesBridge(controller)
                 },
+                glassesConnectionState = glassesConnectionState,
+                glassesDevices = glassesDevices,
+                glassesSelectedDeviceId = selectedGlassesDeviceId,
+                glassesCastingEnabled = glassesCastingEnabled,
+                glassesPage = glassesPage,
+                glassesActions = glassesActions,
             )
         }
     }
@@ -174,6 +247,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         phoneGpsProvider?.stop()
+        glassesBridgeCollectionJobs.forEach { it.cancel() }
         glassesBridge?.stop()
         glassesScope.cancel()
         super.onDestroy()
@@ -181,6 +255,31 @@ class MainActivity : ComponentActivity() {
 
     private fun hasFineLocationPermission(): Boolean =
         checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    private fun installGlassesBridge(controller: SessionController) {
+        if (sessionController === controller && glassesBridge != null) return
+        glassesBridgeCollectionJobs.forEach { it.cancel() }
+        glassesBridge?.stop()
+        sessionController = controller
+        val bridge = GlassesBridge(controller, glassesScope)
+        bridge.page = glassesPage.value
+        glassesBridge = bridge
+        glassesBridgeCollectionJobs = listOf(
+            glassesScope.launch {
+                bridge.connectionState.collect { state -> glassesConnectionState.value = state }
+            },
+            glassesScope.launch {
+                bridge.devices.collect { devices -> glassesDevices.value = devices }
+            },
+        )
+        if (glassesCastingEnabled.value) {
+            selectedGlassesDeviceId.value?.let { bridge.connect(it) }
+        }
+    }
+
+    private companion object {
+        private const val KEY_SELECTED_GLASSES_DEVICE_ID = "selected_glasses_device_id"
+    }
 }
 
 @Preview

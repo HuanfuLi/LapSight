@@ -21,22 +21,32 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
 import com.huanfuli.lapsight.shared.LanguageMode
 import com.huanfuli.lapsight.shared.LocationFeedMode
 import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.ThemeMode
+import com.huanfuli.lapsight.shared.glasses.GlassesActions
+import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
+import com.huanfuli.lapsight.shared.glasses.GlassesDeviceSummary
+import com.huanfuli.lapsight.shared.glasses.NoOpGlassesActions
 import com.huanfuli.lapsight.shared.ui.components.LapCard
+import com.huanfuli.lapsight.shared.ui.components.LapButton
+import com.huanfuli.lapsight.shared.ui.components.LapButtonStyle
 import com.huanfuli.lapsight.shared.ui.components.LapSwitchRow
 import com.huanfuli.lapsight.shared.ui.components.SafetyNote
 import com.huanfuli.lapsight.shared.ui.components.SegmentedControl
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Display and mounted-phone behavior controls. Safety copy belongs here instead
@@ -51,6 +61,12 @@ internal fun SettingsScreen(
     phoneGpsAvailable: Boolean,
     phoneGpsPermissionGranted: Boolean,
     locationFeedLocked: Boolean,
+    glassesConnectionState: StateFlow<GlassesConnectionState> =
+        MutableStateFlow(GlassesConnectionState.Idle),
+    glassesDevices: StateFlow<List<GlassesDeviceSummary>> =
+        MutableStateFlow(emptyList()),
+    glassesSelectedDeviceId: StateFlow<String?> = MutableStateFlow(null),
+    glassesActions: GlassesActions = NoOpGlassesActions,
     onRequestPhoneGps: () -> Unit,
     onSettingsChanged: (DriveDisplaySettings) -> Unit,
 ) {
@@ -172,6 +188,13 @@ internal fun SettingsScreen(
             )
         }
 
+        GlassesSettingsCard(
+            connectionState = glassesConnectionState,
+            devices = glassesDevices,
+            selectedDeviceId = glassesSelectedDeviceId,
+            actions = glassesActions,
+        )
+
         LapCard(title = s.whileTiming) {
             LapSwitchRow(
                 label = s.fullscreenWhileTiming,
@@ -211,6 +234,165 @@ internal fun SettingsScreen(
         )
         Spacer(Modifier.height(spacing.md))
     }
+}
+
+@Composable
+private fun GlassesSettingsCard(
+    connectionState: StateFlow<GlassesConnectionState>,
+    devices: StateFlow<List<GlassesDeviceSummary>>,
+    selectedDeviceId: StateFlow<String?>,
+    actions: GlassesActions,
+) {
+    val state by connectionState.collectAsState()
+    val deviceList by devices.collectAsState()
+    val selectedId by selectedDeviceId.collectAsState()
+    val spacing = LapSightTheme.spacing
+    val s = strings
+    val firmwareUpdateRequired = deviceList.any { it.requiresFirmwareUpdate }
+    val appUpdateRequired = (state as? GlassesConnectionState.Error)?.datAppUpdateRequired == true
+
+    LapCard(title = s.glasses) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = s.glassesConnectionLabel(state),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                (state as? GlassesConnectionState.Error)?.message?.let { message ->
+                    Text(
+                        text = message,
+                        color = LapSightTheme.colors.statusCaution,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            LapButton(
+                text = s.registerPair,
+                onClick = actions::register,
+                style = LapButtonStyle.Secondary,
+            )
+        }
+
+        if (firmwareUpdateRequired) {
+            LapButton(
+                text = s.openFirmwareUpdate,
+                onClick = actions::openFirmwareUpdate,
+                style = LapButtonStyle.Secondary,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (appUpdateRequired) {
+            LapButton(
+                text = s.openGlassesAppUpdate,
+                onClick = actions::openDatAppUpdate,
+                style = LapButtonStyle.Secondary,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        if (deviceList.isEmpty()) {
+            Text(
+                text = s.noGlassesDevices,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(spacing.sm),
+            ) {
+                deviceList.forEach { device ->
+                    GlassesDeviceRow(
+                        device = device,
+                        selected = device.id == selectedId,
+                        onSelect = { actions.pickDevice(device.id) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlassesDeviceRow(
+    device: GlassesDeviceSummary,
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
+    val spacing = LapSightTheme.spacing
+    val s = strings
+    val selectable = device.isDisplayCapable && !device.requiresFirmwareUpdate
+    Surface(
+        onClick = { if (selectable) onSelect() },
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        border = BorderStroke(
+            1.dp,
+            if (selected) MaterialTheme.colorScheme.primary else LapSightTheme.colors.cardBorder,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .padding(horizontal = spacing.md, vertical = spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = device.name,
+                    color = if (selectable) MaterialTheme.colorScheme.onSurface else LapSightTheme.colors.disabledContent,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = device.type,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = when {
+                    device.requiresFirmwareUpdate -> s.firmwareUpdateRequired
+                    selected -> s.current
+                    device.isDisplayCapable -> s.displayCapable
+                    else -> s.displayUnsupported
+                },
+                color = when {
+                    device.requiresFirmwareUpdate -> LapSightTheme.colors.statusCaution
+                    selected -> MaterialTheme.colorScheme.primary
+                    device.isDisplayCapable -> LapSightTheme.colors.statusReady
+                    else -> LapSightTheme.colors.disabledContent
+                },
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private fun LocalizedStrings.glassesConnectionLabel(state: GlassesConnectionState): String = when (state) {
+    GlassesConnectionState.Idle -> glassesIdle
+    GlassesConnectionState.Connecting -> glassesConnecting
+    GlassesConnectionState.Connected -> glassesConnected
+    is GlassesConnectionState.Reconnecting -> glassesReconnecting
+    is GlassesConnectionState.Error -> state.message
 }
 
 @Composable

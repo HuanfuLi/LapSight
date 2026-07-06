@@ -15,10 +15,13 @@ package com.huanfuli.lapsight.shared.glasses
  * @property isDisplayCapable whether the device supports the Display capability
  *   (`Device.isDisplayCapable()`) — the shared-UI picker uses this to gate
  *   selection.
+ * @property requiresFirmwareUpdate true when the SDK reports the device itself
+ *   must be updated before a display session can be used.
  */
 data class GlassesDeviceSummary(
     val id: String,
     val name: String,
     val type: String,
     val isDisplayCapable: Boolean,
+    val requiresFirmwareUpdate: Boolean = false,
 )

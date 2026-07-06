@@ -13,6 +13,8 @@ import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.session.TimingRunSnapshot
 import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.selectors.SpecificDeviceSelector
+import com.meta.wearable.dat.core.types.DeviceCompatibility
+import com.meta.wearable.dat.core.types.DeviceSessionError
 import com.meta.wearable.dat.core.session.DeviceSession
 import com.meta.wearable.dat.core.session.DeviceSessionState
 import com.meta.wearable.dat.core.types.Device
@@ -154,6 +156,12 @@ class GlassesBridge(
                 val errorJob = scope.launch {
                     newSession.errors.collect { error ->
                         Log.e(TAG, "Session error: ${error.description}")
+                        if (error == DeviceSessionError.DAT_APP_ON_THE_GLASSES_UPDATE_REQUIRED) {
+                            _connectionState.value = GlassesConnectionState.Error(
+                                message = error.description,
+                                datAppUpdateRequired = true,
+                            )
+                        }
                     }
                 }
                 synchronized(lock) {
@@ -167,7 +175,10 @@ class GlassesBridge(
             },
             onFailure = { error, _ ->
                 Log.e(TAG, "createSession failed: ${error.description}")
-                _connectionState.value = GlassesConnectionState.Error(error.description)
+                _connectionState.value = GlassesConnectionState.Error(
+                    message = error.description,
+                    datAppUpdateRequired = error == DeviceSessionError.DAT_APP_ON_THE_GLASSES_UPDATE_REQUIRED,
+                )
             },
         )
     }
@@ -349,6 +360,7 @@ class GlassesBridge(
                 name = device.name,
                 type = device.deviceType.description,
                 isDisplayCapable = device.isDisplayCapable(),
+                requiresFirmwareUpdate = device.compatibility == DeviceCompatibility.DEVICE_UPDATE_REQUIRED,
             )
         }
     }

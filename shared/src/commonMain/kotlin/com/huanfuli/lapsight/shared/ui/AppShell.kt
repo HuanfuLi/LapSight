@@ -36,6 +36,11 @@ import com.huanfuli.lapsight.shared.OrientationController
 import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.export.ExportShareTarget
 import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
+import com.huanfuli.lapsight.shared.glasses.GlassesActions
+import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
+import com.huanfuli.lapsight.shared.glasses.GlassesDeviceSummary
+import com.huanfuli.lapsight.shared.glasses.HudPage
+import com.huanfuli.lapsight.shared.glasses.NoOpGlassesActions
 import com.huanfuli.lapsight.shared.session.DraftRecoveryAction
 import com.huanfuli.lapsight.shared.session.DraftRecoveryPrompt
 import com.huanfuli.lapsight.shared.session.SessionController
@@ -46,6 +51,8 @@ import com.huanfuli.lapsight.shared.ui.components.LapDialog
 import com.huanfuli.lapsight.shared.ui.components.LapDialogTextButton
 import com.huanfuli.lapsight.shared.ui.drive.DriveScreen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -84,6 +91,14 @@ fun AppShell(
     sessionStore: LocalSessionStore = InMemorySessionStore(),
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
     onSessionControllerReady: (SessionController) -> Unit = {},
+    glassesConnectionState: StateFlow<GlassesConnectionState> =
+        MutableStateFlow(GlassesConnectionState.Idle),
+    glassesDevices: StateFlow<List<GlassesDeviceSummary>> =
+        MutableStateFlow(emptyList()),
+    glassesSelectedDeviceId: StateFlow<String?> = MutableStateFlow(null),
+    glassesCastingEnabled: StateFlow<Boolean> = MutableStateFlow(false),
+    glassesPage: StateFlow<HudPage> = MutableStateFlow(HudPage.FOCUSED),
+    glassesActions: GlassesActions = NoOpGlassesActions,
 ) {
     val s = strings
     var tab by remember { mutableStateOf(AppTab.Drive) }
@@ -325,6 +340,10 @@ fun AppShell(
                     phoneGpsAvailable = phoneGpsProvider != null && phoneGpsPermission.isSupported,
                     phoneGpsPermissionGranted = phoneGpsPermission.isGranted,
                     locationFeedLocked = driveTimingActive,
+                    glassesConnectionState = glassesConnectionState,
+                    glassesDevices = glassesDevices,
+                    glassesSelectedDeviceId = glassesSelectedDeviceId,
+                    glassesActions = glassesActions,
                     onRequestPhoneGps = {
                         pendingPhoneGpsSelection = true
                         phoneGpsPermission.requestPermission()
