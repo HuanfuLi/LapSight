@@ -328,6 +328,11 @@ fun AppShell(
                     phoneGpsPermission = phoneGpsPermission,
                     sessionStore = sessionStore,
                     sessionController = sessionController,
+                    glassesConnectionState = glassesConnectionState,
+                    glassesSelectedDeviceId = glassesSelectedDeviceId,
+                    glassesCastingEnabled = glassesCastingEnabled,
+                    glassesPage = glassesPage,
+                    glassesActions = glassesActions,
                 )
                 AppTab.Review -> ReviewScreen(
                     sessionStore = sessionStore,

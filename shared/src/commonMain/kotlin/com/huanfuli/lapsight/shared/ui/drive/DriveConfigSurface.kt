@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +52,10 @@ import com.huanfuli.lapsight.shared.LocationFeedMode
 import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.VelocityAidedGpsFilter
+import com.huanfuli.lapsight.shared.glasses.GlassesActions
+import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
+import com.huanfuli.lapsight.shared.glasses.HudPage
+import com.huanfuli.lapsight.shared.glasses.NoOpGlassesActions
 import com.huanfuli.lapsight.shared.lap.formatLapTime
 import com.huanfuli.lapsight.shared.review.TraceLayer
 import com.huanfuli.lapsight.shared.review.TraceRole
@@ -88,8 +93,13 @@ import com.huanfuli.lapsight.shared.ui.components.LapDialog
 import com.huanfuli.lapsight.shared.ui.components.MetricCell
 import com.huanfuli.lapsight.shared.ui.components.MetricCellSize
 import com.huanfuli.lapsight.shared.ui.components.SegmentedControl
+import com.huanfuli.lapsight.shared.ui.components.ChipTone
+import com.huanfuli.lapsight.shared.ui.components.LapSwitchRow
+import com.huanfuli.lapsight.shared.ui.components.StatusChip
 import lapsight.shared.generated.resources.Res
 import lapsight.shared.generated.resources.material_symbols_laps
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.PI
 import kotlin.math.cos
@@ -124,6 +134,12 @@ internal fun DriveSurface(
     dashReady: ReadyState,
     rawRecordingActive: Boolean,
     rawSnapshot: RawRecordingSnapshot,
+    glassesConnectionState: StateFlow<GlassesConnectionState> =
+        MutableStateFlow(GlassesConnectionState.Idle),
+    glassesSelectedDeviceId: StateFlow<String?> = MutableStateFlow(null),
+    glassesCastingEnabled: StateFlow<Boolean> = MutableStateFlow(false),
+    glassesPage: StateFlow<HudPage> = MutableStateFlow(HudPage.FOCUSED),
+    glassesActions: GlassesActions = NoOpGlassesActions,
     reviewContent: @Composable () -> Unit,
 ) {
     BoxWithConstraints(
@@ -205,6 +221,11 @@ internal fun DriveSurface(
                 dashReady = dashReady,
                 rawRecordingActive = rawRecordingActive,
                 rawSnapshot = rawSnapshot,
+                glassesConnectionState = glassesConnectionState,
+                glassesSelectedDeviceId = glassesSelectedDeviceId,
+                glassesCastingEnabled = glassesCastingEnabled,
+                glassesPage = glassesPage,
+                glassesActions = glassesActions,
             )
         } else {
             // Portrait: the middle of the screen belongs to the course — a live
@@ -242,6 +263,11 @@ internal fun DriveSurface(
                     onStopRawRecording = onStopRawRecording,
                     dashReady = dashReady,
                     rawRecordingActive = rawRecordingActive,
+                    glassesConnectionState = glassesConnectionState,
+                    glassesSelectedDeviceId = glassesSelectedDeviceId,
+                    glassesCastingEnabled = glassesCastingEnabled,
+                    glassesPage = glassesPage,
+                    glassesActions = glassesActions,
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     fillHeight = true,
                 )
@@ -279,6 +305,11 @@ private fun LandscapeCockpit(
     dashReady: ReadyState,
     rawRecordingActive: Boolean,
     rawSnapshot: RawRecordingSnapshot,
+    glassesConnectionState: StateFlow<GlassesConnectionState>,
+    glassesSelectedDeviceId: StateFlow<String?>,
+    glassesCastingEnabled: StateFlow<Boolean>,
+    glassesPage: StateFlow<HudPage>,
+    glassesActions: GlassesActions,
 ) {
     val spacing = LapSightTheme.spacing
     val s = strings
@@ -410,6 +441,13 @@ private fun LandscapeCockpit(
                             onSelectDirection = onSelectDirection,
                         )
                     }
+                    GlassesDriveControls(
+                        connectionState = glassesConnectionState,
+                        selectedDeviceId = glassesSelectedDeviceId,
+                        castingEnabled = glassesCastingEnabled,
+                        page = glassesPage,
+                        actions = glassesActions,
+                    )
                     Spacer(Modifier.weight(1f))
                     DriveActionRow(
                         primaryIcon = PlayActionIcon,
@@ -665,6 +703,11 @@ private fun ControlPanel(
     onStopRawRecording: () -> Unit,
     dashReady: ReadyState,
     rawRecordingActive: Boolean,
+    glassesConnectionState: StateFlow<GlassesConnectionState>,
+    glassesSelectedDeviceId: StateFlow<String?>,
+    glassesCastingEnabled: StateFlow<Boolean>,
+    glassesPage: StateFlow<HudPage>,
+    glassesActions: GlassesActions,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     fillHeight: Boolean = false,
@@ -774,6 +817,14 @@ private fun ControlPanel(
                         onSelectDirection = onSelectDirection,
                     )
                 }
+                GlassesDriveControls(
+                    connectionState = glassesConnectionState,
+                    selectedDeviceId = glassesSelectedDeviceId,
+                    castingEnabled = glassesCastingEnabled,
+                    page = glassesPage,
+                    actions = glassesActions,
+                    compact = compact,
+                )
                 DriveActionRow(
                     primaryIcon = PlayActionIcon,
                     primaryLabel = s.startTiming,
@@ -798,6 +849,77 @@ private fun ControlPanel(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun GlassesDriveControls(
+    connectionState: StateFlow<GlassesConnectionState>,
+    selectedDeviceId: StateFlow<String?>,
+    castingEnabled: StateFlow<Boolean>,
+    page: StateFlow<HudPage>,
+    actions: GlassesActions,
+    compact: Boolean = false,
+) {
+    val state by connectionState.collectAsState()
+    val selectedId by selectedDeviceId.collectAsState()
+    val casting by castingEnabled.collectAsState()
+    val selectedPage by page.collectAsState()
+    val spacing = LapSightTheme.spacing
+    val s = strings
+    val hasSelectedDevice = selectedId != null
+    val castChecked = casting && hasSelectedDevice
+    val supporting = if (!hasSelectedDevice) {
+        s.noGlassesSelected
+    } else {
+        when (val current = state) {
+            GlassesConnectionState.Idle -> s.glassesIdle
+            GlassesConnectionState.Connecting -> s.glassesConnecting
+            GlassesConnectionState.Connected -> s.glassesConnected
+            is GlassesConnectionState.Reconnecting -> current.reason ?: s.glassesReconnecting
+            is GlassesConnectionState.Error -> current.message
+        }
+    }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(if (compact) spacing.xs else spacing.sm),
+    ) {
+        LapSwitchRow(
+            label = s.castToGlasses,
+            supporting = supporting,
+            checked = castChecked,
+            enabled = hasSelectedDevice,
+            onCheckedChange = { enabled ->
+                if (enabled) {
+                    actions.startCasting()
+                } else {
+                    actions.stopCasting()
+                }
+            },
+        )
+        if (state is GlassesConnectionState.Reconnecting) {
+            StatusChip(text = s.glassesReconnecting, tone = ChipTone.Caution)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            Text(
+                text = s.glassesPage,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.weight(0.6f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            SegmentedControl(
+                options = listOf(s.hudDeltaOnly, s.hudFocused, s.hudTelemetry),
+                selectedIndex = selectedPage.ordinal,
+                onSelect = { index -> actions.setPage(HudPage.values()[index]) },
+                modifier = Modifier.weight(1.4f),
+            )
         }
     }
 }

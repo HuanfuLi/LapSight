@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.annotation.GuardedBy
 import com.huanfuli.lapsight.glasses.hud.HudRenderer
 import com.huanfuli.lapsight.shared.GpsFixStatus
+import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
 import com.huanfuli.lapsight.shared.glasses.GlassesDeviceSummary
 import com.huanfuli.lapsight.shared.glasses.GlassesGpsState
@@ -71,6 +72,7 @@ class GlassesBridge(
     private val sessionController: SessionController,
     private val scope: CoroutineScope,
     private val idleGpsState: () -> GlassesGpsState = { GlassesGpsState.idle() },
+    private val speedUnit: () -> SpeedUnit = { SpeedUnit.KilometersPerHour },
 ) {
     private companion object {
         private const val TAG = "GlassesBridge"
@@ -285,6 +287,7 @@ class GlassesBridge(
             page = page,
             nowEpochMs = System.currentTimeMillis(),
             flashUntilEpochMs = flashUntilEpochMs,
+            speedUnit = speedUnit(),
         )
         if (model == lastSentModel) return
 

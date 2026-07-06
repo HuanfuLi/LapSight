@@ -43,8 +43,14 @@ import com.huanfuli.lapsight.shared.ui.START_TIMING_BLOCKED_COPY
 import com.huanfuli.lapsight.shared.ui.components.LapDialog
 import com.huanfuli.lapsight.shared.ui.components.LapDialogTextButton
 import com.huanfuli.lapsight.shared.ui.strings
+import com.huanfuli.lapsight.shared.glasses.GlassesActions
+import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
+import com.huanfuli.lapsight.shared.glasses.HudPage
+import com.huanfuli.lapsight.shared.glasses.NoOpGlassesActions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -74,6 +80,12 @@ fun DriveScreen(
     phoneGpsPermission: PhoneGpsPermissionState,
     sessionStore: LocalSessionStore,
     sessionController: SessionController,
+    glassesConnectionState: StateFlow<GlassesConnectionState> =
+        MutableStateFlow(GlassesConnectionState.Idle),
+    glassesSelectedDeviceId: StateFlow<String?> = MutableStateFlow(null),
+    glassesCastingEnabled: StateFlow<Boolean> = MutableStateFlow(false),
+    glassesPage: StateFlow<HudPage> = MutableStateFlow(HudPage.FOCUSED),
+    glassesActions: GlassesActions = NoOpGlassesActions,
 ) {
     val s = strings
     val controller = remember(locationProvider, sessionStore) {
@@ -454,6 +466,11 @@ fun DriveScreen(
         dashReady = dashReady,
         rawRecordingActive = rawRecordingActive,
         rawSnapshot = rawSnapshot,
+        glassesConnectionState = glassesConnectionState,
+        glassesSelectedDeviceId = glassesSelectedDeviceId,
+        glassesCastingEnabled = glassesCastingEnabled,
+        glassesPage = glassesPage,
+        glassesActions = glassesActions,
         reviewContent = {
             TrackReviewContent(
                 snapshot = snapshot,

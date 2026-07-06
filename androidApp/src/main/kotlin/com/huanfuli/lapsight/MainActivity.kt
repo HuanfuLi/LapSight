@@ -261,7 +261,11 @@ class MainActivity : ComponentActivity() {
         glassesBridgeCollectionJobs.forEach { it.cancel() }
         glassesBridge?.stop()
         sessionController = controller
-        val bridge = GlassesBridge(controller, glassesScope)
+        val bridge = GlassesBridge(
+            sessionController = controller,
+            scope = glassesScope,
+            speedUnit = { displaySettingsStore.load().speedUnit },
+        )
         bridge.page = glassesPage.value
         glassesBridge = bridge
         glassesBridgeCollectionJobs = listOf(
