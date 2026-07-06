@@ -16,6 +16,8 @@ dependencies {
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.google.playServices.location)
+    implementation(libs.mwdat.core)
+    implementation(libs.mwdat.display)
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
@@ -31,6 +33,12 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+
+        // Meta DAT SDK Developer Mode credentials (0/0 = no Wearables Developer Center
+        // account needed to build). Real credentials are a production-signing concern,
+        // out of scope for this phase.
+        manifestPlaceholders["mwdat_application_id"] = "0"
+        manifestPlaceholders["mwdat_client_token"] = "0"
     }
     packaging {
         resources {

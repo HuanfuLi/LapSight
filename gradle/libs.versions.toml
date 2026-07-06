@@ -16,6 +16,7 @@ kotlin = "2.4.0"
 kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.11.0"
 material3 = "1.11.0-alpha07"
+mwdat = "0.8.0"
 okio = "3.17.0"
 play-services-location = "21.4.0"
 
@@ -44,6 +45,9 @@ okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 compose-materialIconsCore = { module = "org.jetbrains.compose.material:material-icons-core", version.ref = "composeIcons" }
 compose-materialIconsExtended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "composeIcons" }
 google-playServices-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
+mwdat-core = { group = "com.meta.wearable", name = "mwdat-core", version.ref = "mwdat" }
+mwdat-display = { group = "com.meta.wearable", name = "mwdat-display", version.ref = "mwdat" }
+mwdat-mockdevice = { group = "com.meta.wearable", name = "mwdat-mockdevice", version.ref = "mwdat" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
