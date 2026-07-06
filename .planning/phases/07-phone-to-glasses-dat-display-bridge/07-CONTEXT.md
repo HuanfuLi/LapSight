@@ -43,13 +43,18 @@ captouch input mapping.
     speed, lap count).
 - **D-02:** Hero is the **delta pill + current lap, co-equal** (two large readouts),
   with last/best/speed as a small footer where present.
-- **D-03:** Delta is rendered as a **colored pill** containing sign + arrow icon +
-  value (e.g. `▼ -0.34` ahead / `▲ +0.34` behind); the pill **background color**
-  reinforces ahead/behind. Intentionally **redundant encoding** (shape + color +
-  icon + sign) for glanceability on a limited display. NOTE: exact
-  `FlexBoxBackground` / `TextColor` / `IconName` values the SDK exposes must be
-  confirmed in research — the *intent* (colored delta pill, arrow up/down) stands
-  regardless of which enum values are available.
+- **D-03 (AMENDED 2026-07-06 after research — see 07-RESEARCH.md):** Delta is
+  rendered as an **iconic CARD "pill"**: a `flexBox(background =
+  FlexBoxBackground.CARD, cornerRadius = CornerRadius.MEDIUM)` containing a **caret
+  icon + sign + value** (e.g. `CARET_DOWN -0.34` ahead / `CARET_UP +0.34` behind).
+  **No background/hue color** — the DAT glasses display DSL exposes **no arbitrary
+  color**: `FlexBoxBackground = {NONE, CARD}`, `TextColor = {PRIMARY, SECONDARY}`
+  (emphasis only, not hue), `CornerRadius = {NONE, SMALL, MEDIUM}`. Ahead/behind is
+  carried by **caret direction + sign** (redundant: frame + icon + sign), with
+  optional `TextColor` PRIMARY (ahead) / SECONDARY (behind) emphasis as a weak extra
+  cue. The originally-discussed *colored* pill background is **not achievable** on
+  the glasses (see code_context "DAT glasses display DSL constraints"). Full color
+  remains available on the **phone** UI only.
 
 ### Sectors
 - **D-04:** **No always-on sector row.** Instead a **transient sector flash**: on
@@ -70,12 +75,19 @@ captouch input mapping.
   traffic / flicker warrants it.
 
 ### Page Switching / Captouch Input
-- **D-07:** Active page is selected two ways: (a) a **phone-side page selector** on
-  the Drive screen (fully passive on the glasses, MR-03-safe), and (b) a **captouch
-  TAP** on the temple cycles DELTA-ONLY → FOCUSED → TELEMETRY.
-- **D-08:** **Captouch TAP-AND-HOLD is reserved for start/end session** (a
-  stationary action, within the passive-while-moving rule). The glasses only emit
-  the input event; the **phone still owns and executes** timing start/stop.
+- **D-07 (AMENDED 2026-07-06 after research):** Active page is selected **primarily
+  by a phone-side page selector** on the Drive screen (fully passive, MR-03-safe,
+  guaranteed-supported). A **captouch TAP** to cycle DELTA-ONLY → FOCUSED →
+  TELEMETRY is a **stretch / experimental** control: the DAT **receive-side captouch
+  API is undocumented in 0.8** (`MockCaptouchKit` simulates `tap`/`tapAndHold`, but
+  no gesture stream is exposed to the app; the only documented glasses→phone input
+  is `button`/clickable `onClick`). Plan captouch as an **optional, isolated,
+  hardware-gated** task — the phase does **not** depend on it.
+- **D-08 (AMENDED 2026-07-06 after research):** Captouch **TAP-AND-HOLD → start/end
+  session** remains a **reserved, experimental** mapping (same undocumented-receive
+  caveat as D-07). The **phone owns and executes** timing start/stop as the
+  guaranteed path; the captouch trigger is a hardware-gated stretch. The phone owns
+  all timing regardless of input source.
 - **D-09:** Neural-band (sEMG wristband) input is **NOT available** to third-party
   DAT apps — do not design around it. Glasses-side input is limited to captouch
   (`tap` / `tapAndHold`, testable via `MockCaptouchKit`) and display
@@ -178,6 +190,23 @@ captouch input mapping.
 - Tokenized theme + spacing (`ui/Theme.kt`, `ui/Spacing.kt`, from Phase 5.1
   hardening): the phone-side cast toggle / Settings glasses area should flow through
   these semantic tokens (0 inline hex / 0 inline `.sp`).
+
+### DAT glasses display DSL constraints (from 07-RESEARCH.md, verified against SDK 0.8)
+- The glasses render a **server-driven UI**: the Android app sends a *content
+  description* over BLE (`display.sendContent { flexBox { text/icon/button/image/
+  video } }`) and the glasses firmware draws it. **No XML/CSS/HTML/Compose reaches
+  the glasses** — only the `com.meta.wearable.dat.display.views` DSL enums.
+- **No arbitrary color** on the glasses: `FlexBoxBackground={NONE,CARD}`,
+  `TextColor={PRIMARY,SECONDARY}`, `CornerRadius={NONE,SMALL,MEDIUM}`. Icons come
+  from the fixed `IconName` enum (incl. `CARET_UP`/`CARET_DOWN`). Images require an
+  **HTTPS URL** (unsuitable for a live ~2 Hz readout). Drives D-03.
+- **KMP read seam (verified):** `SessionController.timingRunSnapshot():
+  TimingRunSnapshot` already exposes all five MR-02 readouts + delta + sectors + GPS
+  quality as platform-free types; the Drive UI is already poll-based. Bridge should
+  **poll the single hoisted `SessionController` on its own ~2 Hz loop** (D-06) — zero
+  engine changes, clean-room boundary holds. Keep the snapshot→HUD mapper **pure**
+  so it stays host-testable (`:shared:testAndroidHostTest`); DAT lifecycle/captouch
+  tests are **instrumented** (`connectedAndroidTest`, Android-only SDK).
 
 ### Established Patterns
 - KMP shared domain + Compose Multiplatform UI, platform-native services behind a
