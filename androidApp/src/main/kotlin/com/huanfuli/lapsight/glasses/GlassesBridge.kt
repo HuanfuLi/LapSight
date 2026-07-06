@@ -2,6 +2,7 @@ package com.huanfuli.lapsight.glasses
 
 import android.util.Log
 import androidx.annotation.GuardedBy
+import com.huanfuli.lapsight.glasses.hud.HudRenderer
 import com.huanfuli.lapsight.shared.GpsFixStatus
 import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
 import com.huanfuli.lapsight.shared.glasses.GlassesDeviceSummary
@@ -20,7 +21,6 @@ import com.meta.wearable.dat.display.Display
 import com.meta.wearable.dat.display.addDisplay
 import com.meta.wearable.dat.display.removeDisplay
 import com.meta.wearable.dat.display.types.DisplayState
-import com.meta.wearable.dat.display.views.TextStyle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -261,10 +261,9 @@ class GlassesBridge(
 
     /**
      * One render beat (D-06): poll [SessionController.timingRunSnapshot], build
-     * the pure [HudModel], and push it — a MINIMAL single-line placeholder here
-     * (the real 3-page renderer is 07-04's slice). Frame-dedupe (D-06
-     * discretion) skips `sendContent` for a byte-identical model to bound BLE
-     * traffic (RESEARCH Pitfall 3).
+     * the pure [HudModel], and push the full 3-page HUD renderer. Frame-dedupe
+     * (D-06 discretion) skips `sendContent` for a byte-identical model to bound
+     * BLE traffic (RESEARCH Pitfall 3).
      */
     private suspend fun pushFrame(display: Display) {
         val run = sessionController.timingRunSnapshot()
@@ -279,9 +278,7 @@ class GlassesBridge(
         if (model == lastSentModel) return
 
         display.sendContent {
-            flexBox {
-                text(model.clockText, style = TextStyle.HEADING)
-            }
+            HudRenderer.render(this, model)
         }.onFailure { error, _ -> Log.e(TAG, "sendContent failed: ${error.description}") }
 
         lastSentModel = model
