@@ -33,7 +33,7 @@ The user can mount a phone, record a session, and see trustworthy live lap timin
 - Public-road racing or speed competition features — unsafe and legally sensitive; position the app for closed courses, tracks, karting facilities, and training contexts.
 - Cloud accounts, leaderboards, and social sharing — not needed to validate the core timing product.
 - Native watch app — useful later, but not required for the phone companion MVP.
-- Meta glasses app — later integration target; phone companion comes first.
+- Meta DAT Display bridge — later integration target; phone companion comes first.
 - Racing-grade timing guarantee — phone GPS is not precise enough for pro-grade timing; v1 should be honest about accuracy and support future external GNSS.
 - Direct GPL code reuse from DovesLapTimer or DovesDataViewer — useful references, but GPL-licensed code must not be copied into a non-GPL product without an explicit licensing decision.
 
@@ -58,7 +58,7 @@ The current recommended app stack is Kotlin Multiplatform plus Compose Multiplat
 - **Licensing**: Avoid copying GPL code unless the whole app is intentionally GPL-compatible.
 - **Architecture**: The lap engine must be independent of UI and platform APIs so it can be tested with replay files and reused by future glasses bridge code.
 - **Offline-first**: Session recording and review must work without network access.
-- **MR path**: Future glasses integration should consume summarized timing state from the phone, not duplicate the full lap engine inside the glasses web app.
+- **MR path**: Future glasses integration should consume summarized timing state from the phone, not duplicate the full lap engine inside the glasses display layer.
 
 ## Key Decisions
 

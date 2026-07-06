@@ -401,7 +401,7 @@ Plans:
 
 **Requirements:** Validate the implemented PLAT, GPS, LAP, SESS, GHOST, SAFE, ARCH, and Phase 5 course-profile requirements. No new feature scope unless required to fix validation blockers.
 
-**Plans:** 6/8 plans executed
+**Plans:** 8/8 plans complete
 
 Plans:
 
@@ -422,11 +422,11 @@ Plans:
 
 **Wave 4** *(after Wave 3; manual evidence, gated per D-54)*
 
-- [ ] 05.1-07-PLAN.md - On-device + mounted-display UAT + five closed-course sessions + replay verification
+- [x] 05.1-07-PLAN.md - On-device + mounted-display UAT + five closed-course sessions + replay verification
 
 **Wave 5** *(after Wave 4)*
 
-- [ ] 05.1-08-PLAN.md - Go / Hardening Required / No-Go decision (5.1-GO-NOGO.md)
+- [x] 05.1-08-PLAN.md - Go / Hardening Required / No-Go decision (5.1-GO-NOGO.md)
 
 **Success Criteria:**
 
@@ -435,7 +435,7 @@ Plans:
 3. On-device UAT verifies Android and iOS smoke paths plus at least three complete real-world walking, cycling, or closed-course sessions with preserved replay/debug evidence.
 4. Mounted-phone display UAT confirms the live dash is readable in portrait/landscape, sunlight/low light, and moving-use conditions without requiring complex interaction while moving.
 5. UI audit passes a 6-pillar review with all pillars scoring at least 3/4 and no blocking issues in domain fit, hierarchy, state clarity, motion safety, responsiveness, or accessibility.
-6. Field-test logs compare lap count and lap timing against manual or reference observations, and a documented Go/No-Go decision is made before Phase 6 starts.
+6. Field-test logs compare lap count and lap timing against manual or reference observations, and a documented Go/No-Go decision is made before any post-5.1 peripheral phase starts.
 7. Phase 6 and Phase 7 remain blocked until all P0/P1 validation defects are fixed or explicitly deferred with rationale.
 
 **Implementation Notes:**
@@ -451,6 +451,7 @@ Plans:
 
 **Goal:** As a user who needs better timing precision, I want to connect an external GPS receiver, so that LapSight can exceed phone GPS limitations.
 **Mode:** mvp
+**Status:** Deferred until suitable external GNSS hardware is available for real-device validation.
 
 **Requirements:** EXT-01, EXT-02, EXT-03
 
@@ -461,28 +462,41 @@ Plans:
 3. Lap engine works unchanged regardless of phone GPS vs external GNSS input.
 4. UI exposes source quality and warns when timing precision is limited.
 
-## Milestone 3: MR Display Extension
+**Implementation Notes:**
 
-### Phase 7: Phone-to-Glasses Timing Bridge
+- Do not mark Phase 6 complete from simulator-only work; the point of this phase is validating a real external GNSS input path.
+- Keep the existing `LocationSampleProvider` boundary as the ingestion seam so Phase 7 can consume the same phone-owned timing state regardless of whether samples come from phone GPS now or external GNSS later.
+- Phase 6 may be planned or spiked without hardware, but completion requires at least one supported receiver and on-device validation.
 
-**Goal:** As a Meta Display Glasses user, I want a passive HUD fed by the phone app, so that I can see lap timing without looking down at the phone.
+## Milestone 3: Meta DAT Display Extension
+
+### Phase 7: Phone-to-Glasses DAT Display Bridge
+
+**Goal:** As a Meta Display Glasses user, I want a passive DAT Display HUD fed by the phone app, so that I can see lap timing without looking down at the phone.
 **Mode:** mvp
 
 **Requirements:** MR-01, MR-02, MR-03
 
 **Success Criteria:**
 
-1. Phone app exposes a minimal live timing state stream.
-2. Glasses web app consumes current lap, last lap, best lap, speed, and delta.
-3. Glasses HUD remains passive and readable on a 600x600 display.
+1. Phone app exposes a minimal live timing state stream derived from the existing lap engine/session controller.
+2. Android app uses Meta Wearables DAT `mwdat-display` to render current lap, last lap, best lap, speed, and delta on display-capable glasses.
+3. Glasses HUD remains passive and readable on a 600x600 display with no complex interaction while driving/riding.
 4. Phone app remains the source of truth for GPS, storage, and lap logic.
+
+**Implementation Notes:**
+
+- Phase 7 may start before Phase 6 because it consumes phone-owned timing state, not raw external sensor samples.
+- Use the locally cloned Meta Wearables DAT Android SDK references and the DisplayAccess sample as canonical implementation references.
+- Validate with real Meta Display Glasses when available; MockDeviceKit remains useful for automated lifecycle, permission, and disconnection scenarios.
+- Do not duplicate GPS acquisition, lap detection, storage, or ghost-delta logic inside the glasses display layer.
 
 ## Open Decisions
 
 1. Confirm final app license before importing or adapting any external code.
 2. Decide whether Phase 1 should build both Android and iOS immediately or use Android-first for the location spike.
 3. Decide whether Compose Multiplatform UI is acceptable on iOS after a real-device prototype.
-4. Decide first supported external GNSS transport after phone GPS MVP validation.
+4. Decide first supported external GNSS transport when Phase 6 resumes with suitable hardware available.
 
 ## Backlog
 

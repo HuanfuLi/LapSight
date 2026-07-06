@@ -33,4 +33,4 @@ node_modules/
 *.log
 *.xlsx
 *.xls
-/Screenshots/
+/Debug/

@@ -70,8 +70,8 @@
 
 ### Meta Glasses Bridge
 
-- **MR-01**: Phone app exposes live timing state to a Meta Display Glasses web app.
-- **MR-02**: Glasses HUD can show current lap, last lap, best lap, speed, and delta.
+- **MR-01**: Phone app exposes live timing state to a Meta Wearables DAT Display bridge.
+- **MR-02**: Meta Display Glasses HUD can show current lap, last lap, best lap, speed, and delta.
 - **MR-03**: Glasses HUD remains passive and does not require interaction while driving/riding.
 
 ### Advanced Review
@@ -88,7 +88,7 @@
 | Cloud sync and accounts | Not needed to validate core lap timing. |
 | Social leaderboards | Increases moderation and abuse scope without proving core value. |
 | Native watch app | Useful later; phone companion is the first product. |
-| Glasses app in v1 | The phone app must exist first as the data owner. |
+| Glasses integration in v1 | The phone app must exist first as the data owner. |
 | Copying GPL code | Avoid license contamination unless the project intentionally adopts GPL. |
 
 ## Traceability

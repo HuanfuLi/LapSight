@@ -3,20 +3,20 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed quick task 260702-vn1 (unified Track detail course map)
-last_updated: "2026-07-03T02:53:32.581Z"
+stopped_at: Phase 6 deferred; Phase 7 DAT Display bridge selected for planning
+last_updated: "2026-07-06T05:00:00.000Z"
 progress:
   total_phases: 8
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 37
-  completed_plans: 35
-  percent: 66
+  completed_plans: 37
+  percent: 75
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5.1 execution in progress. Plans 05.1-01, 05.1-02, 05.1-03, 05.1-04, 05.1-05, and 05.1-06 complete. Quick tasks 260629-wwd, 260702-uju, and 260702-vn1 fixed the field-test Ready blocker, Track editor usability/data-refresh blockers, and the duplicate Track detail map regression. Track detail now uses one beautified circuit map; `Edit course` switches that same map into editable mode instead of rendering a second trace. Remaining: Plan 07 (manual field UAT, gated per D-54), Plan 08 (Go/No-Go). Code-audit evidence layer for the Go gate = PASS.
+**Current Status:** Phase 5.1 complete. Plans 05.1-01 through 05.1-08 are complete, with the final `5.1-GO-NOGO.md` decision recorded as **Go — Android phone MVP validated for post-5.1 peripheral planning**. Latest device validation installed and launched the debug APK on `56031FDCH005PL` / Pixel 10 Pro (`lastUpdateTime=2026-07-06 04:20:11`), with `:shared:testAndroidHostTest`, `:androidApp:assembleDebug`, and launch smoke passing. The Android field-UAT gate is accepted by the product owner; iOS real-device UAT remains an explicit unvalidated risk. Phase 6 external GNSS is deferred because no suitable receiver is currently available for validation; Phase 7 is the selected next phase because real Meta Display Glasses are available for testing.
 
 ## Project Reference
 
@@ -26,23 +26,25 @@ See: `.planning/PROJECT.md`
 
 ## Current Focus
 
-**Interphase hardening — after Phase 5, before Phase 5.1**
+**Phase 7 readiness — DAT Display bridge after Phase 5.1**
 
-Phase 5 course-profile work is implemented. A post-execution Android hardening pass fixed
-blocking usability issues in Drive, Review, recovery, theme handling, telemetry replay,
-and Android Phone GPS provider wiring.
+Phase 5.1 froze feature expansion, hardened the mounted-phone Android MVP, and
+closed the validation gate with an Android-phone Go decision. The phone app
+remains the source of truth for GPS, sessions, lap engine state, and future HUD
+outputs.
 
-Next step: resume Plan 07 field UAT on the installed Android build. Confirm a Phone GPS
-feed around 0.9-1.0 Hz no longer blocks Ready with `low GPS rate`, then re-test
-Track detail/editor gestures: single beautified Trace map, in-place `Edit course`,
-start/finish dragging, sector-boundary dragging, revision save refresh, and
-duplicate-profile editability.
+Next step: start Phase 7 planning for an Android-first Meta Wearables DAT
+Display bridge. Phase 6 external GNSS remains deferred until suitable hardware
+is available; do not mark Phase 6 complete from simulator-only work. Phase 7
+must consume the existing phone-owned timing state and must not duplicate GPS,
+lap detection, session storage, or ghost-delta logic in the glasses display
+layer.
 
 ## Working Assumptions
 
 - Project is greenfield.
 - Repository: `https://github.com/HuanfuLi/LapSight.git`
-- Phone companion app comes before Meta glasses integration.
+- Phone companion app remains the source of truth before and during Meta glasses integration.
 - Kotlin Multiplatform + Compose Multiplatform is the current preferred stack.
 - Lap engine must be clean-room and testable.
 - Open-source references are research inputs, not direct copy sources.
@@ -51,10 +53,11 @@ duplicate-profile editability.
 
 ## Next Command Candidates
 
-- UAT Android Phone GPS on an unlocked device outdoors and save one real marking/session.
-- Review or commit the Android Phone GPS provider changes.
-- Start `.planning/phases/05.1-mvp-field-validation-and-hardening-gate/` when ready.
-- Complete Phase 5 milestone summary if a formal archive is needed.
+- Start Phase 7: Phone-to-Glasses DAT Display Bridge.
+- Preserve the Android phone source-of-truth boundary; the DAT Display layer must consume summarized timing state from the existing timing pipeline.
+- Keep Phase 6 deferred until external GNSS hardware is available for real-device validation.
+- Keep iOS real-device UAT tracked as an explicit platform risk.
+- Commit the Phase 5.1 completion docs and current workspace changes when ready.
 
 ## Review Checklist
 
@@ -72,8 +75,9 @@ duplicate-profile editability.
 - [x] Phase 5 planned (14 plans).
 - [x] Phase 5 executed (14/14 plans complete).
 - [x] Phase 5 Android hardening UAT completed before Phase 5.1.
+- [x] Phase 5.1 Android phone MVP validation gate complete.
 - [x] Android Fused Location Provider wired into shared `LocationSampleProvider`.
-- [ ] Android real GPS outdoor field sample captured and reviewed.
+- [x] Android real GPS outdoor field sample captured and reviewed by owner acceptance.
 
 ## Phase 3 Completion Summary
 
@@ -142,6 +146,7 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Code audit complete (Plan 05.1-04): `5.1-CODE-REVIEW.md` is the deep severity-tagged audit of every Phase 1-5 core path. Verdict: core-path P0/P1/P2 CLEAR for the Go gate (D-42) — zero open findings; the confirmed source-provenance P1 (AppShell.kt) is verified fixed by Plan 03; 4 P3/info backlog items (Okio-in-I/O-seam is not an ARCH-01 breach, belt-and-suspenders `..` replacement, optional first-run safety gate, undecided app license). Clean-room boundary verified (engine imports zero Compose/platform; Okio only in storage/export I/O), engine pure (no Random/clock in `lap/`), no network/analytics in `commonMain`, no `doves`/`gpl` in `shared/src`, export-filename path traversal mitigated + tested, bad-input-as-data confirmed, manual orientation confirmed. `docs/THIRD-PARTY-LICENSES.md` delivers the owed ARCH-03 inventory (all deps Apache-2.0 except proprietary Play Services Location + test-only JUnit; none GPL) + ARCH-04 clean-room attestation + local-GPS privacy note. The app's own license remains an open product decision (tracked risk, not a core-timing blocker). REQUIREMENTS.md reconciled: PLAT-01, SAFE-03, ARCH-01/03/04 marked complete; PLAT-02 correctly pending (iOS out of scope, D-02).
 - Quick task 260702-uju hardened Track editor after field feedback: start/finish and sector boundaries now drag by relative course progress instead of repeated nearest-point taps; the circuit illustration uses thicker outer/inner strokes and larger handles; Review refreshes after profile mutations; duplicated V2-only profiles stay editable. Verification: focused editor/profile tests, full `:shared:testAndroidHostTest`, and `:androidApp:assembleDebug` passed.
 - Quick task 260702-vn1 fixed the Track detail duplicate-map regression: the original `Trace` now uses the shared beautified circuit canvas, and `Edit course` switches that same map into edit mode in place. Verification: `:shared:testAndroidHostTest`, `:androidApp:assembleDebug`, `:androidApp:installDebug`, and ADB launch on device `25053RT47C` passed.
+- Phase 6 external GNSS is deferred until suitable hardware is available for real-device validation. Phase 7 is allowed to proceed first because the user has real Meta Display Glasses available, and the glasses bridge consumes summarized phone-owned timing state rather than owning GPS, lap detection, storage, or ghost logic.
 
 ## Performance Metrics
 
@@ -167,9 +172,9 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 ## Session Continuity
 
 **Last session:** 2026-07-03T02:53:32.581Z
-**Stopped At:** Completed quick task 260702-vn1 (unified Track detail course map)
-**Resume File:** `.planning/quick/260702-vn1-unify-track-detail-trace-and-edit-course/260702-vn1-SUMMARY.md`
+**Stopped At:** Phase 6 deferred; Phase 7 DAT Display bridge selected for planning
+**Resume File:** `.planning/STATE.md`
 
 ---
 
-*Last updated: 2026-07-03 after quick task 260702-vn1 (unified Track detail course map)*
+*Last updated: 2026-07-06 after Phase 6 defer / Phase 7 DAT Display bridge planning pivot*
