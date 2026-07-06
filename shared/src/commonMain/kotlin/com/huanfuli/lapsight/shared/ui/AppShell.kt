@@ -256,10 +256,15 @@ fun AppShell(
             }
         },
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
+        val contentModifier = if (driveFullscreen) {
+            Modifier.fillMaxSize()
+        } else {
+            Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+        }
+        Box(
+            modifier = contentModifier,
         ) {
             when (tab) {
                 AppTab.Drive -> DriveScreen(

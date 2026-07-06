@@ -194,6 +194,34 @@ class CourseProfileIntegrationTest {
         )
     }
 
+    @Test
+    fun requireReadyStartAllowsLowRateAndPoorAccuracyWarnings() {
+        val track = saveSelectedReplayProfile(direction = CourseDirection.Recorded)
+        val controller = controller()
+        val nearCourse = point(eastMeters = 0.0, northMeters = 0.0)
+        val latest = LocationSample(
+            elapsedMillis = 20_000L,
+            latitude = nearCourse.latitude,
+            longitude = nearCourse.longitude,
+            horizontalAccuracyMeters = 120.0,
+            speedMetersPerSecond = 0.0,
+            headingDegrees = null,
+            altitudeMeters = null,
+            source = LocationSource.PhoneGps,
+        )
+
+        val result = controller.startTiming(
+            trackId = track.id,
+            latestGps = latest,
+            preflightNowElapsedMillis = latest.elapsedMillis,
+            recentRateHz = 0.2,
+            requireReady = true,
+        )
+
+        assertIs<StartTimingResult.Started>(result)
+        assertNotNull(controller.recorderForTest(), "warning-quality GPS must not block Start Timing")
+    }
+
     private fun controller(): SessionController = SessionController(
         store = store,
         appMetadata = app,

@@ -220,7 +220,7 @@ object ReviewSummaries {
  * @param viewHeight      target canvas height.
  * @param padding         fraction of smaller dimension reserved as padding.
  */
-fun buildTrackTraceLayers(
+fun buildTrackTrace(
     markingSamples: List<LocationSampleDto>,
     referenceLine: TrackReferenceLine?,
     startFinish: StartFinishLineDto?,
@@ -229,7 +229,7 @@ fun buildTrackTraceLayers(
     viewWidth: Double,
     viewHeight: Double,
     padding: Double = 0.05,
-): List<TraceLayer> {
+): ProjectedTrace {
     // Collect all geo-point layers needed for projection.
     val markingDtos = markingSamples.map { GeoPointDto(it.latitude, it.longitude) }
     val refDtos = referenceLine?.points ?: emptyList()
@@ -252,9 +252,13 @@ fun buildTrackTraceLayers(
         lineDtos.ifEmpty { null },
     )
 
-    if (allLayerDtos.isEmpty()) return emptyList()
+    if (allLayerDtos.isEmpty()) return ProjectedTrace(emptyList(), null)
 
-    val projected = TraceProjection.project(allLayerDtos, viewWidth, viewHeight, padding)
+    // Build the viewport explicitly (instead of the one-way TraceProjection.project)
+    // so it can be returned for live-position projection into the same space.
+    val viewport = TraceViewport.fromLayers(allLayerDtos, viewWidth, viewHeight, padding)
+    val projected = viewport?.let { vp -> allLayerDtos.map { vp.projectLayer(it) } }
+        ?: allLayerDtos.map { emptyList() }
 
     fun layer(
         name: String,
@@ -262,7 +266,8 @@ fun buildTrackTraceLayers(
         strokeWidth: Float,
         dashed: Boolean,
         points: List<TracePoint>,
-    ): TraceLayer = TraceLayer(name = name, points = points, role = role, strokeWidth = strokeWidth, dashed = dashed)
+        closed: Boolean = false,
+    ): TraceLayer = TraceLayer(name = name, points = points, role = role, strokeWidth = strokeWidth, dashed = dashed, closed = closed)
 
     val layers = mutableListOf<TraceLayer>()
     var idx = 0
@@ -273,9 +278,9 @@ fun buildTrackTraceLayers(
         idx++
     }
 
-    // Layer 2: Reference line (highlighted baseline)
+    // Layer 2: Reference line (highlighted baseline) — a closed circuit loop.
     if (refDtos.isNotEmpty()) {
-        layers += layer("Reference line", TraceRole.Reference, 3f, false, projected[idx])
+        layers += layer("Reference line", TraceRole.Reference, 3f, false, projected[idx], closed = true)
         idx++
     }
 
@@ -308,8 +313,34 @@ fun buildTrackTraceLayers(
         idx++
     }
 
-    return layers
+    return ProjectedTrace(layers, viewport)
 }
+
+/**
+ * A projected course map: the render [layers] plus the [viewport] that placed
+ * them. Exposing the viewport lets callers project a live "you are here"
+ * position into the identical normalized space (see the UI `courseMarker`
+ * helper), so the marker stays pinned to the drawn course across the shared
+ * canvas frame. [viewport] is null for empty/degenerate input.
+ */
+data class ProjectedTrace(
+    val layers: List<TraceLayer>,
+    val viewport: TraceViewport?,
+)
+
+/** Layers-only convenience over [buildTrackTrace] for callers that don't need the viewport. */
+fun buildTrackTraceLayers(
+    markingSamples: List<LocationSampleDto>,
+    referenceLine: TrackReferenceLine?,
+    startFinish: StartFinishLineDto?,
+    sectors: List<SectorLineDto>,
+    outlierSamples: List<LocationSampleDto>,
+    viewWidth: Double,
+    viewHeight: Double,
+    padding: Double = 0.05,
+): List<TraceLayer> = buildTrackTrace(
+    markingSamples, referenceLine, startFinish, sectors, outlierSamples, viewWidth, viewHeight, padding,
+).layers
 
 /**
  * Build trace layers for the Timing Session Review offline vector trace (D-36).
@@ -332,7 +363,7 @@ fun buildTrackTraceLayers(
  * @param viewHeight           target canvas height.
  * @param padding              fraction of smaller dimension reserved as padding.
  */
-fun buildTimingTraceLayers(
+fun buildTimingTrace(
     referenceLinePoints: List<GeoPointDto>,
     sessionSamples: List<LocationSampleDto>,
     startFinish: StartFinishLineDto?,
@@ -342,7 +373,7 @@ fun buildTimingTraceLayers(
     viewWidth: Double,
     viewHeight: Double,
     padding: Double = 0.05,
-): List<TraceLayer> {
+): ProjectedTrace {
     val sessionDtos = sessionSamples.map { GeoPointDto(it.latitude, it.longitude) }
     val lineDtos: List<GeoPointDto> = buildList {
         if (startFinish != null) {
@@ -369,9 +400,13 @@ fun buildTimingTraceLayers(
         highlightDtos.ifEmpty { null },
     )
 
-    if (allLayerDtos.isEmpty()) return emptyList()
+    if (allLayerDtos.isEmpty()) return ProjectedTrace(emptyList(), null)
 
-    val projected = TraceProjection.project(allLayerDtos, viewWidth, viewHeight, padding)
+    // Build the viewport explicitly (instead of the one-way TraceProjection.project)
+    // so it can be returned for live-position projection into the same space.
+    val viewport = TraceViewport.fromLayers(allLayerDtos, viewWidth, viewHeight, padding)
+    val projected = viewport?.let { vp -> allLayerDtos.map { vp.projectLayer(it) } }
+        ?: allLayerDtos.map { emptyList() }
 
     fun layer(
         name: String,
@@ -379,14 +414,15 @@ fun buildTimingTraceLayers(
         strokeWidth: Float,
         dashed: Boolean,
         points: List<TracePoint>,
-    ): TraceLayer = TraceLayer(name = name, points = points, role = role, strokeWidth = strokeWidth, dashed = dashed)
+        closed: Boolean = false,
+    ): TraceLayer = TraceLayer(name = name, points = points, role = role, strokeWidth = strokeWidth, dashed = dashed, closed = closed)
 
     val layers = mutableListOf<TraceLayer>()
     var idx = 0
 
-    // Layer 1: Reference line baseline
+    // Layer 1: Reference line baseline — a closed circuit loop.
     if (referenceLinePoints.isNotEmpty()) {
-        layers += layer("Reference baseline", TraceRole.Reference, 3f, false, projected[idx])
+        layers += layer("Reference baseline", TraceRole.Reference, 3f, false, projected[idx], closed = true)
         idx++
     }
 
@@ -425,5 +461,21 @@ fun buildTimingTraceLayers(
         idx++
     }
 
-    return layers
+    return ProjectedTrace(layers, viewport)
 }
+
+/** Layers-only convenience over [buildTimingTrace] for callers that don't need the viewport. */
+fun buildTimingTraceLayers(
+    referenceLinePoints: List<GeoPointDto>,
+    sessionSamples: List<LocationSampleDto>,
+    startFinish: StartFinishLineDto?,
+    sectors: List<SectorLineDto>,
+    selectedLapStartMillis: Long?,
+    selectedLapEndMillis: Long?,
+    viewWidth: Double,
+    viewHeight: Double,
+    padding: Double = 0.05,
+): List<TraceLayer> = buildTimingTrace(
+    referenceLinePoints, sessionSamples, startFinish, sectors,
+    selectedLapStartMillis, selectedLapEndMillis, viewWidth, viewHeight, padding,
+).layers

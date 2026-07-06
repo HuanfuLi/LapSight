@@ -1,6 +1,7 @@
 package com.huanfuli.lapsight.shared.ui
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.Color
@@ -100,6 +101,13 @@ val StopActionIcon: ImageVector by lazy {
 }
 
 val RotateScreenIcon: ImageVector get() = Icons.Filled.ScreenRotation
+
+/**
+ * Live "you are here" heading arrow for the marking / timing course maps. Uses
+ * `material-icons-extended`'s navigation glyph — the recognizable map location
+ * pointer — so the live indicator matches the platform's own maps vocabulary.
+ */
+val LocationMarkerIcon: ImageVector get() = Icons.Filled.Navigation
 
 /** Chevron back for detail screens (core icon set omits ArrowBack's style match). */
 val BackIcon: ImageVector by lazy {

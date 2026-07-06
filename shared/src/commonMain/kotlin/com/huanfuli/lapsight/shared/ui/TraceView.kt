@@ -7,16 +7,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.VectorPainter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.review.TraceLayer
 import com.huanfuli.lapsight.shared.review.TracePoint
 import com.huanfuli.lapsight.shared.review.TraceRole
+import com.huanfuli.lapsight.shared.review.TraceViewport
+import com.huanfuli.lapsight.shared.session.GeoPointDto
+import kotlin.math.atan2
+import kotlin.math.hypot
 
 /**
  * Offline vector trace renderer (SESS-03, D-33 through D-36).
@@ -34,6 +46,9 @@ import com.huanfuli.lapsight.shared.review.TraceRole
  * @param maxHeight  the maximum height of the trace area in dp.
  * @param fillParent when true, fill all space the parent grants (e.g. a
  *                   `weight(1f)` pane) instead of the fixed height chain.
+ * @param positionMarker optional live "you are here" indicator drawn on top of
+ *                   the trace (marking/timing). Its points are in the same
+ *                   normalized space as [layers].
  */
 @Composable
 fun TraceView(
@@ -42,11 +57,21 @@ fun TraceView(
     minHeight: Dp = 200.dp,
     maxHeight: Dp = 320.dp,
     fillParent: Boolean = false,
+    positionMarker: TracePositionMarker? = null,
 ) {
     if (layers.isEmpty()) return
 
     val density = LocalDensity.current
     val height = if (maxHeight < minHeight) minHeight else maxHeight
+
+    // Live-position marker resources resolved up front — DrawScope is not composable.
+    val markerPainter = rememberVectorPainter(LocationMarkerIcon)
+    val markerDiscColor = LapSightTheme.colors.statusReady
+    val markerRingColor = LapSightTheme.colors.dashBackground
+    val markerArrowTint = LapSightTheme.colors.dashBackground
+    val markerDiscRadiusPx = with(density) { 9.dp.toPx() }
+    val markerRingWidthPx = with(density) { 1.5.dp.toPx() }
+    val markerArrowSizePx = with(density) { 15.dp.toPx() }
 
     BoxWithConstraints(
         modifier = if (fillParent) {
@@ -55,7 +80,7 @@ fun TraceView(
             modifier
                 .fillMaxWidth()
                 .height(height)
-        },
+        }.clipToBounds(),
     ) {
         val canvasWidth = this.maxWidth
         val boundedHeight = this.maxHeight
@@ -74,7 +99,8 @@ fun TraceView(
 
         Canvas(
             modifier = Modifier
-                .fillMaxSize(),
+                .fillMaxSize()
+                .clipToBounds(),
         ) {
             for (layer in layers) {
                 if (layer.points.size < 2) continue
@@ -82,20 +108,40 @@ fun TraceView(
                 val color = roleColors.getValue(layer.role)
                 val strokePx = with(density) { layer.strokeWidth.dp.toPx() }
 
+                // A closed circuit repeats the first point so the closing segment
+                // draws — otherwise a loop shows a gap at start/finish (D-34).
+                val canvasPoints = layer.points.map { frame.toCanvas(it) }
+                val drawPoints =
+                    if (layer.closed) canvasPoints + canvasPoints.first() else canvasPoints
+
                 if (layer.dashed) {
                     drawTracePath(
-                        points = layer.points.map { frame.toCanvas(it) },
+                        points = drawPoints,
                         color = color,
                         strokeWidth = strokePx,
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f),
                     )
                 } else {
                     drawTraceLines(
-                        points = layer.points.map { frame.toCanvas(it) },
+                        points = drawPoints,
                         color = color,
                         strokeWidth = strokePx,
                     )
                 }
+            }
+
+            positionMarker?.let { marker ->
+                drawPositionMarker(
+                    center = frame.toCanvas(marker.current),
+                    headingFrom = marker.previous?.let { frame.toCanvas(it) },
+                    painter = markerPainter,
+                    discColor = markerDiscColor,
+                    ringColor = markerRingColor,
+                    arrowTint = markerArrowTint,
+                    discRadiusPx = markerDiscRadiusPx,
+                    ringWidthPx = markerRingWidthPx,
+                    arrowSizePx = markerArrowSizePx,
+                )
             }
         }
     }
@@ -173,6 +219,94 @@ internal class TraceCanvasFrame(
     /** Canvas pixel y → normalized view-box y (inverse of [toCanvas]). */
     fun toNormalizedY(py: Float): Double =
         if (scale > 0f) ((py - offsetY) / scale).toDouble() else 0.0
+}
+
+/**
+ * A live "you are here" indicator for the marking / timing course maps.
+ *
+ * [current] is the driver's latest projected position; [previous] is a slightly
+ * older position that fixes the heading (arrow points [previous]→[current]).
+ * Both are in the SAME normalized space as the trace layers, so they map through
+ * the shared [TraceCanvasFrame] and stay pinned to the drawn course. A null
+ * [previous] (or one coincident with [current]) draws the arrow pointing up.
+ */
+data class TracePositionMarker(
+    val current: TracePoint,
+    val previous: TracePoint? = null,
+)
+
+/**
+ * Build a live position marker for a course map from the [viewport] that placed
+ * it (see [com.huanfuli.lapsight.shared.review.ProjectedTrace]). [current] is
+ * the live fix; [previous] is an earlier fix that fixes the on-screen heading
+ * (null → the arrow points up). Both are projected through the same viewport as
+ * the map's layers, so the marker lands in their normalized space and stays
+ * pinned to the drawn course.
+ *
+ * This is the reusable seam for the marking pane, the pre-timing preview, and
+ * future selectable live-timing panels: build a `ProjectedTrace`, then pass its
+ * `viewport` here with the current/previous GPS fixes.
+ */
+fun courseMarker(
+    viewport: TraceViewport?,
+    current: GeoPointDto?,
+    previous: GeoPointDto? = null,
+): TracePositionMarker? {
+    val vp = viewport ?: return null
+    val cur = current ?: return null
+    val currentPoint = vp.geoToNormalized(cur)
+    if (!currentPoint.isWithinTraceBounds()) return null
+    return TracePositionMarker(
+        current = currentPoint,
+        previous = previous
+            ?.let { vp.geoToNormalized(it) }
+            ?.takeIf { it.isWithinTraceBounds() },
+    )
+}
+
+private fun TracePoint.isWithinTraceBounds(): Boolean =
+    x.isFinite() && y.isFinite() && x in 0.0..1.0 && y in 0.0..1.0
+
+/**
+ * Draw the live position marker: a filled disc with a ring for legibility over
+ * any trace color, and a navigation arrowhead rotated to the travel heading.
+ */
+private fun DrawScope.drawPositionMarker(
+    center: Offset,
+    headingFrom: Offset?,
+    painter: VectorPainter,
+    discColor: Color,
+    ringColor: Color,
+    arrowTint: Color,
+    discRadiusPx: Float,
+    ringWidthPx: Float,
+    arrowSizePx: Float,
+) {
+    drawCircle(color = discColor, radius = discRadiusPx, center = center)
+    drawCircle(color = ringColor, radius = discRadiusPx, center = center, style = Stroke(width = ringWidthPx))
+
+    // The Navigation glyph points up (−Y) by default; rotate it onto the travel
+    // vector. Heading is computed in canvas pixels so per-axis frame scaling is
+    // already baked in.
+    val degrees = if (headingFrom != null) {
+        val dx = center.x - headingFrom.x
+        val dy = center.y - headingFrom.y
+        if (hypot(dx, dy) > 1e-3f) {
+            (atan2(dx.toDouble(), -dy.toDouble()) * 180.0 / kotlin.math.PI).toFloat()
+        } else {
+            0f
+        }
+    } else {
+        0f
+    }
+
+    rotate(degrees = degrees, pivot = center) {
+        translate(left = center.x - arrowSizePx / 2f, top = center.y - arrowSizePx / 2f) {
+            with(painter) {
+                draw(size = Size(arrowSizePx, arrowSizePx), colorFilter = ColorFilter.tint(arrowTint))
+            }
+        }
+    }
 }
 
 /** Resolves a [TraceRole] to the active theme's canvas palette. */

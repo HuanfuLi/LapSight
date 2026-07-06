@@ -112,6 +112,11 @@ data class LapSightColors(
     val chartGrid: Color,
     val chartAxisLabel: Color,
     val dashBackground: Color,
+    val lapFocusNeutralBackground: Color,
+    val lapFocusFasterBackground: Color,
+    val lapFocusSlowerBackground: Color,
+    val lapFocusFastestBackground: Color,
+    val onLapFocusBackground: Color,
     val cardBorder: Color,
     // Explicit disabled tokens: Material's default 38%-alpha disabled content is
     // illegible on the near-black theme, so disabled controls read through these.
@@ -139,6 +144,11 @@ val lapSightDarkExtendedColors = LapSightColors(
     chartGrid = Color(0xFF24303D),
     chartAxisLabel = Color(0xFF9AA8B8),
     dashBackground = Color(0xFF05070A),
+    lapFocusNeutralBackground = Color(0xFF05070A),
+    lapFocusFasterBackground = Color(0xFF007A3D),
+    lapFocusSlowerBackground = Color(0xFFB3262E),
+    lapFocusFastestBackground = Color(0xFF5B21B6),
+    onLapFocusBackground = Color(0xFFFFFFFF),
     cardBorder = Color(0xFF24303D),
     disabledContent = Color(0xFF64748B),
     disabledContainer = Color(0xFF16202C),
@@ -164,6 +174,11 @@ val lapSightLightExtendedColors = LapSightColors(
     chartGrid = Color(0xFFCBD5E1),
     chartAxisLabel = Color(0xFF516173),
     dashBackground = Color(0xFFF5F8FB),
+    lapFocusNeutralBackground = Color(0xFF111820),
+    lapFocusFasterBackground = Color(0xFF008F46),
+    lapFocusSlowerBackground = Color(0xFFC62832),
+    lapFocusFastestBackground = Color(0xFF6D28D9),
+    onLapFocusBackground = Color(0xFFFFFFFF),
     cardBorder = Color(0xFFCBD5E1),
     disabledContent = Color(0xFF8B99AB),
     disabledContainer = Color(0xFFE8EDF3),
@@ -259,6 +274,12 @@ object LapSightAutoSize {
     val deltaMin = 22.sp
     val deltaMax = 44.sp
     val deltaMaxCompact = 32.sp
+    val lapFocusTimeMin = 48.sp
+    val lapFocusTimeMax = 128.sp
+    val lapFocusTimeMaxCompact = 104.sp
+    val lapFocusDeltaMin = 32.sp
+    val lapFocusDeltaMax = 72.sp
+    val lapFocusDeltaMaxCompact = 56.sp
 
     // Single-line control labels (buttons, segments): shrink before clipping
     // under long labels or large system font scale.

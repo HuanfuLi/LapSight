@@ -18,6 +18,9 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
 
+# Local secrets / environment
+.env
+
 # Local validation and device-capture artifacts
 /.planning/evidence/
 /captures/

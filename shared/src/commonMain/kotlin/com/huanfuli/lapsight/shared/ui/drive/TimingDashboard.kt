@@ -1,5 +1,6 @@
 package com.huanfuli.lapsight.shared.ui.drive
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +14,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -32,13 +36,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.ui.LapSightAutoSize
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
-import com.huanfuli.lapsight.shared.LocationFeedMode
 import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.ghost.DeltaDisplayState
 import com.huanfuli.lapsight.shared.ghost.DeltaTone
@@ -68,39 +73,61 @@ internal fun TimingRunSurface(
     orientation: DashOrientation,
     isLandscapeWindow: Boolean,
     displaySettings: DriveDisplaySettings,
-    locationFeedMode: LocationFeedMode,
     onToggleOrientation: () -> Unit,
     onStopTiming: () -> Unit,
     isCompactLandscape: Boolean,
     padding: Dp,
 ) {
-    var displayMillis by remember(timingRun.isActive) { mutableStateOf(0L) }
-    var lastLapMillisSeen by remember(timingRun.isActive) { mutableStateOf<Long?>(null) }
-    var lastUpdateEpoch by remember(timingRun.isActive) { mutableStateOf(nowEpochMillis()) }
     var speedHistory by remember(timingRun.isActive) { mutableStateOf(emptyList<Float>()) }
+    var bestLapBeforeLatestCompletion by remember(timingRun.isActive) { mutableStateOf<Long?>(null) }
+    var lastCelebratedLapCount by remember(timingRun.isActive) { mutableStateOf(0) }
+    var fastestLapFlashInitialized by remember(timingRun.isActive) { mutableStateOf(false) }
+    var fastestLapFlash by remember(timingRun.isActive) { mutableStateOf<FastestLapFlash?>(null) }
 
-    LaunchedEffect(timingRun.currentLapMillis) {
-        if (timingRun.isActive) {
-            val base = timingRun.currentLapMillis ?: 0L
-            displayMillis = base
-            lastLapMillisSeen = base
-            lastUpdateEpoch = nowEpochMillis()
-        } else {
-            displayMillis = 0L
-            lastLapMillisSeen = null
+    LaunchedEffect(
+        timingRun.isActive,
+        timingRun.lapCount,
+        timingRun.lastLapMillis,
+        timingRun.bestLapMillis,
+    ) {
+        if (!timingRun.isActive) {
+            bestLapBeforeLatestCompletion = null
+            lastCelebratedLapCount = 0
+            fastestLapFlashInitialized = false
+            fastestLapFlash = null
+            return@LaunchedEffect
         }
-    }
+        if (!fastestLapFlashInitialized) {
+            bestLapBeforeLatestCompletion = timingRun.bestLapMillis
+            lastCelebratedLapCount = timingRun.lapCount
+            fastestLapFlashInitialized = true
+            return@LaunchedEffect
+        }
 
-    LaunchedEffect(timingRun.isActive) {
-        while (timingRun.isActive) {
-            delay(16)
-            if (lastLapMillisSeen != null) {
-                val now = nowEpochMillis()
-                val delta = now - lastUpdateEpoch
-                if (delta >= 0) {
-                    displayMillis = lastLapMillisSeen!! + delta
-                }
+        val completedLapMillis = timingRun.lastLapMillis
+        val completedNewLap =
+            completedLapMillis != null && timingRun.lapCount > lastCelebratedLapCount
+        val previousBest = bestLapBeforeLatestCompletion
+        if (completedNewLap && (previousBest == null || completedLapMillis < previousBest)) {
+            val improvementText = previousBest
+                ?.let { DeltaDisplayState.fromDeltaMillis(completedLapMillis - it).text }
+                ?: "NEW BEST"
+            fastestLapFlash = FastestLapFlash(
+                lapCount = timingRun.lapCount,
+                lapMillis = completedLapMillis,
+                improvementText = improvementText,
+            )
+            lastCelebratedLapCount = timingRun.lapCount
+            bestLapBeforeLatestCompletion = timingRun.bestLapMillis
+            delay(1_500)
+            if (fastestLapFlash?.lapCount == timingRun.lapCount) {
+                fastestLapFlash = null
             }
+        } else {
+            if (completedNewLap) {
+                lastCelebratedLapCount = timingRun.lapCount
+            }
+            bestLapBeforeLatestCompletion = timingRun.bestLapMillis
         }
     }
 
@@ -127,12 +154,7 @@ internal fun TimingRunSurface(
     } else {
         "--"
     }
-    val sourceLabel = when (locationFeedMode) {
-        LocationFeedMode.PhoneGps -> "PHONE"
-        LocationFeedMode.Simulated -> "SIM"
-    }
     val metrics = buildList {
-        add(TelemetryMetric("SOURCE", sourceLabel))
         add(TelemetryMetric("LAST", timingRun.lastLapMillis.formatLapTime()))
         add(TelemetryMetric("BEST", timingRun.bestLapMillis.formatLapTime()))
         add(TelemetryMetric("REFERENCE", timingRun.referenceLapMillis.formatLapTime()))
@@ -172,12 +194,97 @@ internal fun TimingRunSurface(
         }
     }
 
-    val spacing = LapSightTheme.spacing
     // The dash surface drops to the deepest background: instrument mode.
     val dashModifier = Modifier
         .fillMaxSize()
         .background(LapSightTheme.colors.dashBackground)
+        .safeContentPadding()
         .padding(padding)
+    val pagerState = rememberPagerState(pageCount = { TimingPanelPageCount })
+    val clockUpdateIntervalMillis =
+        if (pagerState.isScrollInProgress) ClockUpdateIntervalWhilePagingMillis else ClockUpdateIntervalMillis
+
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxSize(),
+    ) { page ->
+        when (page) {
+            TimingPanelTelemetry -> TelemetryTimingPanel(
+                isLandscapeWindow = isLandscapeWindow,
+                dashModifier = dashModifier,
+                timingRun = timingRun,
+                speedLabel = speedLabel,
+                speedUnit = speedUnit,
+                displaySettings = displaySettings,
+                speedHistory = speedHistory,
+                metrics = metrics,
+                clockUpdateIntervalMillis = clockUpdateIntervalMillis,
+                orientation = orientation,
+                onToggleOrientation = onToggleOrientation,
+                onStopTiming = onStopTiming,
+            )
+            TimingPanelLapFocusDark -> LapFocusPanel(
+                style = LapFocusStyle.Dark,
+                timingRun = timingRun,
+                fastestLapFlash = fastestLapFlash,
+                clockUpdateIntervalMillis = clockUpdateIntervalMillis,
+                orientation = orientation,
+                onToggleOrientation = onToggleOrientation,
+                onStopTiming = onStopTiming,
+                isLandscapeWindow = isLandscapeWindow,
+                isCompactLandscape = isCompactLandscape,
+                padding = padding,
+            )
+            TimingPanelLapFocusColor -> LapFocusPanel(
+                style = LapFocusStyle.ColorFlood,
+                timingRun = timingRun,
+                fastestLapFlash = fastestLapFlash,
+                clockUpdateIntervalMillis = clockUpdateIntervalMillis,
+                orientation = orientation,
+                onToggleOrientation = onToggleOrientation,
+                onStopTiming = onStopTiming,
+                isLandscapeWindow = isLandscapeWindow,
+                isCompactLandscape = isCompactLandscape,
+                padding = padding,
+            )
+        }
+    }
+}
+
+private const val TimingPanelTelemetry = 0
+private const val TimingPanelLapFocusDark = 1
+private const val TimingPanelLapFocusColor = 2
+private const val TimingPanelPageCount = 3
+private const val ClockUpdateIntervalMillis = 50L
+private const val ClockUpdateIntervalWhilePagingMillis = 100L
+
+private data class FastestLapFlash(
+    val lapCount: Int,
+    val lapMillis: Long,
+    val improvementText: String,
+)
+
+private enum class LapFocusStyle {
+    Dark,
+    ColorFlood,
+}
+
+@Composable
+private fun TelemetryTimingPanel(
+    isLandscapeWindow: Boolean,
+    dashModifier: Modifier,
+    timingRun: TimingRunSnapshot,
+    speedLabel: String,
+    speedUnit: String,
+    displaySettings: DriveDisplaySettings,
+    speedHistory: List<Float>,
+    metrics: List<TelemetryMetric>,
+    clockUpdateIntervalMillis: Long,
+    orientation: DashOrientation,
+    onToggleOrientation: () -> Unit,
+    onStopTiming: () -> Unit,
+) {
+    val spacing = LapSightTheme.spacing
     // Layout follows the ACTUAL window shape, not the requested lock: on
     // platforms where the lock is a no-op (iOS NoOpOrientationController) the
     // toggle state and the real window can disagree, and a portrait column
@@ -192,11 +299,11 @@ internal fun TimingRunSurface(
                 verticalArrangement = Arrangement.spacedBy(spacing.sm),
             ) {
                 PrimaryTimingReadouts(
-                    displayMillis = displayMillis,
                     timingRun = timingRun,
                     speedLabel = speedLabel,
                     speedUnit = speedUnit,
                     compact = true,
+                    clockUpdateIntervalMillis = clockUpdateIntervalMillis,
                 )
                 if (displaySettings.showSpeedTrace) {
                     SpeedTrace(
@@ -224,11 +331,11 @@ internal fun TimingRunSurface(
             verticalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             PrimaryTimingReadouts(
-                displayMillis = displayMillis,
                 timingRun = timingRun,
                 speedLabel = speedLabel,
                 speedUnit = speedUnit,
                 compact = false,
+                clockUpdateIntervalMillis = clockUpdateIntervalMillis,
             )
             if (displaySettings.showSpeedTrace) {
                 SpeedTrace(
@@ -250,6 +357,169 @@ internal fun TimingRunSurface(
     }
 }
 
+@Composable
+private fun LapFocusPanel(
+    style: LapFocusStyle,
+    timingRun: TimingRunSnapshot,
+    fastestLapFlash: FastestLapFlash?,
+    clockUpdateIntervalMillis: Long,
+    orientation: DashOrientation,
+    onToggleOrientation: () -> Unit,
+    onStopTiming: () -> Unit,
+    isLandscapeWindow: Boolean,
+    isCompactLandscape: Boolean,
+    padding: Dp,
+) {
+    val colors = LapSightTheme.colors
+    val targetBackground = when {
+        fastestLapFlash != null -> colors.lapFocusFastestBackground
+        style == LapFocusStyle.Dark -> colors.dashBackground
+        timingRun.deltaDisplay.tone == DeltaTone.Faster -> colors.lapFocusFasterBackground
+        timingRun.deltaDisplay.tone == DeltaTone.Slower -> colors.lapFocusSlowerBackground
+        else -> colors.lapFocusNeutralBackground
+    }
+    val background by animateColorAsState(targetValue = targetBackground)
+    val flooded = style == LapFocusStyle.ColorFlood || fastestLapFlash != null
+    val primaryColor =
+        if (flooded) colors.onLapFocusBackground else MaterialTheme.colorScheme.primary
+    val secondaryColor =
+        if (flooded) colors.onLapFocusBackground.copy(alpha = 0.78f) else MaterialTheme.colorScheme.onSurfaceVariant
+    val deltaColor =
+        if (flooded) colors.onLapFocusBackground else timingRun.deltaDisplay.tone.toDeltaColor()
+    val heroLabel = if (fastestLapFlash != null) {
+        "FASTEST LAP"
+    } else {
+        timingRun.currentLapNumber?.let { "LAP $it" } ?: "LAP"
+    }
+    val deltaLabel = if (fastestLapFlash != null) "GAIN" else "DELTA"
+    val deltaText = fastestLapFlash?.improvementText ?: timingRun.deltaDisplay.text
+    val compact = isLandscapeWindow && isCompactLandscape
+    val spacing = LapSightTheme.spacing
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(background)
+            .safeContentPadding()
+            .padding(padding)
+            .padding(spacing.md),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(spacing.sm),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = heroLabel,
+                color = secondaryColor,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+            )
+            Text(
+                text = timingRun.bestLapMillis.formatLapTime(),
+                color = secondaryColor,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(spacing.lg),
+            ) {
+                val heroMaxFontSize = if (compact) {
+                    LapSightAutoSize.lapFocusTimeMaxCompact
+                } else {
+                    LapSightAutoSize.lapFocusTimeMax
+                }
+                if (fastestLapFlash != null) {
+                    StaticLapTimeText(
+                        millis = fastestLapFlash.lapMillis,
+                        color = primaryColor,
+                        textAlign = TextAlign.Center,
+                        minFontSize = LapSightAutoSize.lapFocusTimeMin,
+                        maxFontSize = heroMaxFontSize,
+                        style = MaterialTheme.typography.displayLarge.copy(fontFamily = LapSightTheme.monoFamily),
+                    )
+                } else {
+                    RunningLapTimeText(
+                        currentLapMillis = timingRun.currentLapMillis,
+                        isActive = timingRun.isActive,
+                        updateIntervalMillis = clockUpdateIntervalMillis,
+                        color = primaryColor,
+                        textAlign = TextAlign.Center,
+                        minFontSize = LapSightAutoSize.lapFocusTimeMin,
+                        maxFontSize = heroMaxFontSize,
+                        style = MaterialTheme.typography.displayLarge.copy(fontFamily = LapSightTheme.monoFamily),
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = deltaLabel,
+                        color = secondaryColor,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = deltaText,
+                        color = deltaColor,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        softWrap = false,
+                        autoSize = TextAutoSize.StepBased(
+                            minFontSize = LapSightAutoSize.lapFocusDeltaMin,
+                            maxFontSize = if (compact) {
+                                LapSightAutoSize.lapFocusDeltaMaxCompact
+                            } else {
+                                LapSightAutoSize.lapFocusDeltaMax
+                            },
+                            stepSize = LapSightAutoSize.step,
+                        ),
+                        style = MaterialTheme.typography.displayMedium.copy(fontFamily = LapSightTheme.monoFamily),
+                    )
+                }
+            }
+        }
+        LapFocusPageIndicator(
+            pageIndex = if (style == LapFocusStyle.Dark) TimingPanelLapFocusDark else TimingPanelLapFocusColor,
+            color = secondaryColor,
+        )
+        TimingControls(
+            orientation = orientation,
+            onToggleOrientation = onToggleOrientation,
+            onStopTiming = onStopTiming,
+        )
+    }
+}
+
+@Composable
+private fun LapFocusPageIndicator(
+    pageIndex: Int,
+    color: Color,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(LapSightTheme.spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(TimingPanelPageCount) { index ->
+            Box(
+                modifier = Modifier
+                    .size(if (index == pageIndex) 8.dp else 6.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(color.copy(alpha = if (index == pageIndex) 0.92f else 0.34f)),
+            )
+        }
+    }
+}
+
 private data class TelemetryMetric(
     val label: String,
     val value: String,
@@ -257,12 +527,84 @@ private data class TelemetryMetric(
 )
 
 @Composable
+private fun RunningLapTimeText(
+    currentLapMillis: Long?,
+    isActive: Boolean,
+    updateIntervalMillis: Long,
+    color: Color,
+    textAlign: TextAlign,
+    minFontSize: TextUnit,
+    maxFontSize: TextUnit,
+    style: TextStyle,
+) {
+    var displayMillis by remember(isActive) { mutableStateOf(0L) }
+    var baseMillis by remember(isActive) { mutableStateOf<Long?>(null) }
+    var baseEpochMillis by remember(isActive) { mutableStateOf(nowEpochMillis()) }
+
+    LaunchedEffect(isActive, currentLapMillis) {
+        if (isActive) {
+            val base = currentLapMillis ?: 0L
+            displayMillis = base
+            baseMillis = base
+            baseEpochMillis = nowEpochMillis()
+        } else {
+            displayMillis = 0L
+            baseMillis = null
+        }
+    }
+
+    LaunchedEffect(isActive, updateIntervalMillis) {
+        while (isActive) {
+            delay(updateIntervalMillis.coerceAtLeast(16L))
+            val base = baseMillis ?: continue
+            val delta = nowEpochMillis() - baseEpochMillis
+            if (delta >= 0) {
+                displayMillis = base + delta
+            }
+        }
+    }
+
+    StaticLapTimeText(
+        millis = displayMillis,
+        color = color,
+        textAlign = textAlign,
+        minFontSize = minFontSize,
+        maxFontSize = maxFontSize,
+        style = style,
+    )
+}
+
+@Composable
+private fun StaticLapTimeText(
+    millis: Long,
+    color: Color,
+    textAlign: TextAlign,
+    minFontSize: TextUnit,
+    maxFontSize: TextUnit,
+    style: TextStyle,
+) {
+    Text(
+        text = millis.formatLapTime(),
+        color = color,
+        textAlign = textAlign,
+        maxLines = 1,
+        softWrap = false,
+        autoSize = TextAutoSize.StepBased(
+            minFontSize = minFontSize,
+            maxFontSize = maxFontSize,
+            stepSize = LapSightAutoSize.step,
+        ),
+        style = style,
+    )
+}
+
+@Composable
 private fun PrimaryTimingReadouts(
-    displayMillis: Long,
     timingRun: TimingRunSnapshot,
     speedLabel: String,
     speedUnit: String,
     compact: Boolean,
+    clockUpdateIntervalMillis: Long,
 ) {
     val spacing = LapSightTheme.spacing
     val mono = LapSightTheme.monoFamily
@@ -274,16 +616,14 @@ private fun PrimaryTimingReadouts(
         )
         // Glance-safe hero readout (D-31): the display role anchors the type and
         // autoSize shrinks to fit the viewport so long lap times never clip.
-        Text(
-            text = displayMillis.formatLapTime(),
+        RunningLapTimeText(
+            currentLapMillis = timingRun.currentLapMillis,
+            isActive = timingRun.isActive,
+            updateIntervalMillis = clockUpdateIntervalMillis,
             color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = TextAutoSize.StepBased(
-                minFontSize = LapSightAutoSize.heroMin,
-                maxFontSize = if (compact) LapSightAutoSize.heroMaxCompact else LapSightAutoSize.heroMax,
-                stepSize = LapSightAutoSize.step,
-            ),
+            textAlign = TextAlign.Start,
+            minFontSize = LapSightAutoSize.heroMin,
+            maxFontSize = if (compact) LapSightAutoSize.heroMaxCompact else LapSightAutoSize.heroMax,
             style = MaterialTheme.typography.displayLarge.copy(fontFamily = mono),
         )
         Row(
@@ -454,11 +794,13 @@ private fun TimingControls(
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Timing-active controls keep the 56dp floor (04-UI-SPEC).
+        // Timing-active controls need a gloved-use target; Stop gets the larger
+        // footprint because it is the critical moving-state action.
         Button(
             onClick = onStopTiming,
-            modifier = Modifier.weight(1f).height(56.dp),
+            modifier = Modifier.weight(1.35f).height(76.dp),
             shape = MaterialTheme.shapes.medium,
             contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(
@@ -469,12 +811,12 @@ private fun TimingControls(
             Icon(
                 imageVector = StopActionIcon,
                 contentDescription = "Stop timing",
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(34.dp),
             )
         }
         Button(
             onClick = onToggleOrientation,
-            modifier = Modifier.weight(1f).height(56.dp),
+            modifier = Modifier.weight(0.65f).height(64.dp),
             shape = MaterialTheme.shapes.medium,
             contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(
@@ -486,7 +828,7 @@ private fun TimingControls(
                 imageVector = RotateScreenIcon,
                 contentDescription =
                     if (orientation == DashOrientation.Portrait) "Switch to landscape" else "Switch to portrait",
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(30.dp),
             )
         }
     }

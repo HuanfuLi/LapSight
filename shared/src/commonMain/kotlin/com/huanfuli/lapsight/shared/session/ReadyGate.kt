@@ -178,3 +178,51 @@ fun aggregateReady(
 
     return if (reasons.isEmpty()) ReadyState.Ready else ReadyState.NotReady(reasons)
 }
+
+/**
+ * Production Start button gate. This is intentionally less strict than
+ * [aggregateReady]: a low update rate, poor horizontal accuracy, stale-ish fix,
+ * or unavailable course-distance preflight are quality warnings, not reasons to
+ * trap the user before timing can start.
+ *
+ * The hard blockers are limited to conditions that make starting impossible or
+ * clearly unsafe as data: no usable fix, no selected/confirmed course, direction
+ * incompatibility, or a trustworthy wrong-course block.
+ */
+fun aggregateStartReady(
+    latest: LocationSample?,
+    selection: CurrentProfileResolution,
+    startFinishConfirmed: Boolean,
+    directionCompatible: Boolean,
+    preflight: CoursePreflightResult,
+): ReadyState {
+    val reasons = mutableListOf<ReadyBlocker>()
+
+    if (latest == null) {
+        reasons += ReadyBlocker.MissingFix
+    } else if (!latest.latitude.isFinite() ||
+        !latest.longitude.isFinite() ||
+        latest.latitude !in -90.0..90.0 ||
+        latest.longitude !in -180.0..180.0
+    ) {
+        reasons += ReadyBlocker.NonFiniteFix
+    }
+
+    if (selection !is CurrentProfileResolution.Selected) {
+        reasons += ReadyBlocker.NoCourseSelected
+    }
+
+    if (!startFinishConfirmed) {
+        reasons += ReadyBlocker.StartFinishUnconfirmed
+    }
+
+    if (!directionCompatible) {
+        reasons += ReadyBlocker.DirectionIncompatible
+    }
+
+    if (preflight is CoursePreflightResult.Blocked) {
+        reasons += ReadyBlocker.WrongCourseBlocked
+    }
+
+    return if (reasons.isEmpty()) ReadyState.Ready else ReadyState.NotReady(reasons)
+}

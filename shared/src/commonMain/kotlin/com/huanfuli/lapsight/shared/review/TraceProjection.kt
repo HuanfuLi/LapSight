@@ -50,6 +50,13 @@ enum class TraceRole {
  * A named set of render-only trace points with a semantic [role], stroke, and
  * dash style. Layering order is caller-managed; Canvas renders background
  * layers first.
+ *
+ * [closed] marks a layer whose last point connects back to the first — a track
+ * reference loop, whose closing segment is implicit in [points] (matching the
+ * domain [com.huanfuli.lapsight.shared.track.ClosedReferencePath]). Open traces
+ * (raw marking/session driving lines, start/finish and sector segments) leave it
+ * false. Renderers draw the closing segment only when this is set, so a circuit
+ * reads as closed instead of showing a gap at start/finish.
  */
 data class TraceLayer(
     val name: String,
@@ -57,6 +64,7 @@ data class TraceLayer(
     val role: TraceRole,
     val strokeWidth: Float,
     val dashed: Boolean = false,
+    val closed: Boolean = false,
 )
 
 /**

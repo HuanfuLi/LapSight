@@ -135,16 +135,12 @@ class SessionController(
                 message = WRONG_COURSE_BLOCKED_COPY,
             )
         }
-        // D-13/D-14: production callers gate formal timing on the conservative
-        // aggregate Ready decision. The wrong-course Blocked/override path above is
-        // preserved (D-18); this gate covers the remaining seven Ready inputs plus a
-        // preflight that is Unavailable. A run started while not Ready is invalid as
-        // evidence, so the user is offered raw recording instead (D-16).
+        // Production Start uses the UX gate, not the stricter field-UAT quality
+        // gate: low GPS rate, poor accuracy, and unavailable course-distance checks
+        // are surfaced as warnings, but they must not trap the user before timing.
         if (requireReady) {
-            val readyState = aggregateReady(
+            val readyState = aggregateStartReady(
                 latest = latestGps,
-                nowElapsedMillis = preflightNowElapsedMillis,
-                recentRateHz = recentRateHz,
                 selection = TrackProfileController(store).resolveCurrent(),
                 startFinishConfirmed = true,
                 directionCompatible = true,

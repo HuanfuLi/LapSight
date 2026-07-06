@@ -99,6 +99,20 @@ class ReadyGateTest {
         preflight = preflight,
     )
 
+    private fun startReady(
+        latest: LocationSample? = goodFix,
+        selection: CurrentProfileResolution = selectedProfile(),
+        startFinishConfirmed: Boolean = true,
+        directionCompatible: Boolean = true,
+        preflight: CoursePreflightResult = readyPreflight,
+    ): ReadyState = aggregateStartReady(
+        latest = latest,
+        selection = selection,
+        startFinishConfirmed = startFinishConfirmed,
+        directionCompatible = directionCompatible,
+        preflight = preflight,
+    )
+
     private fun soleReason(state: ReadyState): ReadyBlocker {
         val notReady = assertIs<ReadyState.NotReady>(state)
         assertEquals(1, notReady.reasons.size, "expected exactly one blocker, got ${notReady.reasons}")
@@ -110,6 +124,49 @@ class ReadyGateTest {
     @Test
     fun allInputsSatisfiedIsReady() {
         assertIs<ReadyState.Ready>(ready())
+    }
+
+    @Test
+    fun startGateTreatsPoorAccuracyAndUnavailablePreflightAsWarnings() {
+        val unavailable = CoursePreflightResult.Unavailable(
+            CoursePreflightUnavailableReason.PoorAccuracy,
+        )
+
+        val state = startReady(
+            latest = goodFix.copy(horizontalAccuracyMeters = 120.0),
+            preflight = unavailable,
+        )
+
+        assertIs<ReadyState.Ready>(state)
+    }
+
+    @Test
+    fun startGateStillBlocksMissingFix() {
+        assertEquals(
+            ReadyBlocker.MissingFix,
+            soleReason(
+                startReady(
+                    latest = null,
+                    preflight = CoursePreflightResult.Unavailable(
+                        CoursePreflightUnavailableReason.MissingFix,
+                    ),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun startGateStillBlocksWrongCoursePreflight() {
+        val blocked = CoursePreflightResult.Blocked(
+            distanceMeters = 500.0,
+            conservativeDistanceMeters = 450.0,
+            thresholdMeters = 250.0,
+        )
+
+        assertEquals(
+            ReadyBlocker.WrongCourseBlocked,
+            soleReason(startReady(preflight = blocked)),
+        )
     }
 
     // --- One test per ReadyBlocker ---------------------------------------------
