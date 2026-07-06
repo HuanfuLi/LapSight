@@ -446,9 +446,25 @@ private fun MarkingMetricsRow(
 /** Distance a fix must travel before the heading arrow re-aims (anti-jitter). */
 private const val HEADING_ANCHOR_METERS = 3.0
 
-/** Live-dot smoothing ticker period (~16 fps) and its bounded forward lead. */
-private const val LIVE_SMOOTHING_FRAME_MILLIS = 60L
-private const val LIVE_SMOOTHING_MAX_LEAD_MILLIS = 400L
+/** Live-dot smoothing ticker period (~30 fps) and its bounded forward lead. */
+private const val LIVE_SMOOTHING_FRAME_MILLIS = 33L
+
+/**
+ * Forward lead must cover a whole ~1 Hz fix interval, or the dot glides for the
+ * covered stretch and then freezes until the next fix. The predictor's own
+ * 1500 ms cap remains the hard runaway bound for stale fixes.
+ */
+private const val LIVE_SMOOTHING_MAX_LEAD_MILLIS = 1_200L
+
+/** Re-sync correction is eased over this window instead of snapping the dot. */
+private const val LIVE_SMOOTHING_BLEND_MILLIS = 180L
+
+/** Mutable scratch that survives recomposition without triggering it. */
+private class LiveSmoothingScratch {
+    var lastShown: GeoPointDto? = null
+    var blendFrom: GeoPointDto? = null
+    var blendStartMillis = 0L
+}
 
 /**
  * Smooths the live "you are here" dot between the receiver's ~1 Hz fixes.
@@ -456,9 +472,11 @@ private const val LIVE_SMOOTHING_MAX_LEAD_MILLIS = 400L
  * Phone GNSS solves a position about once a second, so the raw dot teleports.
  * This drives [LiveTrackPredictor] off a lightweight ticker: between fixes it
  * projects the dot forward along the last segment's velocity, re-syncing on every
- * real fix. Forward lead is bounded (here and by the predictor's own cap) so a
- * stale fix can never let the dot run away. Returns the raw fix until a second
- * fix establishes a velocity, and null before the first fix.
+ * real fix. The re-sync itself is blended from the last drawn point over
+ * [LIVE_SMOOTHING_BLEND_MILLIS] so the correction never reads as a jump. Forward
+ * lead is bounded (here and by the predictor's own cap) so a stale fix can never
+ * let the dot run away. Returns the raw fix until a second fix establishes a
+ * velocity, and null before the first fix.
  */
 @Composable
 private fun rememberSmoothedLivePosition(
@@ -468,6 +486,7 @@ private fun rememberSmoothedLivePosition(
     var previous by remember(key) { mutableStateOf<LocationSample?>(null) }
     var latest by remember(key) { mutableStateOf<LocationSample?>(null) }
     var latestArrivalMillis by remember(key) { mutableStateOf(0L) }
+    val scratch = remember(key) { LiveSmoothingScratch() }
 
     // Monotonic wall-clock ticker so the dot glides between fixes without waiting
     // for a new fix to trigger recomposition.
@@ -484,6 +503,9 @@ private fun rememberSmoothedLivePosition(
             previous = latest
             latest = fix
             latestArrivalMillis = nowMillis
+            // Ease from wherever the dot is currently drawn to the new track.
+            scratch.blendFrom = scratch.lastShown
+            scratch.blendStartMillis = nowMillis
         }
     }
 
@@ -496,7 +518,20 @@ private fun rememberSmoothedLivePosition(
         latest = currentLatest,
         atElapsedMillis = currentLatest.elapsedMillis + sinceArrival,
     )
-    return GeoPointDto(predicted.latitude, predicted.longitude)
+    val target = GeoPointDto(predicted.latitude, predicted.longitude)
+    val blendFrom = scratch.blendFrom
+    val blendT = (nowMillis - scratch.blendStartMillis).toDouble() / LIVE_SMOOTHING_BLEND_MILLIS
+    val shown = if (blendFrom != null && blendT < 1.0) {
+        val t = blendT.coerceAtLeast(0.0)
+        GeoPointDto(
+            latitude = blendFrom.latitude + (target.latitude - blendFrom.latitude) * t,
+            longitude = blendFrom.longitude + (target.longitude - blendFrom.longitude) * t,
+        )
+    } else {
+        target
+    }
+    scratch.lastShown = shown
+    return shown
 }
 
 /** Rough planar distance between two fixes; ample for a few-meter heading gate. */
