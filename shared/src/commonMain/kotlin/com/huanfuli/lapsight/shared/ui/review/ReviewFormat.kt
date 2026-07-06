@@ -1,16 +1,20 @@
 // Directory: ui/review — package stays `shared.ui` (see ReviewScreen.kt note).
 package com.huanfuli.lapsight.shared.ui
 
+import com.huanfuli.lapsight.shared.localUtcOffsetMinutesAt
+
 /**
- * Formats epoch millis as a simple `YYYY-MM-DD HH:MM` UTC label without
- * platform date dependencies (Kotlin Multiplatform common code).
+ * Formats epoch millis as a simple `YYYY-MM-DD HH:MM` label in the user's
+ * current system time zone.
  */
-internal fun formatEpochMillis(epochMillis: Long): String {
-    val secondsTotal = epochMillis / 1000
-    // Minimal UTC breakdown; sufficient for review display without java.time.
-    val daysTotal = secondsTotal / 86_400
+internal fun formatEpochMillis(epochMillis: Long): String =
+    formatEpochMillisWithUtcOffset(epochMillis, localUtcOffsetMinutesAt(epochMillis))
+
+internal fun formatEpochMillisWithUtcOffset(epochMillis: Long, utcOffsetMinutes: Int): String {
+    val secondsTotal = floorDiv(epochMillis, 1000L) + utcOffsetMinutes * 60L
+    val daysTotal = floorDiv(secondsTotal, 86_400L)
     val (y, m, d) = gregorianFromEpochDays(daysTotal)
-    val secsOfDay = secondsTotal % 86_400
+    val secsOfDay = floorMod(secondsTotal, 86_400L)
     val hh = (secsOfDay / 3600).toString().padStart(2, '0')
     val mm = ((secsOfDay % 3600) / 60).toString().padStart(2, '0')
     val dd = d.toString().padStart(2, '0')
@@ -22,6 +26,15 @@ internal fun formatOneDecimalReview(value: Double): String {
     val scaled = (value * 10.0).toInt()
     return "${scaled / 10}.${scaled % 10}"
 }
+
+private fun floorDiv(value: Long, divisor: Long): Long {
+    var quotient = value / divisor
+    if ((value xor divisor) < 0 && quotient * divisor != value) quotient -= 1
+    return quotient
+}
+
+private fun floorMod(value: Long, divisor: Long): Long =
+    value - floorDiv(value, divisor) * divisor
 
 private fun gregorianFromEpochDays(daysSinceEpoch: Long): Triple<Int, Int, Int> {
     // Howard Hinnant's civil-from-days algorithm (public domain).

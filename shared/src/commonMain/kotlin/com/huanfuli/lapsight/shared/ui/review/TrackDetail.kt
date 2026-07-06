@@ -225,8 +225,9 @@ private fun TrackCourseDetailSection(
         // starting a session. V1-only Tracks are promoted to V2 on demand.
         var selectMessage by remember(trackId) { mutableStateOf<String?>(null) }
         LapButton(
-            text = "Set as current track",
+            text = "Set current",
             onClick = { selectMessage = setAsCurrentTrack(sessionStore, trackId) },
+            icon = CheckActionIcon,
             modifier = Modifier.fillMaxWidth(),
         )
         selectMessage?.let { msg ->
@@ -236,8 +237,9 @@ private fun TrackCourseDetailSection(
             )
         }
         LapButton(
-            text = "Edit course",
+            text = "Edit",
             style = LapButtonStyle.Secondary,
+            icon = EditActionIcon,
             onClick = {
                 editing = true
                 message = null
@@ -313,8 +315,9 @@ private fun CourseEditControls(
         )
     } else if (!editor.startFinishConfirmed) {
         LapButton(
-            text = "Confirm start/finish",
+            text = "Confirm",
             style = LapButtonStyle.Secondary,
+            icon = CheckActionIcon,
             enabled = placed,
             onClick = { onEditorChanged(editor.confirmStartFinish()) },
         )
@@ -370,13 +373,17 @@ private fun CourseEditControls(
     Spacer(Modifier.height(spacing.xs))
     Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
         LapButton(
-            text = "Save revision",
+            text = "Save",
             enabled = editor.canSave,
+            icon = SaveActionIcon,
             onClick = { if (editor.canSave) onSave() },
         )
         LapButton(
             text = "Cancel",
             style = LapButtonStyle.Ghost,
+            icon = CloseActionIcon,
+            iconOnly = true,
+            contentDescription = "Cancel editing",
             onClick = onCancelEditing,
         )
     }

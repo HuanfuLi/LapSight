@@ -30,13 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
-import com.huanfuli.lapsight.shared.export.ExportArtifact
-import com.huanfuli.lapsight.shared.export.ExportFailedException
-import com.huanfuli.lapsight.shared.export.ExportFileNames
-import com.huanfuli.lapsight.shared.export.ExportNotFoundException
-import com.huanfuli.lapsight.shared.export.ExportShareResult
 import com.huanfuli.lapsight.shared.export.ExportShareTarget
-import com.huanfuli.lapsight.shared.export.JsonExportService
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.ui.components.ChipTone
@@ -63,6 +57,7 @@ internal fun ReviewDetailScreen(
     onBack: () -> Unit,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     var actionMessage by remember(row.id) { mutableStateOf<String?>(null) }
 
     Column(
@@ -80,20 +75,20 @@ internal fun ReviewDetailScreen(
             IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
                 Icon(
                     imageVector = BackIcon,
-                    contentDescription = "Back",
+                    contentDescription = s.close,
                     tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = row.displayTitle(),
+                    text = row.displayTitle(s),
                     color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${row.typeLabel} · ${formatEpochMillis(row.createdAtEpochMillis)}",
+                    text = "${row.localizedTypeLabel(s)} · ${formatEpochMillis(row.createdAtEpochMillis)}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
@@ -167,6 +162,7 @@ private fun TrackActionsMenu(
     onMessage: (String?) -> Unit,
     onDataChanged: () -> Unit,
 ) {
+    val s = strings
     var menuOpen by remember { mutableStateOf(false) }
     var renameOpen by remember { mutableStateOf(false) }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
@@ -176,20 +172,22 @@ private fun TrackActionsMenu(
         IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = MoreActionsIcon,
-                contentDescription = "Track actions",
+                contentDescription = s.edit,
                 tint = MaterialTheme.colorScheme.onSurface,
             )
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(
-                text = { Text("Rename…") },
+                text = { Text(s.rename) },
+                leadingIcon = { Icon(EditActionIcon, contentDescription = null) },
                 onClick = {
                     menuOpen = false
                     renameOpen = true
                 },
             )
             DropdownMenuItem(
-                text = { Text("Duplicate") },
+                text = { Text(s.duplicate) },
+                leadingIcon = { Icon(DuplicateActionIcon, contentDescription = null) },
                 onClick = {
                     menuOpen = false
                     val msg = duplicateTrack(sessionStore, row.id)
@@ -198,14 +196,16 @@ private fun TrackActionsMenu(
                 },
             )
             DropdownMenuItem(
-                text = { Text("Archive…") },
+                text = { Text(s.archive) },
+                leadingIcon = { Icon(ArchiveActionIcon, contentDescription = null) },
                 onClick = {
                     menuOpen = false
                     archiveConfirmOpen = true
                 },
             )
             DropdownMenuItem(
-                text = { Text("Export JSON") },
+                text = { Text(s.exportJson) },
+                leadingIcon = { Icon(ExportActionIcon, contentDescription = null) },
                 onClick = {
                     menuOpen = false
                     onMessage(exportTrackJson(row, sessionStore, exportShareTarget))
@@ -216,21 +216,25 @@ private fun TrackActionsMenu(
 
     if (renameOpen) {
         LapDialog(
-            title = "Rename track",
+            title = s.rename,
             onDismissRequest = { renameOpen = false },
-            confirmText = "Rename",
+            confirmText = s.rename,
+            confirmIcon = EditActionIcon,
             onConfirm = {
                 renameOpen = false
                 val msg = renameTrack(sessionStore, row.id, renameValue)
                 onMessage(msg)
                 if (!msg.startsWith("Couldn't")) onDataChanged()
             },
-            dismissText = "Cancel",
+            dismissText = s.cancel,
+            dismissIcon = CloseActionIcon,
+            dismissIconOnly = true,
+            dismissContentDescription = s.cancel,
             content = {
                 OutlinedTextField(
                     value = renameValue,
                     onValueChange = { renameValue = it },
-                    label = { Text("Track name") },
+                    label = { Text(s.trackName) },
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
@@ -240,36 +244,21 @@ private fun TrackActionsMenu(
     }
     if (archiveConfirmOpen) {
         LapDialog(
-            title = "Archive track?",
+            title = s.archive,
             text = "It stays in history with every revision and session, but leaves track selection.",
             onDismissRequest = { archiveConfirmOpen = false },
-            confirmText = "Archive",
+            confirmText = s.archive,
+            confirmIcon = ArchiveActionIcon,
             onConfirm = {
                 archiveConfirmOpen = false
                 val msg = archiveTrack(sessionStore, row.id)
                 onMessage(msg)
                 if (!msg.startsWith("Couldn't")) onDataChanged()
             },
-            dismissText = "Cancel",
+            dismissText = s.cancel,
+            dismissIcon = CloseActionIcon,
+            dismissIconOnly = true,
+            dismissContentDescription = s.cancel,
         )
     }
-}
-
-/** Explicit-tap track export (D-40); returns the status line for the screen. */
-private fun exportTrackJson(
-    row: ReviewRowViewModel,
-    sessionStore: LocalSessionStore,
-    exportShareTarget: ExportShareTarget,
-): String? = try {
-    val bytes = JsonExportService(sessionStore).exportTrack(row.id)
-    val name = ExportFileNames.forTrack(row.name, row.createdAtEpochMillis)
-    when (exportShareTarget.share(ExportArtifact(name, "application/json", bytes))) {
-        is ExportShareResult.Shared, is ExportShareResult.Saved -> "Exported $name"
-        is ExportShareResult.Cancelled -> null
-        is ExportShareResult.Failed -> "Export failed. Check device storage and try again."
-    }
-} catch (e: ExportNotFoundException) {
-    "Export failed. Check device storage and try again."
-} catch (e: ExportFailedException) {
-    "Export failed. Check device storage and try again."
 }

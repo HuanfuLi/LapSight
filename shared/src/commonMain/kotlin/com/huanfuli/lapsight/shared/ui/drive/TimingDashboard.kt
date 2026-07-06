@@ -373,17 +373,18 @@ private fun LapFocusPanel(
     val colors = LapSightTheme.colors
     val targetBackground = when {
         fastestLapFlash != null -> colors.lapFocusFastestBackground
-        style == LapFocusStyle.Dark -> colors.dashBackground
+        style == LapFocusStyle.Dark -> colors.lapFocusNeutralBackground
         timingRun.deltaDisplay.tone == DeltaTone.Faster -> colors.lapFocusFasterBackground
         timingRun.deltaDisplay.tone == DeltaTone.Slower -> colors.lapFocusSlowerBackground
         else -> colors.lapFocusNeutralBackground
     }
     val background by animateColorAsState(targetValue = targetBackground)
     val flooded = style == LapFocusStyle.ColorFlood || fastestLapFlash != null
+    val focusBackground = flooded || style == LapFocusStyle.Dark
     val primaryColor =
-        if (flooded) colors.onLapFocusBackground else MaterialTheme.colorScheme.primary
+        if (focusBackground) colors.onLapFocusBackground else MaterialTheme.colorScheme.primary
     val secondaryColor =
-        if (flooded) colors.onLapFocusBackground.copy(alpha = 0.78f) else MaterialTheme.colorScheme.onSurfaceVariant
+        if (focusBackground) colors.onLapFocusBackground.copy(alpha = 0.78f) else MaterialTheme.colorScheme.onSurfaceVariant
     val deltaColor =
         if (flooded) colors.onLapFocusBackground else timingRun.deltaDisplay.tone.toDeltaColor()
     val heroLabel = if (fastestLapFlash != null) {
@@ -396,13 +397,101 @@ private fun LapFocusPanel(
     val compact = isLandscapeWindow && isCompactLandscape
     val spacing = LapSightTheme.spacing
 
+    val panelModifier = Modifier
+        .fillMaxSize()
+        .background(background)
+        .safeContentPadding()
+        .padding(padding)
+        .padding(spacing.md)
+    if (isLandscapeWindow) {
+        Column(
+            modifier = panelModifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = heroLabel,
+                    color = secondaryColor,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                )
+                Text(
+                    text = timingRun.bestLapMillis.formatLapTime(),
+                    color = secondaryColor,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(spacing.xl),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1.35f)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LapFocusTimeReadout(
+                        timingRun = timingRun,
+                        fastestLapFlash = fastestLapFlash,
+                        clockUpdateIntervalMillis = clockUpdateIntervalMillis,
+                        color = primaryColor,
+                        compact = compact,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(0.85f)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LapFocusDeltaReadout(
+                        label = deltaLabel,
+                        value = deltaText,
+                        labelColor = secondaryColor,
+                        valueColor = deltaColor,
+                        compact = compact,
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                LapFocusPageIndicator(
+                    pageIndex = if (style == LapFocusStyle.Dark) TimingPanelLapFocusDark else TimingPanelLapFocusColor,
+                    color = secondaryColor,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxWidth(if (isCompactLandscape) 0.44f else 0.34f),
+                ) {
+                    TimingControls(
+                        orientation = orientation,
+                        onToggleOrientation = onToggleOrientation,
+                        onStopTiming = onStopTiming,
+                    )
+                }
+            }
+        }
+        return
+    }
+
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(background)
-            .safeContentPadding()
-            .padding(padding)
-            .padding(spacing.md),
+        modifier = panelModifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
@@ -435,57 +524,20 @@ private fun LapFocusPanel(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(spacing.lg),
             ) {
-                val heroMaxFontSize = if (compact) {
-                    LapSightAutoSize.lapFocusTimeMaxCompact
-                } else {
-                    LapSightAutoSize.lapFocusTimeMax
-                }
-                if (fastestLapFlash != null) {
-                    StaticLapTimeText(
-                        millis = fastestLapFlash.lapMillis,
-                        color = primaryColor,
-                        textAlign = TextAlign.Center,
-                        minFontSize = LapSightAutoSize.lapFocusTimeMin,
-                        maxFontSize = heroMaxFontSize,
-                        style = MaterialTheme.typography.displayLarge.copy(fontFamily = LapSightTheme.monoFamily),
-                    )
-                } else {
-                    RunningLapTimeText(
-                        currentLapMillis = timingRun.currentLapMillis,
-                        isActive = timingRun.isActive,
-                        updateIntervalMillis = clockUpdateIntervalMillis,
-                        color = primaryColor,
-                        textAlign = TextAlign.Center,
-                        minFontSize = LapSightAutoSize.lapFocusTimeMin,
-                        maxFontSize = heroMaxFontSize,
-                        style = MaterialTheme.typography.displayLarge.copy(fontFamily = LapSightTheme.monoFamily),
-                    )
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = deltaLabel,
-                        color = secondaryColor,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = deltaText,
-                        color = deltaColor,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        softWrap = false,
-                        autoSize = TextAutoSize.StepBased(
-                            minFontSize = LapSightAutoSize.lapFocusDeltaMin,
-                            maxFontSize = if (compact) {
-                                LapSightAutoSize.lapFocusDeltaMaxCompact
-                            } else {
-                                LapSightAutoSize.lapFocusDeltaMax
-                            },
-                            stepSize = LapSightAutoSize.step,
-                        ),
-                        style = MaterialTheme.typography.displayMedium.copy(fontFamily = LapSightTheme.monoFamily),
-                    )
-                }
+                LapFocusTimeReadout(
+                    timingRun = timingRun,
+                    fastestLapFlash = fastestLapFlash,
+                    clockUpdateIntervalMillis = clockUpdateIntervalMillis,
+                    color = primaryColor,
+                    compact = compact,
+                )
+                LapFocusDeltaReadout(
+                    label = deltaLabel,
+                    value = deltaText,
+                    labelColor = secondaryColor,
+                    valueColor = deltaColor,
+                    compact = compact,
+                )
             }
         }
         LapFocusPageIndicator(
@@ -501,11 +553,84 @@ private fun LapFocusPanel(
 }
 
 @Composable
+private fun LapFocusTimeReadout(
+    timingRun: TimingRunSnapshot,
+    fastestLapFlash: FastestLapFlash?,
+    clockUpdateIntervalMillis: Long,
+    color: Color,
+    compact: Boolean,
+) {
+    val heroMaxFontSize = if (compact) {
+        LapSightAutoSize.lapFocusTimeMaxCompact
+    } else {
+        LapSightAutoSize.lapFocusTimeMax
+    }
+    if (fastestLapFlash != null) {
+        StaticLapTimeText(
+            millis = fastestLapFlash.lapMillis,
+            color = color,
+            textAlign = TextAlign.Center,
+            minFontSize = LapSightAutoSize.lapFocusTimeMin,
+            maxFontSize = heroMaxFontSize,
+            style = MaterialTheme.typography.displayLarge.copy(fontFamily = LapSightTheme.monoFamily),
+        )
+    } else {
+        RunningLapTimeText(
+            currentLapMillis = timingRun.currentLapMillis,
+            isActive = timingRun.isActive,
+            updateIntervalMillis = clockUpdateIntervalMillis,
+            color = color,
+            textAlign = TextAlign.Center,
+            minFontSize = LapSightAutoSize.lapFocusTimeMin,
+            maxFontSize = heroMaxFontSize,
+            style = MaterialTheme.typography.displayLarge.copy(fontFamily = LapSightTheme.monoFamily),
+        )
+    }
+}
+
+@Composable
+private fun LapFocusDeltaReadout(
+    label: String,
+    value: String,
+    labelColor: Color,
+    valueColor: Color,
+    compact: Boolean,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            color = labelColor,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+        )
+        Text(
+            text = value,
+            color = valueColor,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = TextAutoSize.StepBased(
+                minFontSize = LapSightAutoSize.lapFocusDeltaMin,
+                maxFontSize = if (compact) {
+                    LapSightAutoSize.lapFocusDeltaMaxCompact
+                } else {
+                    LapSightAutoSize.lapFocusDeltaMax
+                },
+                stepSize = LapSightAutoSize.step,
+            ),
+            style = MaterialTheme.typography.displayMedium.copy(fontFamily = LapSightTheme.monoFamily),
+        )
+    }
+}
+
+@Composable
 private fun LapFocusPageIndicator(
     pageIndex: Int,
     color: Color,
+    modifier: Modifier = Modifier,
 ) {
     Row(
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(LapSightTheme.spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {

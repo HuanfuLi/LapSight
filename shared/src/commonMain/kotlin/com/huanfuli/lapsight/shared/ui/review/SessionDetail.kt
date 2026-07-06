@@ -196,8 +196,9 @@ internal fun TimingSessionReviewDetail(
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             LapButton(
-                text = "Export JSON",
+                text = "JSON",
                 style = LapButtonStyle.Secondary,
+                icon = ExportActionIcon,
                 modifier = Modifier.weight(1f),
                 onClick = {
                     exportMessage = try {
@@ -220,8 +221,9 @@ internal fun TimingSessionReviewDetail(
                 },
             )
             LapButton(
-                text = "Export GPX",
+                text = "GPX",
                 style = LapButtonStyle.Secondary,
+                icon = ExportActionIcon,
                 modifier = Modifier.weight(1f),
                 onClick = {
                     exportMessage = try {
@@ -376,11 +378,17 @@ private fun TelemetryReplaySection(
         LapButton(
             text = if (playing) "Pause" else "Play",
             onClick = { playing = !playing },
+            icon = if (playing) PauseActionIcon else ResumeActionIcon,
+            iconOnly = true,
+            contentDescription = if (playing) "Pause replay" else "Play replay",
             modifier = Modifier.weight(1f),
         )
         LapButton(
             text = "Restart",
             style = LapButtonStyle.Secondary,
+            icon = ReplayActionIcon,
+            iconOnly = true,
+            contentDescription = "Restart replay",
             onClick = {
                 selectedIndex = 0
                 playing = false

@@ -22,10 +22,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.review.buildTrackTraceLayers
 import com.huanfuli.lapsight.shared.track.TrackReviewState
+import com.huanfuli.lapsight.shared.ui.CloseActionIcon
+import com.huanfuli.lapsight.shared.ui.DeleteActionIcon
 import com.huanfuli.lapsight.shared.ui.DriveMarkingController
 import com.huanfuli.lapsight.shared.ui.DriveMarkingSnapshot
 import com.huanfuli.lapsight.shared.ui.LapSightTheme
+import com.huanfuli.lapsight.shared.ui.LocalizedStrings
+import com.huanfuli.lapsight.shared.ui.ReplayActionIcon
+import com.huanfuli.lapsight.shared.ui.SaveSessionIcon
 import com.huanfuli.lapsight.shared.ui.TraceView
+import com.huanfuli.lapsight.shared.ui.strings
 import com.huanfuli.lapsight.shared.ui.components.ChipTone
 import com.huanfuli.lapsight.shared.ui.components.DisclosureSection
 import com.huanfuli.lapsight.shared.ui.components.LapButton
@@ -60,6 +66,7 @@ internal fun TrackReviewContent(
     onSavedTrack: () -> Unit,
 ) {
     val review = snapshot.reviewState ?: return
+    val s = strings
     var confirmReRecord by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
     // Name-on-create affordance (D-02, SC-01): the user names the Track before saving.
@@ -68,31 +75,43 @@ internal fun TrackReviewContent(
 
     if (confirmReRecord) {
         LapDialog(
-            title = "Re-record track?",
-            text = "Re-record track? The current marking trace and reference line will be replaced.",
+            title = s.reRecordTrackTitle,
+            text = s.reRecordTrackText,
             onDismissRequest = { confirmReRecord = false },
-            confirmText = "Re-record",
+            confirmText = s.reRecordTrack,
+            confirmIcon = ReplayActionIcon,
+            confirmIconOnly = true,
+            confirmContentDescription = s.reRecordTrack,
             onConfirm = {
                 confirmReRecord = false
                 controller.reRecord()
                 onChanged()
             },
-            dismissText = "Cancel",
+            dismissText = s.cancel,
+            dismissIcon = CloseActionIcon,
+            dismissIconOnly = true,
+            dismissContentDescription = s.cancel,
         )
     }
     if (confirmDiscard) {
         LapDialog(
-            title = "Discard track?",
-            text = "Discard this track? You'll lose the marking trace and reference line.",
+            title = s.discardTrackTitle,
+            text = s.discardTrackText,
             onDismissRequest = { confirmDiscard = false },
-            confirmText = "Discard",
+            confirmText = s.discard,
             destructiveConfirm = true,
+            confirmIcon = DeleteActionIcon,
+            confirmIconOnly = true,
+            confirmContentDescription = s.discardTrack,
             onConfirm = {
                 confirmDiscard = false
                 controller.discard()
                 onChanged()
             },
-            dismissText = "Cancel",
+            dismissText = s.cancel,
+            dismissIcon = CloseActionIcon,
+            dismissIconOnly = true,
+            dismissContentDescription = s.cancel,
         )
     }
 
@@ -131,19 +150,13 @@ internal fun TrackReviewContent(
 }
 
 /** One-line status for a clean capture, shared by both orientations. */
-private fun cleanCaptureStatus(review: TrackReviewState): String =
-    "${review.extraction.acceptedLoopCount} clean loops captured. " +
+private fun cleanCaptureStatus(review: TrackReviewState, s: LocalizedStrings): String =
+    "${review.extraction.acceptedLoopCount} ${s.cleanLoopsCaptured}. " +
         if (review.startFinish != null) {
-            "Start/finish is set."
+            s.startFinishSet
         } else {
-            "Saving places the start/finish at the recorded start — adjustable later in the course editor."
+            s.savingPlacesStartFinish
         }
-
-private const val FAILED_CAPTURE_STATUS =
-    "Couldn't build a clean track. Re-record 3 continuous closed-course loops and avoid long stops."
-
-// Marking is continuous capture, NOT lap timing — no lap times shown (D-08).
-private const val NO_LAP_TIMES_NOTE = "Marking capture does not produce lap times."
 
 @Composable
 private fun TrackReviewPortraitCard(
@@ -155,9 +168,10 @@ private fun TrackReviewPortraitCard(
     onDiscardRequest: () -> Unit,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     LapCard {
         Text(
-            text = "Track Review",
+            text = s.trackReview,
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleLarge,
         )
@@ -169,7 +183,7 @@ private fun TrackReviewPortraitCard(
 
         if (review.canSave) {
             Text(
-                text = cleanCaptureStatus(review),
+                text = cleanCaptureStatus(review, s),
                 color = LapSightTheme.colors.statusReady,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -180,58 +194,68 @@ private fun TrackReviewPortraitCard(
             OutlinedTextField(
                 value = trackName,
                 onValueChange = onNameChange,
-                label = { Text("Track name") },
+                label = { Text(s.trackName) },
                 singleLine = true,
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
             )
             // Save Track — the one primary action on a clean capture.
             LapButton(
-                text = "Save Track",
+                text = s.save,
                 onClick = onSave,
+                icon = SaveSessionIcon,
                 modifier = Modifier.fillMaxWidth(),
             )
             LapButton(
-                text = "Discard",
+                text = s.discard,
                 onClick = onDiscardRequest,
                 style = LapButtonStyle.GhostDestructive,
+                icon = DeleteActionIcon,
+                iconOnly = true,
+                contentDescription = s.discardTrack,
                 modifier = Modifier.fillMaxWidth(),
             )
         } else {
             Text(
-                text = FAILED_CAPTURE_STATUS,
+                text = s.failedCaptureStatus,
                 color = LapSightTheme.colors.statusCaution,
                 style = MaterialTheme.typography.bodyLarge,
             )
             // Failed capture: recovery leads (Re-record), no disabled Save in sight.
             LapButton(
-                text = "Re-record",
+                text = s.retry,
                 onClick = onReRecordRequest,
+                icon = ReplayActionIcon,
                 modifier = Modifier.fillMaxWidth(),
             )
             LapButton(
-                text = "Discard",
+                text = s.discard,
                 onClick = onDiscardRequest,
                 style = LapButtonStyle.GhostDestructive,
+                icon = DeleteActionIcon,
+                iconOnly = true,
+                contentDescription = s.discardTrack,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
 
         Text(
-            text = NO_LAP_TIMES_NOTE,
+            text = s.noLapTimesNote,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
 
-        DisclosureSection(title = "Capture details") {
+        DisclosureSection(title = s.captureDetails) {
             MetricCell(
-                label = "Loops",
-                value = "${review.extraction.detectedLoopCount} detected · ${review.extraction.acceptedLoopCount} accepted · ${review.extraction.rejectedLoopCount} rejected",
+                label = s.loops,
+                value = "${review.extraction.detectedLoopCount} ${s.detected} · " +
+                    "${review.extraction.acceptedLoopCount} ${s.accepted} · " +
+                    "${review.extraction.rejectedLoopCount} ${s.rejected}",
                 size = MetricCellSize.Row,
             )
             MetricCell(
-                label = "Samples",
-                value = "${review.rawSampleCount} · degraded: ${review.quality.degradedSampleCount}",
+                label = s.samples,
+                value = "${review.rawSampleCount} · ${s.degraded}: ${review.quality.degradedSampleCount}",
                 size = MetricCellSize.Row,
             )
         }
@@ -253,6 +277,7 @@ private fun TrackReviewLandscape(
     onDiscardRequest: () -> Unit,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     Row(
         modifier = Modifier.fillMaxSize(),
         horizontalArrangement = Arrangement.spacedBy(spacing.md),
@@ -267,15 +292,15 @@ private fun TrackReviewLandscape(
                 fillParent = true,
             )
             Text(
-                text = "${review.extraction.detectedLoopCount} loops detected · " +
-                    "${review.extraction.acceptedLoopCount} accepted · " +
-                    "${review.rawSampleCount} samples · " +
-                    "${review.quality.degradedSampleCount} degraded",
+                text = "${review.extraction.detectedLoopCount} ${s.loops} ${s.detected} · " +
+                    "${review.extraction.acceptedLoopCount} ${s.accepted} · " +
+                    "${review.rawSampleCount} ${s.samples} · " +
+                    "${review.quality.degradedSampleCount} ${s.degraded}",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
-                text = NO_LAP_TIMES_NOTE,
+                text = s.noLapTimesNote,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -286,53 +311,61 @@ private fun TrackReviewLandscape(
             verticalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             Text(
-                text = "Track Review",
+                text = s.trackReview,
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.titleLarge,
             )
             TrackReviewSourceChip(review)
             if (review.canSave) {
                 Text(
-                    text = cleanCaptureStatus(review),
+                    text = cleanCaptureStatus(review, s),
                     color = LapSightTheme.colors.statusReady,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 OutlinedTextField(
                     value = trackName,
                     onValueChange = onNameChange,
-                    label = { Text("Track name") },
+                    label = { Text(s.trackName) },
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.weight(1f))
                 LapButton(
-                    text = "Save Track",
+                    text = s.save,
                     onClick = onSave,
+                    icon = SaveSessionIcon,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 LapButton(
-                    text = "Discard",
+                    text = s.discard,
                     onClick = onDiscardRequest,
                     style = LapButtonStyle.GhostDestructive,
+                    icon = DeleteActionIcon,
+                    iconOnly = true,
+                    contentDescription = s.discardTrack,
                     modifier = Modifier.fillMaxWidth(),
                 )
             } else {
                 Text(
-                    text = FAILED_CAPTURE_STATUS,
+                    text = s.failedCaptureStatus,
                     color = LapSightTheme.colors.statusCaution,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.weight(1f))
                 LapButton(
-                    text = "Re-record",
+                    text = s.retry,
                     onClick = onReRecordRequest,
+                    icon = ReplayActionIcon,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 LapButton(
-                    text = "Discard",
+                    text = s.discard,
                     onClick = onDiscardRequest,
                     style = LapButtonStyle.GhostDestructive,
+                    icon = DeleteActionIcon,
+                    iconOnly = true,
+                    contentDescription = s.discardTrack,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -342,10 +375,11 @@ private fun TrackReviewLandscape(
 
 @Composable
 private fun TrackReviewSourceChip(review: TrackReviewState) {
+    val s = strings
     if (review.extraction.markingSession.source.isSimulated) {
-        StatusChip(text = "DEMO — simulated GPS", tone = ChipTone.Demo)
+        StatusChip(text = s.demoSimGps, tone = ChipTone.Demo)
     } else {
-        StatusChip(text = "PHONE GPS — live", tone = ChipTone.Ready)
+        StatusChip(text = s.phoneGpsLive, tone = ChipTone.Ready)
     }
 }
 

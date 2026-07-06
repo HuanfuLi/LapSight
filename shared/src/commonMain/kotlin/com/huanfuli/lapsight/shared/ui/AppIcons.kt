@@ -1,7 +1,21 @@
 package com.huanfuli.lapsight.shared.ui
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.Color
@@ -152,3 +166,18 @@ val MoreActionsIcon: ImageVector by lazy {
         }
     }.build()
 }
+
+val AddActionIcon: ImageVector get() = Icons.Filled.Add
+val ArchiveActionIcon: ImageVector get() = Icons.Filled.Archive
+val CheckActionIcon: ImageVector get() = Icons.Filled.Check
+val CloseActionIcon: ImageVector get() = Icons.Filled.Close
+val DeleteActionIcon: ImageVector get() = Icons.Filled.Delete
+val DropdownActionIcon: ImageVector get() = Icons.Filled.ArrowDropDown
+val DuplicateActionIcon: ImageVector get() = Icons.Filled.ContentCopy
+val EditActionIcon: ImageVector get() = Icons.Filled.Edit
+val ExportActionIcon: ImageVector get() = Icons.Filled.FileDownload
+val PauseActionIcon: ImageVector get() = Icons.Filled.Pause
+val ReplayActionIcon: ImageVector get() = Icons.Filled.Replay
+val ResumeActionIcon: ImageVector get() = Icons.Filled.PlayArrow
+val SaveActionIcon: ImageVector get() = Icons.Filled.Save
+val SaveSessionIcon: ImageVector get() = Icons.Filled.Folder

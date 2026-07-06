@@ -66,15 +66,19 @@ import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.CourseDirection
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.TrackProfile
+import com.huanfuli.lapsight.shared.ui.AddActionIcon
+import com.huanfuli.lapsight.shared.ui.CloseActionIcon
 import com.huanfuli.lapsight.shared.ui.DriveMarkingPhase
 import com.huanfuli.lapsight.shared.ui.DriveMarkingSnapshot
 import com.huanfuli.lapsight.shared.ui.LapSightTheme
 import com.huanfuli.lapsight.shared.ui.PlayActionIcon
+import com.huanfuli.lapsight.shared.ui.ReviewTabIcon
 import com.huanfuli.lapsight.shared.ui.RotateScreenIcon
 import com.huanfuli.lapsight.shared.ui.StopActionIcon
 import com.huanfuli.lapsight.shared.ui.TracePositionMarker
 import com.huanfuli.lapsight.shared.ui.TraceView
 import com.huanfuli.lapsight.shared.ui.courseMarker
+import com.huanfuli.lapsight.shared.ui.strings
 import com.huanfuli.lapsight.shared.ui.components.LapButton
 import com.huanfuli.lapsight.shared.ui.components.LapButtonStyle
 import com.huanfuli.lapsight.shared.ui.components.LapDialog
@@ -267,6 +271,7 @@ private fun LandscapeCockpit(
     rawSnapshot: RawRecordingSnapshot,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     var showTrackPicker by remember { mutableStateOf(false) }
     if (showTrackPicker) {
         TrackPickerDialog(
@@ -306,7 +311,7 @@ private fun LandscapeCockpit(
                     modifier = Modifier.size(previewSize),
                 )
                 rawRecordingActive -> Text(
-                    text = "Recording raw GPS for diagnosis.",
+                    text = s.rawGpsRecordingShort,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.align(Alignment.Center),
@@ -339,15 +344,15 @@ private fun LandscapeCockpit(
                 snapshot.phase == DriveMarkingPhase.Capturing -> {
                     MarkingMetricsRow(snapshot = snapshot)
                     Text(
-                        text = "Drive at least 3 continuous loops of the course, then stop marking.",
+                        text = s.markingGuidance,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Spacer(Modifier.weight(1f))
                     DriveActionRow(
                         primaryIcon = StopActionIcon,
-                        primaryLabel = "Stop marking",
-                        primaryDescription = "Stop marking",
+                        primaryLabel = s.stopMarking,
+                        primaryDescription = s.stopMarking,
                         primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
                         primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
                         primaryEnabled = true,
@@ -358,15 +363,15 @@ private fun LandscapeCockpit(
                 }
                 rawRecordingActive -> {
                     Text(
-                        text = "Recording raw GPS for diagnosis. No lap timing is running.",
+                        text = s.rawGpsRecordingLong,
                         color = LapSightTheme.colors.statusCaution,
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Spacer(Modifier.weight(1f))
                     DriveActionRow(
                         primaryIcon = StopActionIcon,
-                        primaryLabel = "Stop raw recording",
-                        primaryDescription = "Stop raw recording",
+                        primaryLabel = s.stopRawRecording,
+                        primaryDescription = s.stopRawRecording,
                         primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
                         primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
                         primaryEnabled = true,
@@ -389,8 +394,8 @@ private fun LandscapeCockpit(
                     Spacer(Modifier.weight(1f))
                     DriveActionRow(
                         primaryIcon = PlayActionIcon,
-                        primaryLabel = "Start Timing",
-                        primaryDescription = "Start timing",
+                        primaryLabel = s.startTiming,
+                        primaryDescription = s.startTiming,
                         primaryContainerColor = MaterialTheme.colorScheme.primary,
                         primaryContentColor = MaterialTheme.colorScheme.onPrimary,
                         primaryEnabled = snapshot.canStartTiming,
@@ -400,7 +405,7 @@ private fun LandscapeCockpit(
                     )
                     if (dashReady is ReadyState.NotReady) {
                         LapButton(
-                            text = "Record raw GPS (diagnostic)",
+                            text = s.recordRawGpsDiagnostic,
                             onClick = onStartRawRecording,
                             style = LapButtonStyle.Ghost,
                             modifier = Modifier.fillMaxWidth(),
@@ -419,6 +424,7 @@ private fun MarkingMetricsRow(
     modifier: Modifier = Modifier,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     val samples = snapshot.capturedSamples
     val elapsedMillis = if (samples.size >= 2) {
         samples.last().elapsedMillis - samples.first().elapsedMillis
@@ -430,13 +436,13 @@ private fun MarkingMetricsRow(
         horizontalArrangement = Arrangement.spacedBy(spacing.xs),
     ) {
         MetricCell(
-            label = "MARKING TIME",
+            label = s.markingTime,
             value = elapsedMillis.formatLapTime(),
             modifier = Modifier.weight(1f),
             size = MetricCellSize.Compact,
         )
         MetricCell(
-            label = "POINTS",
+            label = s.points,
             value = samples.size.toString(),
             modifier = Modifier.weight(1f),
             size = MetricCellSize.Compact,
@@ -588,6 +594,7 @@ private fun MarkingTracePane(
     samples: List<LocationSample>,
     modifier: Modifier = Modifier,
 ) {
+    val s = strings
     Box(modifier = modifier) {
         val layerStep = samples.size / 10
         val layers = remember(layerStep) {
@@ -609,7 +616,7 @@ private fun MarkingTracePane(
             )
         } else {
             Text(
-                text = "Waiting for the first GPS fix…",
+                text = s.waitingForFirstGpsFix,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.align(Alignment.Center),
@@ -643,6 +650,7 @@ private fun ControlPanel(
     fillHeight: Boolean = false,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(spacing.sm),
@@ -658,8 +666,8 @@ private fun ControlPanel(
                 )
                 DriveActionRow(
                     primaryIcon = StopActionIcon,
-                    primaryLabel = "Stop marking",
-                    primaryDescription = "Stop marking",
+                    primaryLabel = s.stopMarking,
+                    primaryDescription = s.stopMarking,
                     primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
                     primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
                     primaryEnabled = true,
@@ -676,7 +684,7 @@ private fun ControlPanel(
                 // Diagnostic raw recording in progress (D-16): samples are captured
                 // for replay/diagnosis but NO lap/ghost timing has started (D-17).
                 Text(
-                    text = "Recording raw GPS for diagnosis. No lap timing is running.",
+                    text = s.rawGpsRecordingLong,
                     color = LapSightTheme.colors.statusCaution,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -685,8 +693,8 @@ private fun ControlPanel(
                 // must never be possible to strand the user in an orientation.
                 DriveActionRow(
                     primaryIcon = StopActionIcon,
-                    primaryLabel = "Stop raw recording",
-                    primaryDescription = "Stop raw recording",
+                    primaryLabel = s.stopRawRecording,
+                    primaryDescription = s.stopRawRecording,
                     primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
                     primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
                     primaryEnabled = true,
@@ -739,8 +747,8 @@ private fun ControlPanel(
                 }
                 DriveActionRow(
                     primaryIcon = PlayActionIcon,
-                    primaryLabel = "Start Timing",
-                    primaryDescription = "Start timing",
+                    primaryLabel = s.startTiming,
+                    primaryDescription = s.startTiming,
                     primaryContainerColor = MaterialTheme.colorScheme.primary,
                     primaryContentColor = MaterialTheme.colorScheme.onPrimary,
                     primaryEnabled = snapshot.canStartTiming,
@@ -754,7 +762,7 @@ private fun ControlPanel(
                 // diagnostic tool, not part of the driving flow (D-16).
                 if (dashReady is ReadyState.NotReady) {
                     LapButton(
-                        text = "Record raw GPS (diagnostic)",
+                        text = s.recordRawGpsDiagnostic,
                         onClick = onStartRawRecording,
                         style = LapButtonStyle.Ghost,
                         modifier = Modifier.fillMaxWidth(),
@@ -777,6 +785,7 @@ private fun MarkingLiveSection(
     modifier: Modifier = Modifier,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     val samples = snapshot.capturedSamples
     Column(
         modifier = modifier,
@@ -805,13 +814,13 @@ private fun MarkingLiveSection(
             )
         } else {
             Text(
-                text = "Waiting for the first GPS fix…",
+                text = s.waitingForFirstGpsFix,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
         Text(
-            text = "Drive at least 3 continuous loops of the course, then stop marking.",
+            text = s.markingGuidance,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -881,6 +890,7 @@ private fun SelectedTrackPreview(
     val marker = courseMarker(trace.viewport, current, headingFrom)
 
     val spacing = LapSightTheme.spacing
+    val s = strings
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(spacing.xs),
@@ -902,10 +912,7 @@ private fun SelectedTrackPreview(
         }
         val sectorCount = latest.courseSetup.boundaries.size
         Text(
-            text = buildString {
-                append("Rev ${latest.ordinal}")
-                if (sectorCount > 0) append(" · ${sectorCount + 1} sectors")
-            },
+            text = s.revisionAndSectors(latest.ordinal, sectorCount),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -925,22 +932,23 @@ private fun NoTrackState(
     modifier: Modifier = Modifier,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "No track selected",
+        ) {
+            Text(
+            text = s.noTrackSelected,
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleMedium,
         )
         Spacer(Modifier.height(spacing.xs))
         Text(
             text = if (hasSavedTracks) {
-                "Pick a saved track to start timing."
+                s.pickSavedTrack
             } else {
-                "Mark your first track by driving loops of the course."
+                s.markFirstTrack
             },
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
@@ -955,20 +963,23 @@ private fun NoTrackState(
         ) {
             if (hasSavedTracks) {
                 LapButton(
-                    text = "Choose track",
+                    text = s.chooseTrack,
                     onClick = onChooseTrack,
+                    icon = ReviewTabIcon,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 LapButton(
-                    text = "Mark New Track",
+                    text = s.newTrack,
                     onClick = onBeginMarking,
                     style = LapButtonStyle.Secondary,
+                    icon = AddActionIcon,
                     modifier = Modifier.fillMaxWidth(),
                 )
             } else {
                 LapButton(
-                    text = "Mark New Track",
+                    text = s.newTrack,
                     onClick = onBeginMarking,
+                    icon = AddActionIcon,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -990,6 +1001,7 @@ private fun DriveActionRow(
     compact: Boolean = false,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     val actionHeight = if (compact) 56.dp else 72.dp
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1040,7 +1052,7 @@ private fun DriveActionRow(
             Icon(
                 imageVector = RotateScreenIcon,
                 contentDescription =
-                    if (orientation == DashOrientation.Portrait) "Switch to landscape" else "Switch to portrait",
+                    if (orientation == DashOrientation.Portrait) s.switchToLandscape else s.switchToPortrait,
                 modifier = Modifier.size(if (compact) 28.dp else 32.dp),
             )
         }
@@ -1060,6 +1072,7 @@ private fun TrackPickerDialog(
     onClose: () -> Unit,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     // Cap the list against the real window: the AlertDialog text slot has no
     // height weighting, so a fixed 420dp list would push the dialog buttons
     // off a ~360dp-tall landscape screen.
@@ -1068,11 +1081,15 @@ private fun TrackPickerDialog(
     }
     val listMaxHeight = minOf(420.dp, windowHeight * 0.45f)
     LapDialog(
-        title = "Choose track",
+        title = s.chooseTrack,
         onDismissRequest = onClose,
-        confirmText = "Close",
+        confirmText = s.close,
+        confirmIcon = CloseActionIcon,
+        confirmIconOnly = true,
+        confirmContentDescription = s.closeTrackPicker,
         onConfirm = onClose,
-        dismissText = "Mark New Track",
+        dismissText = s.newTrack,
+        dismissIcon = AddActionIcon,
         onDismiss = {
             onClose()
             onBeginMarking()
@@ -1088,7 +1105,7 @@ private fun TrackPickerDialog(
             ) {
                 if (snapshot.selectableProfiles.isEmpty()) {
                     Text(
-                        text = "No saved tracks yet.",
+                        text = s.noSavedTracksYet,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -1122,6 +1139,7 @@ private fun TrackPickerRow(
     onClick: () -> Unit,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -1158,7 +1176,7 @@ private fun TrackPickerRow(
                 )
                 if (!isTimingReady) {
                     Text(
-                        text = "Needs start/finish before timing",
+                        text = s.needsStartFinishBeforeTiming,
                         color = LapSightTheme.colors.statusCaution,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -1166,7 +1184,7 @@ private fun TrackPickerRow(
             }
             if (isCurrent) {
                 Text(
-                    text = "Current",
+                    text = s.current,
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.labelMedium,
                 )
@@ -1187,6 +1205,7 @@ private fun TrackSelectorSection(
     compact: Boolean = false,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -1203,12 +1222,12 @@ private fun TrackSelectorSection(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "TRACK",
+                    text = s.track,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelSmall,
                 )
                 Text(
-                    text = snapshot.currentTrackName ?: "No track selected",
+                    text = snapshot.currentTrackName ?: s.noTrackSelected,
                     color = if (snapshot.currentTrackName != null) {
                         MaterialTheme.colorScheme.onSurface
                     } else {
@@ -1243,19 +1262,20 @@ private fun DirectionSelectorSection(
     onSelectDirection: (CourseDirection) -> Unit,
 ) {
     val spacing = LapSightTheme.spacing
+    val s = strings
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
         Text(
-            text = "DIRECTION",
+            text = s.direction,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.weight(0.6f),
         )
         SegmentedControl(
-            options = listOf("Recorded", "Reverse"),
+            options = listOf(s.recorded, s.reverse),
             selectedIndex = if (selected == CourseDirection.Recorded) 0 else 1,
             onSelect = { index ->
                 onSelectDirection(

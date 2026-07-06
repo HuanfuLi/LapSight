@@ -3,7 +3,10 @@
 // the existing common tests.
 package com.huanfuli.lapsight.shared.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,10 +16,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +39,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
 import com.huanfuli.lapsight.shared.export.ExportShareTarget
 import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
@@ -36,9 +49,11 @@ import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.ui.components.ChipTone
 import com.huanfuli.lapsight.shared.ui.components.LapCard
+import com.huanfuli.lapsight.shared.ui.components.LapDialog
 import com.huanfuli.lapsight.shared.ui.components.SectionHeader
 import com.huanfuli.lapsight.shared.ui.components.StatusChip
 import com.huanfuli.lapsight.shared.ui.components.TimingText
+import kotlinx.coroutines.delay
 
 /**
  * Review tab (D-27, D-28): lists saved Sessions, Tracks, and raw captures from
@@ -57,9 +72,11 @@ fun ReviewScreen(
     displaySettings: DriveDisplaySettings,
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
+    val s = strings
     var rows by remember { mutableStateOf(ReviewListState.from(sessionStore.readIndex())) }
     var openedKey by remember { mutableStateOf<String?>(null) }
     var localRefreshVersion by remember { mutableStateOf(0L) }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
     val refreshRows: () -> Unit = { localRefreshVersion += 1L }
 
     // Re-read the index when the Drive tab reports a new save (D-27).
@@ -92,16 +109,52 @@ fun ReviewScreen(
     val rawCaptures = rows.filter { it.type == ReviewEntryType.TrackMarking }
 
     val spacing = LapSightTheme.spacing
-    LazyColumn(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(spacing.md),
-        verticalArrangement = Arrangement.spacedBy(spacing.sm),
+            .background(MaterialTheme.colorScheme.background),
     ) {
-        reviewSection("Sessions", sessions) { openedKey = it }
-        reviewSection("Tracks", tracks) { openedKey = it }
-        reviewSection("Raw captures", rawCaptures) { openedKey = it }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(spacing.md),
+            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            reviewSection(
+                title = s.sessions,
+                rows = sessions,
+                sessionStore = sessionStore,
+                exportShareTarget = exportShareTarget,
+                onOpen = { openedKey = it },
+                onMessage = { actionMessage = it },
+                onDataChanged = refreshRows,
+            )
+            reviewSection(
+                title = s.tracks,
+                rows = tracks,
+                sessionStore = sessionStore,
+                exportShareTarget = exportShareTarget,
+                onOpen = { openedKey = it },
+                onMessage = { actionMessage = it },
+                onDataChanged = refreshRows,
+            )
+            reviewSection(
+                title = s.rawCaptures,
+                rows = rawCaptures,
+                sessionStore = sessionStore,
+                exportShareTarget = exportShareTarget,
+                onOpen = { openedKey = it },
+                onMessage = { actionMessage = it },
+                onDataChanged = refreshRows,
+            )
+        }
+        actionMessage?.let { msg ->
+            LaunchedEffect(msg) {
+                delay(2000)
+                if (actionMessage == msg) actionMessage = null
+            }
+            ReviewToast(message = msg, tone = reviewActionTone(msg))
+        }
     }
 }
 
@@ -110,7 +163,11 @@ internal fun ReviewRowViewModel.key(): String = "${type.name}:$id"
 private fun LazyListScope.reviewSection(
     title: String,
     rows: List<ReviewRowViewModel>,
+    sessionStore: LocalSessionStore,
+    exportShareTarget: ExportShareTarget,
     onOpen: (String) -> Unit,
+    onMessage: (String?) -> Unit,
+    onDataChanged: () -> Unit,
 ) {
     if (rows.isEmpty()) return
     item {
@@ -121,12 +178,20 @@ private fun LazyListScope.reviewSection(
         )
     }
     items(rows) { row ->
-        ReviewRow(row = row, onClick = { onOpen(row.key()) })
+        ReviewRow(
+            row = row,
+            sessionStore = sessionStore,
+            exportShareTarget = exportShareTarget,
+            onClick = { onOpen(row.key()) },
+            onMessage = onMessage,
+            onDataChanged = onDataChanged,
+        )
     }
 }
 
 @Composable
 private fun EmptyState() {
+    val s = strings
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -138,13 +203,13 @@ private fun EmptyState() {
             modifier = Modifier.padding(LapSightTheme.spacing.lg),
         ) {
             Text(
-                text = "No saved sessions yet",
+                text = s.noSavedSessionsYet,
                 color = MaterialTheme.colorScheme.onBackground,
                 style = MaterialTheme.typography.headlineSmall,
             )
             Spacer(Modifier.height(LapSightTheme.spacing.sm))
             Text(
-                text = "Mark a track, then start a timing session. Saved tracks and sessions show up here.",
+                text = s.emptyReviewText,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyLarge,
             )
@@ -158,12 +223,28 @@ private fun EmptyState() {
  * fields come from the lightweight index — no payload I/O per row.
  */
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun ReviewRow(
     row: ReviewRowViewModel,
+    sessionStore: LocalSessionStore,
+    exportShareTarget: ExportShareTarget,
     onClick: () -> Unit,
+    onMessage: (String?) -> Unit,
+    onDataChanged: () -> Unit,
 ) {
     val spacing = LapSightTheme.spacing
-    LapCard(onClick = onClick) {
+    val s = strings
+    var menuOpen by remember(row.key()) { mutableStateOf(false) }
+    var renameOpen by remember(row.id) { mutableStateOf(false) }
+    var archiveConfirmOpen by remember(row.id) { mutableStateOf(false) }
+    var renameValue by remember(row.id, row.name) { mutableStateOf(row.name) }
+
+    LapCard(
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = { menuOpen = true },
+        ),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
@@ -175,7 +256,7 @@ private fun ReviewRow(
                     horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
                     Text(
-                        text = row.displayTitle(),
+                        text = row.displayTitle(s),
                         color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.titleMedium,
                     )
@@ -190,7 +271,7 @@ private fun ReviewRow(
             if (row.type == ReviewEntryType.TimingSession && row.bestLapMillis != null) {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "BEST",
+                        text = s.best,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall,
                     )
@@ -201,16 +282,212 @@ private fun ReviewRow(
                     )
                 }
             }
+            Box {
+                IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        imageVector = MoreActionsIcon,
+                        contentDescription = s.edit,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                ReviewRowActionsMenu(
+                    row = row,
+                    sessionStore = sessionStore,
+                    exportShareTarget = exportShareTarget,
+                    expanded = menuOpen,
+                    onDismiss = { menuOpen = false },
+                    onRenameRequested = { renameOpen = true },
+                    onArchiveRequested = { archiveConfirmOpen = true },
+                    onMessage = onMessage,
+                    onDataChanged = onDataChanged,
+                )
+            }
+        }
+    }
+
+    if (renameOpen) {
+        LapDialog(
+            title = s.rename,
+            onDismissRequest = { renameOpen = false },
+            confirmText = s.rename,
+            confirmIcon = EditActionIcon,
+            onConfirm = {
+                renameOpen = false
+                val msg = renameTrack(sessionStore, row.id, renameValue)
+                onMessage(msg)
+                if (!isReviewActionError(msg)) onDataChanged()
+            },
+            dismissText = s.cancel,
+            dismissIcon = CloseActionIcon,
+            dismissIconOnly = true,
+            dismissContentDescription = s.cancel,
+            content = {
+                OutlinedTextField(
+                    value = renameValue,
+                    onValueChange = { renameValue = it },
+                    label = { Text(s.trackName) },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+        )
+    }
+    if (archiveConfirmOpen) {
+        LapDialog(
+            title = s.archive,
+            text = "It stays in history with every revision and session, but leaves track selection.",
+            onDismissRequest = { archiveConfirmOpen = false },
+            confirmText = s.archive,
+            confirmIcon = ArchiveActionIcon,
+            onConfirm = {
+                archiveConfirmOpen = false
+                val msg = archiveTrack(sessionStore, row.id)
+                onMessage(msg)
+                if (!isReviewActionError(msg)) onDataChanged()
+            },
+            dismissText = s.cancel,
+            dismissIcon = CloseActionIcon,
+            dismissIconOnly = true,
+            dismissContentDescription = s.cancel,
+        )
+    }
+}
+
+@Composable
+private fun ReviewRowActionsMenu(
+    row: ReviewRowViewModel,
+    sessionStore: LocalSessionStore,
+    exportShareTarget: ExportShareTarget,
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onRenameRequested: () -> Unit,
+    onArchiveRequested: () -> Unit,
+    onMessage: (String?) -> Unit,
+    onDataChanged: () -> Unit,
+) {
+    val s = strings
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        when (row.type) {
+            ReviewEntryType.TimingSession -> {
+                DropdownMenuItem(
+                    text = { Text(s.exportJson) },
+                    leadingIcon = { Icon(ExportActionIcon, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        onMessage(exportTimingSessionJson(row, sessionStore, exportShareTarget))
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(s.exportGpx) },
+                    leadingIcon = { Icon(ExportActionIcon, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        onMessage(exportTimingSessionGpx(row, sessionStore, exportShareTarget))
+                    },
+                )
+            }
+            ReviewEntryType.Track -> {
+                DropdownMenuItem(
+                    text = { Text(s.rename) },
+                    leadingIcon = { Icon(EditActionIcon, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        onRenameRequested()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(s.duplicate) },
+                    leadingIcon = { Icon(DuplicateActionIcon, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        val msg = duplicateTrack(sessionStore, row.id)
+                        onMessage(msg)
+                        if (!isReviewActionError(msg)) onDataChanged()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(s.archive) },
+                    leadingIcon = { Icon(ArchiveActionIcon, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        onArchiveRequested()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(s.exportJson) },
+                    leadingIcon = { Icon(ExportActionIcon, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        onMessage(exportTrackJson(row, sessionStore, exportShareTarget))
+                    },
+                )
+            }
+            ReviewEntryType.TrackMarking -> {
+                DropdownMenuItem(
+                    text = { Text(s.exportJson) },
+                    leadingIcon = { Icon(ExportActionIcon, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        onMessage(exportTrackMarkingJson(row, sessionStore, exportShareTarget))
+                    },
+                )
+            }
+        }
+    }
+}
+
+private fun reviewActionTone(msg: String): ChipTone =
+    if (isReviewActionError(msg)) ChipTone.Error else ChipTone.Ready
+
+private fun isReviewActionError(msg: String): Boolean =
+    msg.startsWith("Couldn't") || msg.startsWith("Export failed")
+
+@Composable
+private fun ReviewToast(
+    message: String,
+    tone: ChipTone,
+) {
+    val spacing = LapSightTheme.spacing
+    val color = when (tone) {
+        ChipTone.Error -> LapSightTheme.colors.statusError
+        else -> LapSightTheme.colors.statusReady
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeContentPadding()
+            .padding(spacing.md),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, color),
+        ) {
             Text(
-                text = "›",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.titleLarge,
+                text = message,
+                color = color,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(
+                    horizontal = spacing.md,
+                    vertical = spacing.sm,
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
 
-internal fun ReviewRowViewModel.displayTitle(): String = when (type) {
-    ReviewEntryType.TimingSession -> name.ifBlank { "Session" }
-    else -> name.ifBlank { "Untitled $typeLabel" }
+internal fun ReviewRowViewModel.localizedTypeLabel(s: LocalizedStrings): String = when (type) {
+    ReviewEntryType.TimingSession -> s.sessionEntry
+    ReviewEntryType.Track -> s.trackEntry
+    ReviewEntryType.TrackMarking -> s.rawCaptureEntry
+}
+
+internal fun ReviewRowViewModel.displayTitle(s: LocalizedStrings): String = when (type) {
+    ReviewEntryType.TimingSession -> name.ifBlank { s.sessionEntry }
+    else -> name.ifBlank { "${s.untitled} ${localizedTypeLabel(s)}" }
 }

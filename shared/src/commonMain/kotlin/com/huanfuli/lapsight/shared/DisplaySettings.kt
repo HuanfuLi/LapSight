@@ -16,6 +16,16 @@ enum class LocationFeedMode {
     Simulated,
 }
 
+enum class LanguageMode {
+    System,
+    English,
+    Chinese,
+    Korean,
+    Japanese,
+    French,
+    Spanish,
+}
+
 data class PhoneGpsPermissionState(
     val isSupported: Boolean = false,
     val isGranted: Boolean = false,
@@ -29,6 +39,7 @@ data class DriveDisplaySettings(
     val showSpeedTrace: Boolean = true,
     val showGpsDiagnostics: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.System,
+    val languageMode: LanguageMode = LanguageMode.System,
     val locationFeedMode: LocationFeedMode = LocationFeedMode.Simulated,
     /**
      * Opt-in high-rate phone GNSS engine (Android only). When true, Phone GPS is

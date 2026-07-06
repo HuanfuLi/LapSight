@@ -32,6 +32,15 @@ object ExportFileNames {
     }
 
     /**
+     * Produces `LapSight_Capture_<safeName>_<yyyyMMdd>.json`.
+     */
+    fun forTrackMarking(markingName: String, createdAtEpochMillis: Long): String {
+        val safe = sanitizeNameToken(markingName)
+        val date = formatDate(createdAtEpochMillis)
+        return "LapSight_Capture_${safe}_$date.json"
+    }
+
+    /**
      * Sanitizes a user-controlled name to a conservative ASCII filename token.
      *
      * - Strips path separators (/ \), traversal (..), control chars, XML special chars

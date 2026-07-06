@@ -200,6 +200,10 @@ class GpxExportTest {
         val sessionGpx = ExportFileNames.forTimingSession(trackName, dateMillis, "gpx")
         assertTrue(sessionGpx.startsWith("LapSight_Session_"), "Session GPX must be prefixed")
         assertTrue(sessionGpx.endsWith(".gpx"), "Session GPX must have .gpx extension")
+
+        val captureJson = ExportFileNames.forTrackMarking(trackName, dateMillis)
+        assertTrue(captureJson.startsWith("LapSight_Capture_"), "Capture JSON must be prefixed")
+        assertTrue(captureJson.endsWith(".json"), "Capture JSON must have .json extension")
     }
 
     @Test

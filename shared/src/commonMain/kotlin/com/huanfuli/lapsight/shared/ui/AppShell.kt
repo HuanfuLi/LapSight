@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.DashOrientation
@@ -79,6 +80,7 @@ fun AppShell(
     sessionStore: LocalSessionStore = InMemorySessionStore(),
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
+    val s = strings
     var tab by remember { mutableStateOf(AppTab.Drive) }
     var orientation by remember { mutableStateOf(DashOrientation.Portrait) }
     var savedVersion by remember { mutableStateOf(0L) }
@@ -150,31 +152,36 @@ fun AppShell(
     recoveryPrompt?.let { prompt ->
         if (confirmDiscardDraft) {
             LapDialog(
-                title = "Discard unfinished session?",
-                text = "Discard unfinished session? Recorded data will be lost.",
+                title = s.discardUnfinishedTitle,
+                text = s.discardUnfinishedText,
                 onDismissRequest = { confirmDiscardDraft = false },
-                confirmText = "Discard",
+                confirmText = s.discard,
                 destructiveConfirm = true,
+                confirmIcon = DeleteActionIcon,
                 onConfirm = {
                     confirmDiscardDraft = false
                     sessionController.handleRecoveryAction(prompt, DraftRecoveryAction.Discard)
                     recoveryPrompt = null
                 },
-                dismissText = "Cancel",
+                dismissText = s.cancel,
+                dismissIcon = CloseActionIcon,
             )
         } else {
             LapDialog(
-                title = "Unfinished session found",
-                text = "You have a session that wasn't saved.",
+                title = s.unfinishedSessionFound,
+                text = s.unfinishedSessionText,
                 onDismissRequest = { /* require an explicit choice */ },
                 buttons = {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = Arrangement.spacedBy(LapSightTheme.spacing.sm, Alignment.End),
                     ) {
                         LapDialogTextButton(
-                            text = "Resume",
+                            text = s.resume,
                             enabled = !recoveryBusy,
+                            icon = ResumeActionIcon,
+                            iconOnly = true,
+                            contentDescription = s.resume,
                             onClick = {
                                 recoveryBusy = true
                                 uiScope.launch {
@@ -193,8 +200,11 @@ fun AppShell(
                         )
                         if (DraftRecoveryAction.Save in prompt.availableActions) {
                             LapDialogTextButton(
-                                text = "Save",
+                                text = s.save,
                                 enabled = !recoveryBusy,
+                                icon = SaveSessionIcon,
+                                iconOnly = true,
+                                contentDescription = s.saveSession,
                                 onClick = {
                                     recoveryBusy = true
                                     uiScope.launch {
@@ -212,9 +222,12 @@ fun AppShell(
                             )
                         }
                         LapDialogTextButton(
-                            text = "Discard",
+                            text = s.discard,
                             enabled = !recoveryBusy,
                             destructive = true,
+                            icon = DeleteActionIcon,
+                            iconOnly = true,
+                            contentDescription = s.discardSession,
                             onClick = { confirmDiscardDraft = true },
                         )
                     }
@@ -233,22 +246,22 @@ fun AppShell(
                     NavigationBarItem(
                         selected = tab == AppTab.Drive,
                         onClick = { tab = AppTab.Drive },
-                        icon = { Icon(DriveTabIcon, contentDescription = "Drive") },
-                        label = { Text("Drive") },
+                        icon = { Icon(DriveTabIcon, contentDescription = s.drive) },
+                        label = { Text(s.drive) },
                         colors = navItemColors(),
                     )
                     NavigationBarItem(
                         selected = tab == AppTab.Review,
                         onClick = { tab = AppTab.Review },
-                        icon = { Icon(ReviewTabIcon, contentDescription = "Review") },
-                        label = { Text("Review") },
+                        icon = { Icon(ReviewTabIcon, contentDescription = s.review) },
+                        label = { Text(s.review) },
                         colors = navItemColors(),
                     )
                     NavigationBarItem(
                         selected = tab == AppTab.Settings,
                         onClick = { tab = AppTab.Settings },
-                        icon = { Icon(SettingsTabIcon, contentDescription = "Settings") },
-                        label = { Text("Settings") },
+                        icon = { Icon(SettingsTabIcon, contentDescription = s.settings) },
+                        label = { Text(s.settings) },
                         colors = navItemColors(),
                     )
                     }

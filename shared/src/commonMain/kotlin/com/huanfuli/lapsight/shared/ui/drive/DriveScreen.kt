@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,25 +29,26 @@ import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.session.RawRecordingController
 import com.huanfuli.lapsight.shared.session.SaveDraftResult
 import com.huanfuli.lapsight.shared.session.SessionController
-import com.huanfuli.lapsight.shared.session.STILL_USE_THIS_TRACK_ACTION
 import com.huanfuli.lapsight.shared.session.StartTimingResult
 import com.huanfuli.lapsight.shared.session.TimingRunSnapshot
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
+import com.huanfuli.lapsight.shared.ui.CheckActionIcon
+import com.huanfuli.lapsight.shared.ui.CloseActionIcon
+import com.huanfuli.lapsight.shared.ui.DeleteActionIcon
 import com.huanfuli.lapsight.shared.ui.DriveMarkingController
 import com.huanfuli.lapsight.shared.ui.DriveMarkingPhase
 import com.huanfuli.lapsight.shared.ui.LapSightTheme
+import com.huanfuli.lapsight.shared.ui.SaveSessionIcon
 import com.huanfuli.lapsight.shared.ui.START_TIMING_BLOCKED_COPY
 import com.huanfuli.lapsight.shared.ui.components.LapDialog
 import com.huanfuli.lapsight.shared.ui.components.LapDialogTextButton
+import com.huanfuli.lapsight.shared.ui.strings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-
-private const val PHONE_GPS_PERMISSION_COPY =
-    "Allow location permission to use Phone GPS."
 
 private const val DISCARD_SESSION_ARMED_TIMEOUT_MILLIS = 4500L
 
@@ -73,6 +75,7 @@ fun DriveScreen(
     sessionStore: LocalSessionStore,
     sessionController: SessionController,
 ) {
+    val s = strings
     val controller = remember(locationProvider, sessionStore) {
         DriveMarkingController(provider = locationProvider, store = sessionStore)
     }
@@ -108,7 +111,7 @@ fun DriveScreen(
     val dashReady = dashReadyState(snapshot)
     val ensureSelectedLocationFeedReady: () -> Boolean = {
         if (locationFeedMode == LocationFeedMode.PhoneGps && !phoneGpsPermission.isGranted) {
-            startTimingBlockedMessage = PHONE_GPS_PERMISSION_COPY
+            startTimingBlockedMessage = s.phoneGpsPermissionRequired
             phoneGpsPermission.requestPermission()
             snapshot = controller.snapshot()
             false
@@ -212,10 +215,11 @@ fun DriveScreen(
     // never appears on the passive moving fullscreen timing surface.
     wrongCourseBlock?.let { blocked ->
         LapDialog(
-            title = "Check selected track",
+            title = s.checkSelectedTrack,
             text = blocked.message,
             onDismissRequest = { wrongCourseBlock = null },
-            confirmText = STILL_USE_THIS_TRACK_ACTION,
+            confirmText = s.stillUseThisTrack,
+            confirmIcon = CheckActionIcon,
             onConfirm = {
                 when (val result = sessionController.overrideWrongCourseAndStart()) {
                     is StartTimingResult.Started -> {
@@ -243,7 +247,8 @@ fun DriveScreen(
                     }
                 }
             },
-            dismissText = "Choose another track",
+            dismissText = s.chooseAnotherTrack,
+            dismissIcon = CloseActionIcon,
         )
     }
 
@@ -252,11 +257,11 @@ fun DriveScreen(
     if (showStopSummary) {
         val laps = timingSnapshot?.activeDraft?.checkpointedLapCount ?: 0
         LapDialog(
-            title = "Session ended",
+            title = s.sessionEnded,
             text = if (confirmDiscardSession) {
-                "Laps recorded: $laps. Tap discard again to permanently delete this session."
+                s.lapsRecordedTapDiscard(laps)
             } else {
-                "Laps recorded: $laps. Save this run to Review, or discard it."
+                s.lapsRecordedSaveOrDiscard(laps)
             },
             onDismissRequest = {
                 if (confirmDiscardSession) confirmDiscardSession = false
@@ -264,9 +269,16 @@ fun DriveScreen(
             buttons = {
                 Spacer(Modifier.weight(1f))
                 LapDialogTextButton(
-                    text = if (confirmDiscardSession) "Tap again to discard" else "Discard",
+                    text = if (confirmDiscardSession) s.tapAgainDiscardSession else s.discard,
                     destructive = confirmDiscardSession,
                     enabled = !saveInProgress,
+                    icon = DeleteActionIcon,
+                    iconOnly = true,
+                    contentDescription = if (confirmDiscardSession) {
+                        s.tapAgainDiscardSession
+                    } else {
+                        s.discardSession
+                    },
                     onClick = {
                         if (confirmDiscardSession) {
                             confirmDiscardSession = false
@@ -280,9 +292,13 @@ fun DriveScreen(
                         }
                     },
                 )
+                Spacer(Modifier.width(LapSightTheme.spacing.sm))
                 LapDialogTextButton(
-                    text = if (saveInProgress) "Saving..." else "Save Session",
+                    text = if (saveInProgress) s.savingSession else s.saveSession,
                     enabled = !saveInProgress,
+                    icon = SaveSessionIcon,
+                    iconOnly = true,
+                    contentDescription = if (saveInProgress) s.savingSession else s.saveSession,
                     onClick = {
                         saveInProgress = true
                         uiScope.launch {
@@ -298,7 +314,7 @@ fun DriveScreen(
                             timingSnapshot = null
                             timingRun = TimingRunSnapshot.inactive()
                             if (result is SaveDraftResult.Saved) {
-                                saveToast = "Session saved"
+                                saveToast = s.sessionSaved
                                 onSavedSession()
                             }
                         }

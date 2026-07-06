@@ -21,6 +21,7 @@ import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DisplaySettingsStore
 import com.huanfuli.lapsight.shared.DriveDisplayController
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
+import com.huanfuli.lapsight.shared.LanguageMode
 import com.huanfuli.lapsight.shared.LocationFeedMode
 import com.huanfuli.lapsight.shared.OrientationController
 import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
@@ -166,6 +167,12 @@ private class AndroidDisplaySettingsStore(
                     ?: ThemeMode.System.name,
             )
         }.getOrDefault(ThemeMode.System),
+        languageMode = runCatching {
+            LanguageMode.valueOf(
+                preferences.getString("language_mode", LanguageMode.System.name)
+                    ?: LanguageMode.System.name,
+            )
+        }.getOrDefault(LanguageMode.System),
         locationFeedMode = runCatching {
             LocationFeedMode.valueOf(
                 preferences.getString("location_feed_mode", LocationFeedMode.PhoneGps.name)
@@ -183,6 +190,7 @@ private class AndroidDisplaySettingsStore(
             .putBoolean("show_speed_trace", settings.showSpeedTrace)
             .putBoolean("show_gps_diagnostics", settings.showGpsDiagnostics)
             .putString("theme_mode", settings.themeMode.name)
+            .putString("language_mode", settings.languageMode.name)
             .putString("location_feed_mode", settings.locationFeedMode.name)
             .putBoolean("use_direct_gnss", settings.useDirectGnss)
             .apply()

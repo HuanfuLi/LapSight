@@ -16,6 +16,9 @@ class IosDisplaySettingsStore : DisplaySettingsStore {
         themeMode = defaults.stringForKey(THEME_MODE)
             ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
             ?: ThemeMode.System,
+        languageMode = defaults.stringForKey(LANGUAGE_MODE)
+            ?.let { runCatching { LanguageMode.valueOf(it) }.getOrNull() }
+            ?: LanguageMode.System,
         locationFeedMode = defaults.stringForKey(LOCATION_FEED_MODE)
             ?.let { runCatching { LocationFeedMode.valueOf(it) }.getOrNull() }
             ?: LocationFeedMode.Simulated,
@@ -28,6 +31,7 @@ class IosDisplaySettingsStore : DisplaySettingsStore {
         defaults.setBool(settings.showSpeedTrace, forKey = SHOW_SPEED_TRACE)
         defaults.setBool(settings.showGpsDiagnostics, forKey = SHOW_GPS_DIAGNOSTICS)
         defaults.setObject(settings.themeMode.name, forKey = THEME_MODE)
+        defaults.setObject(settings.languageMode.name, forKey = LANGUAGE_MODE)
         defaults.setObject(settings.locationFeedMode.name, forKey = LOCATION_FEED_MODE)
     }
 
@@ -41,6 +45,7 @@ class IosDisplaySettingsStore : DisplaySettingsStore {
         const val SHOW_SPEED_TRACE = "display.showSpeedTrace"
         const val SHOW_GPS_DIAGNOSTICS = "display.showGpsDiagnostics"
         const val THEME_MODE = "display.themeMode"
+        const val LANGUAGE_MODE = "display.languageMode"
         const val LOCATION_FEED_MODE = "display.locationFeedMode"
     }
 }

@@ -1,18 +1,35 @@
 package com.huanfuli.lapsight.shared.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
+import com.huanfuli.lapsight.shared.LanguageMode
 import com.huanfuli.lapsight.shared.LocationFeedMode
 import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.ThemeMode
@@ -40,6 +57,7 @@ internal fun SettingsScreen(
     val effectiveLocationFeedMode =
         if (phoneGpsAvailable) settings.locationFeedMode else LocationFeedMode.Simulated
     val spacing = LapSightTheme.spacing
+    val s = strings
 
     Column(
         modifier = Modifier
@@ -49,12 +67,12 @@ internal fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
         Text(
-            text = "Settings",
+            text = s.settings,
             color = MaterialTheme.colorScheme.onBackground,
             style = MaterialTheme.typography.headlineMedium,
         )
 
-        LapCard(title = "Units") {
+        LapCard(title = s.units) {
             SegmentedControl(
                 options = listOf("km/h", "mph"),
                 selectedIndex = when (settings.speedUnit) {
@@ -75,9 +93,9 @@ internal fun SettingsScreen(
             )
         }
 
-        LapCard(title = "Location source") {
+        LapCard(title = s.locationSource) {
             SegmentedControl(
-                options = listOf("Phone GPS", "Simulated"),
+                options = listOf(s.phoneGps, s.simulated),
                 selectedIndex = when (effectiveLocationFeedMode) {
                     LocationFeedMode.PhoneGps -> 0
                     LocationFeedMode.Simulated -> 1
@@ -101,10 +119,10 @@ internal fun SettingsScreen(
                 },
             )
             val sourceNote = when {
-                locationFeedLocked -> "Location source is locked while timing is active."
-                !phoneGpsAvailable -> "Phone GPS is not wired on this platform yet."
+                locationFeedLocked -> s.locationLockedWhileTiming
+                !phoneGpsAvailable -> s.phoneGpsUnavailable
                 settings.locationFeedMode == LocationFeedMode.PhoneGps && !phoneGpsPermissionGranted ->
-                    "Allow location permission before using Phone GPS."
+                    s.phoneGpsPermissionRequired
                 else -> null
             }
             sourceNote?.let {
@@ -116,9 +134,8 @@ internal fun SettingsScreen(
             }
             if (phoneGpsAvailable) {
                 LapSwitchRow(
-                    label = "High-rate GNSS",
-                    supporting = "Raw phone GPS for faster fixes and satellite/L5 quality. " +
-                        "Applies on the next feed start.",
+                    label = s.highRateGnss,
+                    supporting = s.highRateGnssSupporting,
                     checked = settings.useDirectGnss,
                     enabled = !locationFeedLocked,
                     onCheckedChange = { onSettingsChanged(settings.copy(useDirectGnss = it)) },
@@ -126,9 +143,9 @@ internal fun SettingsScreen(
             }
         }
 
-        LapCard(title = "Theme") {
+        LapCard(title = s.theme) {
             SegmentedControl(
-                options = listOf("System", "Dark", "Light"),
+                options = listOf(s.themeSystem, s.themeDark, s.themeLight),
                 selectedIndex = when (settings.themeMode) {
                     ThemeMode.System -> 0
                     ThemeMode.Dark -> 1
@@ -148,16 +165,23 @@ internal fun SettingsScreen(
             )
         }
 
-        LapCard(title = "While timing") {
+        LapCard(title = s.languageTitle) {
+            LanguageSelector(
+                selected = settings.languageMode,
+                onSelect = { mode -> onSettingsChanged(settings.copy(languageMode = mode)) },
+            )
+        }
+
+        LapCard(title = s.whileTiming) {
             LapSwitchRow(
-                label = "Fullscreen while timing",
+                label = s.fullscreenWhileTiming,
                 checked = settings.fullscreenWhileTiming,
                 onCheckedChange = {
                     onSettingsChanged(settings.copy(fullscreenWhileTiming = it))
                 },
             )
             LapSwitchRow(
-                label = "Keep screen awake while timing",
+                label = s.keepScreenAwakeWhileTiming,
                 checked = settings.keepScreenAwakeWhileTiming,
                 onCheckedChange = {
                     onSettingsChanged(settings.copy(keepScreenAwakeWhileTiming = it))
@@ -165,16 +189,16 @@ internal fun SettingsScreen(
             )
         }
 
-        LapCard(title = "Dash readouts") {
+        LapCard(title = s.dashReadouts) {
             LapSwitchRow(
-                label = "Speed trace",
+                label = s.speedTrace,
                 checked = settings.showSpeedTrace,
                 onCheckedChange = {
                     onSettingsChanged(settings.copy(showSpeedTrace = it))
                 },
             )
             LapSwitchRow(
-                label = "GPS diagnostics",
+                label = s.gpsDiagnostics,
                 checked = settings.showGpsDiagnostics,
                 onCheckedChange = {
                     onSettingsChanged(settings.copy(showGpsDiagnostics = it))
@@ -183,8 +207,84 @@ internal fun SettingsScreen(
         }
 
         SafetyNote(
-            text = "Closed-course/private-track use only. Configure the display while stationary.",
+            text = s.safetySettings,
         )
         Spacer(Modifier.height(spacing.md))
+    }
+}
+
+@Composable
+private fun LanguageSelector(
+    selected: LanguageMode,
+    onSelect: (LanguageMode) -> Unit,
+) {
+    val spacing = LapSightTheme.spacing
+    val s = strings
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Surface(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, LapSightTheme.colors.cardBorder),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = spacing.md, vertical = spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+            ) {
+                Text(
+                    text = s.languageModeLabel(selected),
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Icon(
+                    imageVector = DropdownActionIcon,
+                    contentDescription = s.languageTitle,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            LanguageMode.values().forEach { mode ->
+                val isSelected = mode == selected
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = s.languageModeLabel(mode),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    },
+                    leadingIcon = if (isSelected) {
+                        {
+                            Icon(
+                                imageVector = CheckActionIcon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelect(mode)
+                    },
+                )
+            }
+        }
     }
 }

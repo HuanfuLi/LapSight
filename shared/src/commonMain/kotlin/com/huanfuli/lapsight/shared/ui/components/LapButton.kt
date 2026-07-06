@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -59,12 +60,15 @@ fun LapButton(
     size: LapButtonSize = LapButtonSize.Standard,
     enabled: Boolean = true,
     icon: ImageVector? = null,
+    iconOnly: Boolean = false,
+    contentDescription: String = text,
 ) {
     val minHeight = when (size) {
         LapButtonSize.Standard -> 48.dp
         LapButtonSize.Large -> 56.dp
     }
-    val sized = modifier.heightIn(min = minHeight)
+    val minWidth = if (iconOnly) minHeight + 16.dp else minHeight
+    val sized = modifier.heightIn(min = minHeight).widthIn(min = minWidth)
     val shape = MaterialTheme.shapes.medium
     val padding = PaddingValues(horizontal = LapSightTheme.spacing.md, vertical = LapSightTheme.spacing.sm)
     // Explicit disabled tokens: Material's 38%-alpha default is illegible on the
@@ -77,21 +81,27 @@ fun LapButton(
             horizontalArrangement = Arrangement.spacedBy(LapSightTheme.spacing.sm),
         ) {
             if (icon != null) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(
+                    imageVector = icon,
+                    contentDescription = if (iconOnly) contentDescription else null,
+                    modifier = Modifier.size(if (iconOnly) 24.dp else 20.dp),
+                )
             }
-            // Long labels shrink before clipping; ellipsis is the last resort.
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
-                autoSize = TextAutoSize.StepBased(
-                    minFontSize = LapSightAutoSize.labelMin,
-                    maxFontSize = LapSightAutoSize.labelMax,
-                    stepSize = LapSightAutoSize.step,
-                ),
-            )
+            if (!iconOnly) {
+                // Long labels shrink before clipping; ellipsis is the last resort.
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                    autoSize = TextAutoSize.StepBased(
+                        minFontSize = LapSightAutoSize.labelMin,
+                        maxFontSize = LapSightAutoSize.labelMax,
+                        stepSize = LapSightAutoSize.step,
+                    ),
+                )
+            }
         }
     }
     when (style) {
@@ -139,20 +149,50 @@ fun LapButton(
             ),
         ) { label() }
 
-        LapButtonStyle.Ghost, LapButtonStyle.GhostDestructive -> TextButton(
-            onClick = onClick,
-            modifier = sized,
-            enabled = enabled,
-            shape = shape,
-            contentPadding = padding,
-            colors = ButtonDefaults.textButtonColors(
-                contentColor = if (style == LapButtonStyle.GhostDestructive) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.primary
-                },
-                disabledContentColor = disabledContent,
-            ),
-        ) { label() }
+        LapButtonStyle.Ghost, LapButtonStyle.GhostDestructive -> {
+            if (iconOnly) {
+                OutlinedButton(
+                    onClick = onClick,
+                    modifier = sized,
+                    enabled = enabled,
+                    shape = shape,
+                    contentPadding = PaddingValues(horizontal = LapSightTheme.spacing.md),
+                    border = BorderStroke(
+                        1.dp,
+                        if (style == LapButtonStyle.GhostDestructive) {
+                            MaterialTheme.colorScheme.error.copy(alpha = 0.55f)
+                        } else if (enabled) {
+                            LapSightTheme.colors.cardBorder
+                        } else {
+                            LapSightTheme.colors.disabledBorder
+                        },
+                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (style == LapButtonStyle.GhostDestructive) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                        disabledContentColor = disabledContent,
+                    ),
+                ) { label() }
+            } else {
+                TextButton(
+                    onClick = onClick,
+                    modifier = sized,
+                    enabled = enabled,
+                    shape = shape,
+                    contentPadding = padding,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = if (style == LapButtonStyle.GhostDestructive) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                        disabledContentColor = disabledContent,
+                    ),
+                ) { label() }
+            }
+        }
     }
 }

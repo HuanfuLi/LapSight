@@ -14,6 +14,7 @@ import com.huanfuli.lapsight.shared.storage.InMemorySessionStore
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.ui.AppShell
 import com.huanfuli.lapsight.shared.ui.LapSightTheme
+import com.huanfuli.lapsight.shared.ui.ProvideLocalizedStrings
 
 /**
  * LapSight root composable (Plan 03-05 refactor).
@@ -51,20 +52,22 @@ fun App(
         ThemeMode.Light -> false
     }
 
-    LapSightTheme(useDarkTheme = useDarkTheme) {
-        AppShell(
-            orientationController = orientationController,
-            driveDisplayController = driveDisplayController,
-            displaySettings = displaySettings,
-            onDisplaySettingsChanged = { updated ->
-                displaySettings = updated
-                displaySettingsStore.save(updated)
-            },
-            simulatedGpsProvider = simulatedGpsProvider,
-            phoneGpsProvider = phoneGpsProvider,
-            phoneGpsPermission = phoneGpsPermission,
-            sessionStore = sessionStore,
-            exportShareTarget = exportShareTarget,
-        )
+    ProvideLocalizedStrings(languageMode = displaySettings.languageMode) {
+        LapSightTheme(useDarkTheme = useDarkTheme) {
+            AppShell(
+                orientationController = orientationController,
+                driveDisplayController = driveDisplayController,
+                displaySettings = displaySettings,
+                onDisplaySettingsChanged = { updated ->
+                    displaySettings = updated
+                    displaySettingsStore.save(updated)
+                },
+                simulatedGpsProvider = simulatedGpsProvider,
+                phoneGpsProvider = phoneGpsProvider,
+                phoneGpsPermission = phoneGpsPermission,
+                sessionStore = sessionStore,
+                exportShareTarget = exportShareTarget,
+            )
+        }
     }
 }
