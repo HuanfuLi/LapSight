@@ -518,29 +518,34 @@ in 0.8 to blank the screen without stopping the display.
 | A5 | Exposing the existing `SessionController` instance to `androidApp` (hoist) is acceptable and does not require an engine refactor | KMP Integration Seam | MEDIUM — if the composition can't cleanly hand out the controller, Option 2 (StateFlow) is the fallback |
 | A6 | `ButtonStyle` = `{PRIMARY, SECONDARY}`, `ImageSize` includes `FILL`, `Direction` = `{ROW, COLUMN}`, `Alignment` includes `CENTER`, `IconStyle` includes `FILLED` | Standard Stack / examples | LOW — observed in the sample, not enumerated from the reference; the HUD barely uses buttons/images |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Real-device captouch receive API (D-07/D-08).**
+1. **Real-device captouch receive API (D-07/D-08).** — **DEFERRED (hardware-gated).**
    - What we know: `MockCaptouchKit` simulates `tap`/`tapAndHold` (0.8 CHANGELOG); documented app
      input is `onClick` on `button`/clickable `flexBox` routed to the phone.
    - What's unclear: How (or whether) a Display app subscribes to raw temple captouch gestures on
      real hardware — no such Flow is in the 0.8 reference, integration guide, or SDK skills.
-   - Recommendation: Ship the phone-side page selector as the primary control (MR-03-safe). Add a
-     `checkpoint:human-verify` to confirm the captouch API on real glasses / via the Meta Wearables
-     MCP before implementing the D-07/D-08 gesture mapping; otherwise use on-screen clickable elements.
+   - **Resolution:** Deferred to the hardware-gated **07-06 Task 1 `checkpoint:human-verify`**, which
+     confirms the captouch receive API on real glasses (or the Meta Wearables MCP) BEFORE any D-07/D-08
+     gesture mapping is implemented. The phone-side page selector (07-05) is the guaranteed MR-03-safe
+     control regardless of the outcome; 07-06 closes this question in its SUMMARY.
 
-2. **Exact source of GPS fix status / `ReadyState` for the D-13 idle screen.**
+2. **Exact source of GPS fix status / `ReadyState` for the D-13 idle screen.** — **RESOLVED-IN-PLAN.**
    - What we know: `TimingRunSnapshot` carries `accuracyMeters` + `sampleRateHz`; `ReadyGate` +
      `ReadyThresholds.Default` compute Ready; the raw/GPS controller `snapshot()` carries fix state.
    - What's unclear: Which exact shared accessor the bridge should poll for pre-timing fix status
      (the Drive screen uses a `snapshot`/`dashReadyState` combination).
-   - Recommendation: Reuse the same accessor `DriveScreen` uses for `dashReadyState(snapshot)`;
-     surface it alongside `timingRunSnapshot()` when hoisting the controller.
+   - **Resolution:** Resolved by **07-02 Task 1** — the bridge reuses the same GPS/ready accessor
+     `DriveScreen` uses for `dashReadyState(snapshot)`, surfaced as the platform-free `GlassesGpsState`
+     alongside `timingRunSnapshot()` when the controller is hoisted. The exact accessor chosen is
+     documented in the 07-02 SUMMARY.
 
-3. **`sendContent` practical refresh ceiling and flicker behavior.**
+3. **`sendContent` practical refresh ceiling and flicker behavior.** — **MITIGATED.**
    - What we know: whole-screen replacement over BLE; no documented rate limit.
-   - Recommendation: default frame-dedupe on; 500 ms tunable; validate on hardware; record findings
-     to tune the sector-flash duration (deferred idea).
+   - **Resolution:** Mitigated by default frame-dedupe + a 500 ms tunable interval constant
+     (07-03/07-04), bounding BLE traffic without a documented ceiling; validated on real hardware in
+     **07-05 Task 3**, with observed behavior recorded to tune the sector-flash duration (deferred idea).
+
 
 ## Environment Availability
 
@@ -586,8 +591,8 @@ in 0.8 to blank the screen without stopping the display.
 - **Phase gate:** full suite green + `:androidApp:assembleDebug` succeeds before `/gsd:verify-work`
 
 ### Wave 0 Gaps
-- [ ] `androidApp/.../glasses/hud/HudModel.kt` + unit test — MR-01/MR-02 mapping (keep the mapper
-      pure so it can be unit-tested without the SDK; ideally place mapping in a platform-free helper)
+- [ ] `shared/.../glasses/HudModel.kt` + host unit test — MR-01/MR-02 mapping (mapper is pure and
+      platform-free in `shared/commonMain`, host-tested without the SDK — resolved in 07-02)
 - [ ] `androidApp/src/androidTest/.../glasses/` MockDeviceKit test base (mirror the skill's
       `MockDeviceKitTestCase`) — MR-03/D-11/D-07/D-08
 - [ ] Gradle: add `mwdat-mockdevice` (as `androidTestImplementation` if only used in tests) and an
