@@ -28,11 +28,20 @@ import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.SpeedUnit
 import com.huanfuli.lapsight.shared.ThemeMode
 import com.huanfuli.lapsight.shared.export.AndroidExportShareTarget
+import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.storage.StoragePaths
 
 class MainActivity : ComponentActivity() {
     private val fineLocationPermissionGranted = mutableStateOf(false)
     private var phoneGpsProvider: AndroidPhoneLocationProvider? = null
+
+    /**
+     * The single [SessionController] the phone dash drives, captured via
+     * [com.huanfuli.lapsight.shared.App]'s `onSessionControllerReady` seam
+     * (Phase 7 MR-01). A future Meta glasses bridge polls this SAME instance —
+     * no second controller is ever constructed in `androidApp`.
+     */
+    private var sessionController: SessionController? = null
 
     private val requestLocationPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -121,6 +130,7 @@ class MainActivity : ComponentActivity() {
                 ),
                 sessionStore = StoragePaths.fileSessionStore(),
                 exportShareTarget = shareTarget,
+                onSessionControllerReady = { sessionController = it },
             )
         }
     }

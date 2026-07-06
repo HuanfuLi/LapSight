@@ -67,6 +67,10 @@ enum class AppTab { Drive, Review, Settings }
  * @param orientationController platform window lock; never sensor-driven.
  * @param sessionStore local-first store; defaults to an in-memory store so
  *   previews/tests need no platform storage root.
+ * @param onSessionControllerReady invoked exactly once (per hoisted instance)
+ *   with the [SessionController] constructed below (Phase 7 MR-01 seam), so
+ *   `MainActivity` can hand the SAME instance to a Meta glasses bridge without
+ *   constructing a second controller.
  */
 @Composable
 fun AppShell(
@@ -79,6 +83,7 @@ fun AppShell(
     phoneGpsPermission: PhoneGpsPermissionState = PhoneGpsPermissionState(),
     sessionStore: LocalSessionStore = InMemorySessionStore(),
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
+    onSessionControllerReady: (SessionController) -> Unit = {},
 ) {
     val s = strings
     var tab by remember { mutableStateOf(AppTab.Drive) }
@@ -123,6 +128,14 @@ fun AppShell(
     // On launch, surface an unfinished draft recovery prompt (D-15).
     LaunchedEffect(Unit) {
         recoveryPrompt = sessionController.loadUnfinishedDraft()
+    }
+
+    // Phase 7 MR-01 seam: hand the hoisted controller instance to MainActivity
+    // exactly once so a Meta glasses bridge can poll the SAME controller the
+    // phone dash drives. Keyed on the instance (stable for the composition's
+    // lifetime), never re-invoked on recomposition.
+    LaunchedEffect(sessionController) {
+        onSessionControllerReady(sessionController)
     }
 
     val driveFullscreen = tab == AppTab.Drive && (
