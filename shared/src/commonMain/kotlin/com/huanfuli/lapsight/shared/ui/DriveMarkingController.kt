@@ -14,6 +14,7 @@ import com.huanfuli.lapsight.shared.track.CourseDirection
 import com.huanfuli.lapsight.shared.track.ClosedReferencePath
 import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
 import com.huanfuli.lapsight.shared.track.CourseGeometryBuilder
+import com.huanfuli.lapsight.shared.track.CourseTopology
 import com.huanfuli.lapsight.shared.track.CreateProfileResult
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
@@ -21,6 +22,7 @@ import com.huanfuli.lapsight.shared.track.ReferenceLineExtraction
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtractor
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
+import com.huanfuli.lapsight.shared.track.StartFinishRecommender
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
 import com.huanfuli.lapsight.shared.track.TrackProfileController
@@ -66,8 +68,12 @@ data class DriveMarkingSnapshot(
     val selectableProfiles: List<TrackProfileRow> = emptyList(),
     /** The persisted Course Direction of the current selection (D-18); Recorded when none. */
     val selectedDirection: CourseDirection = CourseDirection.Recorded,
+    /** Topology of the currently selected saved Track, or null when none is selected. */
+    val currentTrackTopology: CourseTopology? = null,
     /** The marking trace captured so far; non-empty only while Capturing (live feedback). */
     val capturedSamples: List<LocationSample> = emptyList(),
+    /** Course shape selected for the next marking capture. */
+    val selectedTopology: CourseTopology = CourseTopology.Circuit,
 ) {
     val speedKmhLabel: String
         get() = latestSample?.speedMetersPerSecond
@@ -94,6 +100,8 @@ data class DriveMarkingSnapshot(
             needsTrackSelection = true,
             selectableProfiles = emptyList(),
             selectedDirection = CourseDirection.Recorded,
+            currentTrackTopology = null,
+            selectedTopology = CourseTopology.Circuit,
         )
     }
 }
@@ -131,8 +139,8 @@ class DriveMarkingController(
     private val store: LocalSessionStore,
     private val appMetadata: AppMetadata = AppMetadata(appVersion = "0.3.0"),
     private val now: () -> Long = ::nowEpochMillisSafe,
-    private val extractor: (TrackMarkingSession) -> ReferenceLineExtraction =
-        { ReferenceLineExtractor.extract(it) },
+    private val extractor: (TrackMarkingSession, CourseTopology) -> ReferenceLineExtraction =
+        { marking, topology -> ReferenceLineExtractor.extract(marking, topology = topology) },
     private val defaultTrackName: String = "Demo Track",
 ) {
     private var phase: DriveMarkingPhase = DriveMarkingPhase.Idle
@@ -141,6 +149,7 @@ class DriveMarkingController(
     private var reviewState: TrackReviewState? = null
     private val savedTracks: MutableList<Track> = mutableListOf()
     private var trackNameOverride: String? = null
+    private var selectedTopology: CourseTopology = CourseTopology.Circuit
 
     /** Resolves the explicit current Track selection without any newest-Track fallback. */
     private val profileController = TrackProfileController(store)
@@ -158,11 +167,13 @@ class DriveMarkingController(
         val selected = profileController.resolveCurrent() as? CurrentProfileResolution.Selected
         val canStart = selected != null
         val selectableProfiles = store.listActiveProfiles().map { profile ->
+            val setup = profile.latestRevision?.courseSetup
             TrackProfileRow(
                 profileId = profile.profileId,
                 name = profile.name,
                 // Describe the latest revision only (D-14).
-                isTimingReady = profile.latestRevision?.courseSetup?.startFinish != null,
+                isTimingReady = setup?.startFinish != null &&
+                    (setup.topology != CourseTopology.PointToPoint || setup.finishLine != null),
             )
         }
         return DriveMarkingSnapshot(
@@ -181,8 +192,17 @@ class DriveMarkingController(
             needsTrackSelection = !canStart,
             selectableProfiles = selectableProfiles,
             selectedDirection = selected?.direction ?: CourseDirection.Recorded,
+            currentTrackTopology = selected?.revision?.courseSetup?.topology,
             capturedSamples = if (phase == DriveMarkingPhase.Capturing) captured.toList() else emptyList(),
+            selectedTopology = selectedTopology,
         )
+    }
+
+    /** Select the topology used by the next marking capture. */
+    fun selectTopology(topology: CourseTopology) {
+        if (phase == DriveMarkingPhase.Idle) {
+            selectedTopology = topology
+        }
     }
 
     /**
@@ -282,8 +302,9 @@ class DriveMarkingController(
             source = source,
             samples = captured.map { it.toDto() },
         )
-        val extraction = extractor(marking)
+        val extraction = extractor(marking, selectedTopology)
         reviewState = TrackReviewState.from(trackNameOverride ?: defaultTrackName, extraction)
+            .withRecommendedTimingLines()
         phase = DriveMarkingPhase.Review
     }
 
@@ -297,8 +318,11 @@ class DriveMarkingController(
         if (!review.canSave) return
         val ref = review.extraction.referenceLine ?: return
         if (review.startFinish != null) return
-        val startFinish = defaultStartFinishLine(ref) ?: return
-        reviewState = review.copy(startFinish = startFinish)
+        val recommended = recommendedTimingLines(ref) ?: return
+        reviewState = review.copy(
+            startFinish = recommended.first,
+            finishLine = recommended.second,
+        )
     }
 
     /**
@@ -307,10 +331,15 @@ class DriveMarkingController(
      * save-ready.
      */
     fun saveTrack(): Track? {
-        if (reviewState?.startFinish == null) {
+        val currentReview = reviewState
+        if (
+            currentReview?.startFinish == null ||
+            (currentReview.extraction.topology == CourseTopology.PointToPoint && currentReview.finishLine == null)
+        ) {
             confirmStartFinish()
         }
         val review = reviewState ?: return null
+        if (review.extraction.topology == CourseTopology.PointToPoint && review.finishLine == null) return null
         if (!review.canSave) return null
         val createdAt = now()
         val track = review.toTrack(
@@ -408,6 +437,25 @@ class DriveMarkingController(
                 }
             }
     }
+
+    private fun TrackReviewState.withRecommendedTimingLines(): TrackReviewState {
+        val ref = extraction.referenceLine ?: return this
+        val recommended = recommendedTimingLines(ref) ?: return this
+        return copy(startFinish = recommended.first, finishLine = recommended.second)
+    }
+
+    private fun recommendedTimingLines(
+        referenceLine: com.huanfuli.lapsight.shared.track.TrackReferenceLine,
+    ): Pair<StartFinishLineDto, StartFinishLineDto?>? =
+        if (referenceLine.isClosed) {
+            val line = StartFinishRecommender.recommendCircuit(referenceLine)?.line
+                ?: defaultStartFinishLine(referenceLine)
+                ?: return null
+            line to null
+        } else {
+            val lines = StartFinishRecommender.recommendPointToPoint(referenceLine) ?: return null
+            lines.start.line to lines.finish.line
+        }
 
     private fun defaultStartFinishLine(referenceLine: com.huanfuli.lapsight.shared.track.TrackReferenceLine): StartFinishLineDto? =
         when (val path = ClosedReferencePath.fromReferenceLine(referenceLine)) {

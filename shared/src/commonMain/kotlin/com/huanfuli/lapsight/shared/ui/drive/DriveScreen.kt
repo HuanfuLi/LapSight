@@ -343,6 +343,10 @@ fun DriveScreen(
             controller.selectDirection(direction)
             snapshot = controller.snapshot()
         },
+        onSelectTopology = { topology ->
+            controller.selectTopology(topology)
+            snapshot = controller.snapshot()
+        },
         onStartTiming = action@{
             if (!ensureSelectedLocationFeedReady()) return@action
             if (!snapshot.canStartTiming || timingActive) {

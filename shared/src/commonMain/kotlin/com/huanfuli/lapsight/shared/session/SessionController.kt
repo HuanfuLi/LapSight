@@ -14,6 +14,7 @@ import com.huanfuli.lapsight.shared.nowEpochMillis
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.CourseTopology
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackProfileController
@@ -102,13 +103,17 @@ class SessionController(
             ?: return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
         val startFinish = track.startFinish
             ?: return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
+        val finishLine = track.finishLine
+        if (track.topology == CourseTopology.PointToPoint && finishLine == null) {
+            return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
+        }
         val runSource = sourceForTrack(track)
         // Resolve the persisted Course Direction / compatibility identity for this
         // Track and build the direction-specific course (D-18, D-21). Reverse flips
         // the accepted approach side and Sector order; Recorded keeps the recorded
         // orientation. Source is the active run provider, not the Track marking source.
         val courseIdentity = selectedCourseIdentityFor(track, runSource)
-        val course = courseFromTrack(startFinish, track.sectors, courseIdentity.direction)
+        val course = courseFromTrack(track.topology, startFinish, finishLine, track.sectors, courseIdentity.direction)
             ?: return StartTimingResult.Blocked(START_TIMING_BLOCKED_COPY)
         val preflightResult = courseIdentity.referenceLine?.let { referenceLine ->
             WrongCoursePreflight().evaluate(
@@ -125,6 +130,7 @@ class SessionController(
             identity = courseIdentity,
             course = course,
             startFinish = startFinish,
+            finishLine = finishLine,
             preflightResult = preflightResult,
         )
         if (preflightResult is CoursePreflightResult.Blocked) {
@@ -194,6 +200,8 @@ class SessionController(
             createdAtEpochMillis = createdAt,
             source = runSource,
             startFinish = resolved.startFinish,
+            finishLine = resolved.finishLine,
+            topology = track.topology,
             sectors = track.sectors,
             direction = courseIdentity.direction,
             courseCompatibilityKey = courseIdentity.compatibilityKey,
@@ -302,7 +310,14 @@ class SessionController(
                 if (track?.startFinish != null) {
                     // Rebuild the SAME direction-specific course the draft was timed under,
                     // taken from the immutable session snapshot (D-18).
-                    val course = courseFromTrack(track.startFinish, track.sectors, payload.session.direction)!!
+                    val course = courseFromTrack(
+                        payload.session.topology,
+                        track.startFinish,
+                        payload.session.finishLine ?: track.finishLine,
+                        track.sectors,
+                        payload.session.direction,
+                    )
+                    if (course == null) return SaveDraftResult.NothingToSave
                     val rec = TimingSessionRecorder(
                         session = payload.session,
                         course = course,
@@ -383,6 +398,8 @@ class SessionController(
                 source = profile.source,
                 referenceLine = revision.referenceLine,
                 startFinish = revision.courseSetup.startFinish,
+                finishLine = revision.courseSetup.finishLine,
+                topology = revision.courseSetup.topology,
                 sectors = revision.courseSetup.boundaries.map {
                     com.huanfuli.lapsight.shared.track.SectorLineDto(
                         id = it.id,
@@ -500,6 +517,7 @@ class SessionController(
         val identity: SelectedCourseIdentity,
         val course: CourseDefinition,
         val startFinish: com.huanfuli.lapsight.shared.track.StartFinishLineDto,
+        val finishLine: com.huanfuli.lapsight.shared.track.StartFinishLineDto?,
         val preflightResult: CoursePreflightResult,
     )
 }

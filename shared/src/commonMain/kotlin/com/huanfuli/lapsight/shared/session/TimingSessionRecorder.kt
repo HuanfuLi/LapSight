@@ -19,6 +19,7 @@ import com.huanfuli.lapsight.shared.lap.SectorResult
 import com.huanfuli.lapsight.shared.lap.StartFinishLine
 import com.huanfuli.lapsight.shared.lap.GeoPoint
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.CourseTopology
 import com.huanfuli.lapsight.shared.track.ClosedReferencePath
 import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
 import com.huanfuli.lapsight.shared.track.CourseGeometryBuilder
@@ -66,6 +67,22 @@ fun courseFromTrack(
     )
 }
 
+/** Derives a course for either a closed circuit or an open point-to-point run. */
+fun courseFromTrack(
+    topology: CourseTopology,
+    startFinish: StartFinishLineDto?,
+    finishLine: StartFinishLineDto?,
+    sectors: List<SectorLineDto>,
+): CourseDefinition? {
+    if (startFinish == null) return null
+    if (topology == CourseTopology.PointToPoint && finishLine == null) return null
+    return CourseDefinition(
+        startFinish = startFinish.toDomain(),
+        finishLine = if (topology == CourseTopology.PointToPoint) finishLine?.toDomain() else null,
+        sectors = sectors.map { it.toDomain() },
+    )
+}
+
 /**
  * Derives a DIRECTION-SPECIFIC lap-domain [CourseDefinition] from a saved Track's
  * start/finish + sectors (D-18, D-21).
@@ -83,6 +100,19 @@ fun courseFromTrack(
     direction: CourseDirection,
 ): CourseDefinition? {
     val base = courseFromTrack(startFinish, sectors) ?: return null
+    return CourseGeometryBuilder.directionalCourse(base, direction)
+}
+
+/** Direction-specific course derivation that preserves open point-to-point finish lines. */
+fun courseFromTrack(
+    topology: CourseTopology,
+    startFinish: StartFinishLineDto?,
+    finishLine: StartFinishLineDto?,
+    sectors: List<SectorLineDto>,
+    direction: CourseDirection,
+): CourseDefinition? {
+    val base = courseFromTrack(topology, startFinish, finishLine, sectors) ?: return null
+    if (topology == CourseTopology.PointToPoint) return base
     return CourseGeometryBuilder.directionalCourse(base, direction)
 }
 
@@ -134,7 +164,7 @@ class TimingSessionRecorder(
     var checkpointCount: Int = 0
         private set
 
-    private val courseMatcher = referenceLine?.let { line ->
+    private val courseMatcher = referenceLine?.takeIf { it.isClosed }?.let { line ->
         val path = when (val result = ClosedReferencePath.fromReferenceLine(line)) {
             is ClosedReferencePathResult.Loaded -> result.path
             is ClosedReferencePathResult.Rejected -> null

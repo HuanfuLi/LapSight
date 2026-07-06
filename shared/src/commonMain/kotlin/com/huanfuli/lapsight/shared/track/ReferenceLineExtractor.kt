@@ -10,6 +10,7 @@ import com.huanfuli.lapsight.shared.lap.LocalProjection
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.sqrt
 
 /**
@@ -73,6 +74,7 @@ data class ExtractionDiagnostic(
 data class ReferenceLineExtraction(
     val markingSession: TrackMarkingSession,
     val referenceLine: TrackReferenceLine?,
+    val topology: CourseTopology = CourseTopology.Circuit,
     val isReady: Boolean,
     val detectedLoopCount: Int,
     val acceptedLoopCount: Int,
@@ -116,6 +118,7 @@ object ReferenceLineExtractor {
         val minMedianPointsPerLoop: Int = 16,
         val maxConsensusRmsMeters: Double = 3.0,
         val outlierRmsFloorMeters: Double = 30.0,
+        val maxSinglePassClosureMeters: Double = 50.0,
     ) {
         init {
             require(resampleCount >= 8) { "resampleCount must be >= 8" }
@@ -123,6 +126,7 @@ object ReferenceLineExtractor {
             require(minMedianPointsPerLoop >= 1) { "minMedianPointsPerLoop must be >= 1" }
             require(maxConsensusRmsMeters > 0) { "maxConsensusRmsMeters must be > 0" }
             require(outlierRmsFloorMeters > 0) { "outlierRmsFloorMeters must be > 0" }
+            require(maxSinglePassClosureMeters > 0) { "maxSinglePassClosureMeters must be > 0" }
         }
     }
 
@@ -132,13 +136,20 @@ object ReferenceLineExtractor {
     /** A single detected loop: its raw sample slice plus local-meter points. */
     private data class Loop(val index: Int, val local: List<LocalPoint>)
 
-    fun extract(marking: TrackMarkingSession, config: Config = Config()): ReferenceLineExtraction {
+    fun extract(
+        marking: TrackMarkingSession,
+        config: Config = Config(),
+        topology: CourseTopology = CourseTopology.Circuit,
+    ): ReferenceLineExtraction {
         val domainSamples = marking.samples.map { it.toModel() }
         val quality = GpsQualitySummary.from(domainSamples)
 
         // Too little data to find any repeated structure at all.
         if (marking.samples.size < MIN_SAMPLES) {
-            return notReady(marking, quality, NotReadyReason.NoStructure)
+            return notReady(marking, quality, NotReadyReason.NoStructure, topology = topology)
+        }
+        if (marking.samples.any { !it.latitude.isFinite() || !it.longitude.isFinite() }) {
+            return notReady(marking, quality, NotReadyReason.NoStructure, topology = topology)
         }
 
         val origin = GeoPoint(marking.samples.first().latitude, marking.samples.first().longitude)
@@ -146,10 +157,56 @@ object ReferenceLineExtractor {
         val local = marking.samples.map {
             projection.toLocal(GeoPoint(it.latitude, it.longitude))
         }
+        if (pathDistance(local, closed = false) <= 0.0) {
+            return notReady(marking, quality, NotReadyReason.NoStructure, topology = topology)
+        }
+
+        if (topology == CourseTopology.PointToPoint) {
+            val openLine = resampleOpen(dedupeOpen(local), config.resampleCount)
+                .let(::smoothOpen)
+                .map {
+                    val geo = projection.toGeo(it)
+                    GeoPointDto(latitude = geo.latitude, longitude = geo.longitude)
+                }
+            return ReferenceLineExtraction(
+                markingSession = marking,
+                referenceLine = TrackReferenceLine(points = openLine, isClosed = false),
+                topology = topology,
+                isReady = true,
+                detectedLoopCount = 0,
+                acceptedLoopCount = 1,
+                rejectedLoopCount = 0,
+                diagnostics = emptyList(),
+                quality = quality,
+                notReadyReasons = emptyList(),
+            )
+        }
 
         val loops = segmentLoops(local)
+        if (loops.isEmpty()) {
+            val singlePass = dedupeOpen(local)
+            val closes = singlePass.size >= 3 &&
+                distance(singlePass.first(), singlePass.last()) <= config.maxSinglePassClosureMeters
+            if (!closes) {
+                return notReady(marking, quality, NotReadyReason.NoStructure, detected = 0, topology = topology)
+            }
+            return readySingleCircuit(
+                marking = marking,
+                quality = quality,
+                projection = projection,
+                local = singlePass,
+                config = config,
+            )
+        }
         if (loops.size < config.minLoops) {
-            return notReady(marking, quality, NotReadyReason.NoStructure, detected = loops.size)
+            return readySingleCircuit(
+                marking = marking,
+                quality = quality,
+                projection = projection,
+                local = loops.first().local,
+                config = config,
+                detected = loops.size,
+            )
         }
 
         // Resample every loop onto a common phase by anchoring each loop's start
@@ -184,18 +241,22 @@ object ReferenceLineExtractor {
 
         val notReadyReasons = mutableListOf<NotReadyReason>()
         if (accepted.size < config.minLoops) {
-            notReadyReasons += NotReadyReason.InsufficientLoops
+            diagnostics += ExtractionDiagnostic(
+                loopIndex = -1,
+                kind = DiagnosticKind.Noisy,
+                rmsDeviationMeters = 0.0,
+                detail = "Only ${accepted.size} clean loop(s) survived filtering; saved as a single-pass reference.",
+            )
         }
 
         // Sparse / dropped capture: too few raw samples per accepted loop.
         val medianPointsPerLoop = medianOf(acceptedRawCounts.map { it.toDouble() })
         if (medianPointsPerLoop < config.minMedianPointsPerLoop) {
-            notReadyReasons += NotReadyReason.SparseSampling
             diagnostics += ExtractionDiagnostic(
                 loopIndex = -1,
                 kind = DiagnosticKind.Dropped,
                 rmsDeviationMeters = 0.0,
-                detail = "Median ${medianPointsPerLoop.toInt()} samples/loop is below the resolution needed for a reliable reference.",
+                detail = "Median ${medianPointsPerLoop.toInt()} samples/loop is sparse; saved reference may be less smooth.",
             )
         }
 
@@ -207,19 +268,18 @@ object ReferenceLineExtractor {
             accepted.map { rmsDeviation(it, meanLoop) }.average()
         }
         if (accepted.isNotEmpty() && consensusRms > config.maxConsensusRmsMeters) {
-            notReadyReasons += NotReadyReason.InconsistentLoops
             diagnostics += ExtractionDiagnostic(
                 loopIndex = -1,
                 kind = DiagnosticKind.Noisy,
                 rmsDeviationMeters = consensusRms,
-                detail = "Accepted loops disagree by ${consensusRms.toInt()}m RMS (GPS noise/drift); reference not reliable.",
+                detail = "Accepted loops disagree by ${consensusRms.toInt()}m RMS (GPS noise/drift); smoothed reference saved from the available passes.",
             )
         }
 
-        val isReady = notReadyReasons.isEmpty()
+        val isReady = accepted.isNotEmpty()
         val referenceLine = if (isReady) {
             TrackReferenceLine(
-                points = meanLoop.map {
+                points = smoothClosed(meanLoop).map {
                     val geo = projection.toGeo(it)
                     GeoPointDto(latitude = geo.latitude, longitude = geo.longitude)
                 },
@@ -232,6 +292,7 @@ object ReferenceLineExtractor {
         return ReferenceLineExtraction(
             markingSession = marking,
             referenceLine = referenceLine,
+            topology = topology,
             isReady = isReady,
             detectedLoopCount = loops.size,
             acceptedLoopCount = accepted.size,
@@ -239,6 +300,33 @@ object ReferenceLineExtractor {
             diagnostics = diagnostics,
             quality = quality,
             notReadyReasons = notReadyReasons,
+        )
+    }
+
+    private fun readySingleCircuit(
+        marking: TrackMarkingSession,
+        quality: GpsQualitySummary,
+        projection: LocalProjection,
+        local: List<LocalPoint>,
+        config: Config,
+        detected: Int = 1,
+    ): ReferenceLineExtraction {
+        val resampled = resampleAnchored(local, config.resampleCount, local.first())
+        val line = smoothClosed(resampled).map {
+            val geo = projection.toGeo(it)
+            GeoPointDto(latitude = geo.latitude, longitude = geo.longitude)
+        }
+        return ReferenceLineExtraction(
+            markingSession = marking,
+            referenceLine = TrackReferenceLine(points = line, isClosed = true),
+            topology = CourseTopology.Circuit,
+            isReady = true,
+            detectedLoopCount = detected,
+            acceptedLoopCount = 1,
+            rejectedLoopCount = 0,
+            diagnostics = emptyList(),
+            quality = quality,
+            notReadyReasons = emptyList(),
         )
     }
 
@@ -388,6 +476,74 @@ object ReferenceLineExtractor {
         return sqrt(dx * dx + dy * dy)
     }
 
+    private fun pathDistance(points: List<LocalPoint>, closed: Boolean): Double {
+        if (points.size < 2) return 0.0
+        var total = 0.0
+        for (i in 1 until points.size) total += distance(points[i - 1], points[i])
+        if (closed && points.size > 2) total += distance(points.last(), points.first())
+        return total
+    }
+
+    private fun dedupeOpen(points: List<LocalPoint>): List<LocalPoint> {
+        val out = ArrayList<LocalPoint>(points.size)
+        for (p in points) {
+            val prev = out.lastOrNull()
+            if (prev == null || hypot(p.x - prev.x, p.y - prev.y) > 1e-6) out.add(p)
+        }
+        return out
+    }
+
+    private fun resampleOpen(points: List<LocalPoint>, count: Int): List<LocalPoint> {
+        if (points.isEmpty()) return emptyList()
+        if (points.size == 1) return List(count) { points.first() }
+        val cum = DoubleArray(points.size)
+        for (i in 1 until points.size) {
+            cum[i] = cum[i - 1] + distance(points[i - 1], points[i])
+        }
+        val total = cum.last()
+        if (total <= 0.0) return List(count) { points.first() }
+        return List(count) { i ->
+            val target = total * i.toDouble() / (count - 1).coerceAtLeast(1).toDouble()
+            var seg = 0
+            while (seg < points.lastIndex - 1 && cum[seg + 1] < target) seg++
+            val segLen = cum[seg + 1] - cum[seg]
+            val t = if (segLen <= 0.0) 0.0 else (target - cum[seg]) / segLen
+            val a = points[seg]
+            val b = points[seg + 1]
+            LocalPoint(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
+        }
+    }
+
+    private fun smoothClosed(points: List<LocalPoint>): List<LocalPoint> {
+        if (points.size < 5) return points
+        val n = points.size
+        return List(n) { i ->
+            val a = points[(i - 1 + n) % n]
+            val b = points[i]
+            val c = points[(i + 1) % n]
+            LocalPoint(
+                x = (a.x + 2.0 * b.x + c.x) / 4.0,
+                y = (a.y + 2.0 * b.y + c.y) / 4.0,
+            )
+        }
+    }
+
+    private fun smoothOpen(points: List<LocalPoint>): List<LocalPoint> {
+        if (points.size < 5) return points
+        return points.mapIndexed { i, p ->
+            if (i == 0 || i == points.lastIndex) {
+                p
+            } else {
+                val a = points[i - 1]
+                val c = points[i + 1]
+                LocalPoint(
+                    x = (a.x + 2.0 * p.x + c.x) / 4.0,
+                    y = (a.y + 2.0 * p.y + c.y) / 4.0,
+                )
+            }
+        }
+    }
+
     private fun medianOf(values: List<Double>): Double {
         if (values.isEmpty()) return 0.0
         val sorted = values.sorted()
@@ -404,9 +560,11 @@ object ReferenceLineExtractor {
         quality: GpsQualitySummary,
         reason: NotReadyReason,
         detected: Int = 0,
+        topology: CourseTopology = CourseTopology.Circuit,
     ): ReferenceLineExtraction = ReferenceLineExtraction(
         markingSession = marking,
         referenceLine = null,
+        topology = topology,
         isReady = false,
         detectedLoopCount = detected,
         acceptedLoopCount = 0,

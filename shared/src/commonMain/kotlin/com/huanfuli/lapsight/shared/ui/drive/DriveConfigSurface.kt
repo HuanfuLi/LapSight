@@ -38,6 +38,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -64,6 +65,7 @@ import com.huanfuli.lapsight.shared.session.toDto
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.CourseTopology
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.TrackProfile
 import com.huanfuli.lapsight.shared.ui.AddActionIcon
@@ -72,6 +74,7 @@ import com.huanfuli.lapsight.shared.ui.DriveMarkingPhase
 import com.huanfuli.lapsight.shared.ui.DriveMarkingSnapshot
 import com.huanfuli.lapsight.shared.ui.LapSightTheme
 import com.huanfuli.lapsight.shared.ui.PlayActionIcon
+import com.huanfuli.lapsight.shared.ui.PointToPointCourseIcon
 import com.huanfuli.lapsight.shared.ui.ReviewTabIcon
 import com.huanfuli.lapsight.shared.ui.RotateScreenIcon
 import com.huanfuli.lapsight.shared.ui.StopActionIcon
@@ -85,6 +88,9 @@ import com.huanfuli.lapsight.shared.ui.components.LapDialog
 import com.huanfuli.lapsight.shared.ui.components.MetricCell
 import com.huanfuli.lapsight.shared.ui.components.MetricCellSize
 import com.huanfuli.lapsight.shared.ui.components.SegmentedControl
+import lapsight.shared.generated.resources.Res
+import lapsight.shared.generated.resources.material_symbols_laps
+import org.jetbrains.compose.resources.painterResource
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -105,6 +111,7 @@ internal fun DriveSurface(
     onToggleOrientation: () -> Unit,
     onSelectProfile: (String) -> Unit,
     onSelectDirection: (CourseDirection) -> Unit,
+    onSelectTopology: (CourseTopology) -> Unit,
     onStartTiming: () -> Unit,
     onBeginMarking: () -> Unit,
     onStopMarking: () -> Unit,
@@ -189,6 +196,7 @@ internal fun DriveSurface(
                 onToggleOrientation = onToggleOrientation,
                 onSelectProfile = onSelectProfile,
                 onSelectDirection = onSelectDirection,
+                onSelectTopology = onSelectTopology,
                 onStartTiming = onStartTiming,
                 onBeginMarking = onBeginMarking,
                 onStopMarking = onStopMarking,
@@ -226,6 +234,7 @@ internal fun DriveSurface(
                     onToggleOrientation = onToggleOrientation,
                     onSelectProfile = onSelectProfile,
                     onSelectDirection = onSelectDirection,
+                    onSelectTopology = onSelectTopology,
                     onStartTiming = onStartTiming,
                     onBeginMarking = onBeginMarking,
                     onStopMarking = onStopMarking,
@@ -261,6 +270,7 @@ private fun LandscapeCockpit(
     onToggleOrientation: () -> Unit,
     onSelectProfile: (String) -> Unit,
     onSelectDirection: (CourseDirection) -> Unit,
+    onSelectTopology: (CourseTopology) -> Unit,
     onStartTiming: () -> Unit,
     onBeginMarking: () -> Unit,
     onStopMarking: () -> Unit,
@@ -273,12 +283,21 @@ private fun LandscapeCockpit(
     val spacing = LapSightTheme.spacing
     val s = strings
     var showTrackPicker by remember { mutableStateOf(false) }
+    var showNewTrackDialog by remember { mutableStateOf(false) }
     if (showTrackPicker) {
         TrackPickerDialog(
             snapshot = snapshot,
             onSelectProfile = onSelectProfile,
-            onBeginMarking = onBeginMarking,
+            onBeginMarking = { showNewTrackDialog = true },
             onClose = { showTrackPicker = false },
+        )
+    }
+    if (showNewTrackDialog) {
+        NewTrackCourseDialog(
+            selectedTopology = snapshot.selectedTopology,
+            onSelectTopology = onSelectTopology,
+            onBeginMarking = onBeginMarking,
+            onClose = { showNewTrackDialog = false },
         )
     }
 
@@ -319,7 +338,7 @@ private fun LandscapeCockpit(
                 else -> NoTrackState(
                     hasSavedTracks = snapshot.selectableProfiles.isNotEmpty(),
                     onChooseTrack = { showTrackPicker = true },
-                    onBeginMarking = onBeginMarking,
+                    onBeginMarking = { showNewTrackDialog = true },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -344,7 +363,7 @@ private fun LandscapeCockpit(
                 snapshot.phase == DriveMarkingPhase.Capturing -> {
                     MarkingMetricsRow(snapshot = snapshot)
                     Text(
-                        text = s.markingGuidance,
+                        text = s.markingGuidanceFor(snapshot.selectedTopology),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -385,7 +404,7 @@ private fun LandscapeCockpit(
                         snapshot = snapshot,
                         onClick = { showTrackPicker = true },
                     )
-                    if (snapshot.canStartTiming) {
+                    if (snapshot.canStartTiming && snapshot.currentTrackTopology != CourseTopology.PointToPoint) {
                         DirectionSelectorSection(
                             selected = snapshot.selectedDirection,
                             onSelectDirection = onSelectDirection,
@@ -638,6 +657,7 @@ private fun ControlPanel(
     onToggleOrientation: () -> Unit,
     onSelectProfile: (String) -> Unit,
     onSelectDirection: (CourseDirection) -> Unit,
+    onSelectTopology: (CourseTopology) -> Unit,
     onStartTiming: () -> Unit,
     onBeginMarking: () -> Unit,
     onStopMarking: () -> Unit,
@@ -705,12 +725,21 @@ private fun ControlPanel(
                 )
             } else {
                 var showTrackPicker by remember { mutableStateOf(false) }
+                var showNewTrackDialog by remember { mutableStateOf(false) }
                 if (showTrackPicker) {
                     TrackPickerDialog(
                         snapshot = snapshot,
                         onSelectProfile = onSelectProfile,
-                        onBeginMarking = onBeginMarking,
+                        onBeginMarking = { showNewTrackDialog = true },
                         onClose = { showTrackPicker = false },
+                    )
+                }
+                if (showNewTrackDialog) {
+                    NewTrackCourseDialog(
+                        selectedTopology = snapshot.selectedTopology,
+                        onSelectTopology = onSelectTopology,
+                        onBeginMarking = onBeginMarking,
+                        onClose = { showNewTrackDialog = false },
                     )
                 }
 
@@ -734,12 +763,12 @@ private fun ControlPanel(
                     NoTrackState(
                         hasSavedTracks = snapshot.selectableProfiles.isNotEmpty(),
                         onChooseTrack = { showTrackPicker = true },
-                        onBeginMarking = onBeginMarking,
+                        onBeginMarking = { showNewTrackDialog = true },
                         modifier = if (fillHeight) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth(),
                     )
                 }
 
-                if (snapshot.canStartTiming) {
+                if (snapshot.canStartTiming && snapshot.currentTrackTopology != CourseTopology.PointToPoint) {
                     DirectionSelectorSection(
                         selected = snapshot.selectedDirection,
                         onSelectDirection = onSelectDirection,
@@ -820,7 +849,7 @@ private fun MarkingLiveSection(
             )
         }
         Text(
-            text = s.markingGuidance,
+            text = s.markingGuidanceFor(snapshot.selectedTopology),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -850,13 +879,16 @@ private fun SelectedTrackPreview(
     if (referenceLine == null || referenceLine.points.isEmpty()) return
 
     val trace = remember(profileId, latest.ordinal) {
+        val finishAsLine = latest.courseSetup.finishLine?.let {
+            listOf(SectorLineDto("finish", "Finish", 999, it.pointA, it.pointB))
+        } ?: emptyList()
         buildTrackTrace(
             markingSamples = emptyList(),
             referenceLine = referenceLine,
             startFinish = latest.courseSetup.startFinish,
             sectors = latest.courseSetup.boundaries.map {
                 SectorLineDto(id = it.id, name = "Sector ${it.order}", order = it.order, pointA = it.pointA, pointB = it.pointB)
-            },
+            } + finishAsLine,
             outlierSamples = emptyList(),
             viewWidth = 400.0,
             viewHeight = 300.0,
@@ -937,8 +969,8 @@ private fun NoTrackState(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
+    ) {
+        Text(
             text = s.noTrackSelected,
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleMedium,
@@ -985,6 +1017,41 @@ private fun NoTrackState(
             }
         }
     }
+}
+
+@Composable
+private fun NewTrackCourseDialog(
+    selectedTopology: CourseTopology,
+    onSelectTopology: (CourseTopology) -> Unit,
+    onBeginMarking: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val s = strings
+    val spacing = LapSightTheme.spacing
+    LapDialog(
+        title = s.newTrack,
+        onDismissRequest = onClose,
+        confirmText = s.newTrack,
+        confirmIcon = AddActionIcon,
+        onConfirm = {
+            onClose()
+            onBeginMarking()
+        },
+        dismissText = s.cancel,
+        onDismiss = onClose,
+        content = {
+            Text(
+                text = s.markFirstTrack,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(spacing.sm))
+            CourseTopologySelector(
+                selected = selectedTopology,
+                onSelectTopology = onSelectTopology,
+            )
+        },
+    )
 }
 
 @Composable
@@ -1248,6 +1315,41 @@ private fun TrackSelectorSection(
                 style = MaterialTheme.typography.titleLarge,
             )
         }
+    }
+}
+
+@Composable
+private fun CourseTopologySelector(
+    selected: CourseTopology,
+    onSelectTopology: (CourseTopology) -> Unit,
+) {
+    val spacing = LapSightTheme.spacing
+    val s = strings
+    val circuitIcon = painterResource(Res.drawable.material_symbols_laps)
+    val pointToPointIcon = rememberVectorPainter(PointToPointCourseIcon)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+    ) {
+        Text(
+            text = s.courseType,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.weight(0.6f),
+        )
+        SegmentedControl(
+            options = listOf(s.circuit, s.pointToPoint),
+            selectedIndex = if (selected == CourseTopology.Circuit) 0 else 1,
+            onSelect = { index ->
+                onSelectTopology(
+                    if (index == 0) CourseTopology.Circuit else CourseTopology.PointToPoint,
+                )
+            },
+            optionIcons = listOf(circuitIcon, pointToPointIcon),
+            iconOnly = true,
+            modifier = Modifier.weight(1.4f),
+        )
     }
 }
 

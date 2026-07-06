@@ -7,6 +7,9 @@ sealed interface TimingLineRef {
     /** The single start/finish line. */
     data object StartFinish : TimingLineRef
 
+    /** The finish line of an open point-to-point course. */
+    data object Finish : TimingLineRef
+
     /** A sector line, identified by its stable id and order. */
     data class Sector(val id: String, val order: Int) : TimingLineRef
 }
@@ -57,6 +60,17 @@ class CrossingDetector(private val projection: LocalProjection) {
         movement: MovementSegment,
     ): CrossingCandidate? = detect(
         ref = TimingLineRef.StartFinish,
+        lineA = line.pointA,
+        lineB = line.pointB,
+        movement = movement,
+    )
+
+    /** Test a movement against an open-course finish line. */
+    fun detectFinish(
+        line: StartFinishLine,
+        movement: MovementSegment,
+    ): CrossingCandidate? = detect(
+        ref = TimingLineRef.Finish,
         lineA = line.pointA,
         lineB = line.pointB,
         movement = movement,

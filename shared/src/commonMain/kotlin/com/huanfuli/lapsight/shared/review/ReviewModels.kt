@@ -278,9 +278,16 @@ fun buildTrackTrace(
         idx++
     }
 
-    // Layer 2: Reference line (highlighted baseline) — a closed circuit loop.
+    // Layer 2: Reference line (highlighted baseline).
     if (refDtos.isNotEmpty()) {
-        layers += layer("Reference line", TraceRole.Reference, 3f, false, projected[idx], closed = true)
+        layers += layer(
+            "Reference line",
+            TraceRole.Reference,
+            3f,
+            false,
+            projected[idx],
+            closed = referenceLine?.isClosed == true,
+        )
         idx++
     }
 
@@ -365,6 +372,7 @@ fun buildTrackTraceLayers(
  */
 fun buildTimingTrace(
     referenceLinePoints: List<GeoPointDto>,
+    referenceLineClosed: Boolean = true,
     sessionSamples: List<LocationSampleDto>,
     startFinish: StartFinishLineDto?,
     sectors: List<SectorLineDto>,
@@ -420,9 +428,9 @@ fun buildTimingTrace(
     val layers = mutableListOf<TraceLayer>()
     var idx = 0
 
-    // Layer 1: Reference line baseline — a closed circuit loop.
+    // Layer 1: Reference line baseline.
     if (referenceLinePoints.isNotEmpty()) {
-        layers += layer("Reference baseline", TraceRole.Reference, 3f, false, projected[idx], closed = true)
+        layers += layer("Reference baseline", TraceRole.Reference, 3f, false, projected[idx], closed = referenceLineClosed)
         idx++
     }
 
@@ -467,6 +475,7 @@ fun buildTimingTrace(
 /** Layers-only convenience over [buildTimingTrace] for callers that don't need the viewport. */
 fun buildTimingTraceLayers(
     referenceLinePoints: List<GeoPointDto>,
+    referenceLineClosed: Boolean = true,
     sessionSamples: List<LocationSampleDto>,
     startFinish: StartFinishLineDto?,
     sectors: List<SectorLineDto>,
@@ -476,6 +485,6 @@ fun buildTimingTraceLayers(
     viewHeight: Double,
     padding: Double = 0.05,
 ): List<TraceLayer> = buildTimingTrace(
-    referenceLinePoints, sessionSamples, startFinish, sectors,
+    referenceLinePoints, referenceLineClosed, sessionSamples, startFinish, sectors,
     selectedLapStartMillis, selectedLapEndMillis, viewWidth, viewHeight, padding,
 ).layers

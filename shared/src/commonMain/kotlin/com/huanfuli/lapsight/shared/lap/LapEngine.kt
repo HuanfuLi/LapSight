@@ -124,6 +124,11 @@ class LapEngine(
         det.detectStartFinish(course.startFinish, movement)?.let {
             crossings += PendingCrossing(it, sector = null)
         }
+        course.finishLine?.let { finish ->
+            det.detectFinish(finish, movement)?.let {
+                crossings += PendingCrossing(it, sector = null)
+            }
+        }
         for (sector in course.orderedSectors) {
             det.detectSector(sector, movement)?.let {
                 crossings += PendingCrossing(it, sector = sector)
@@ -136,10 +141,10 @@ class LapEngine(
             compareBy({ it.candidate.crossingMillis }, { it.candidate.ratio }),
         ).forEach { pending ->
             val sector = pending.sector
-            if (sector == null) {
-                handleStartFinish(pending.candidate, movement)
-            } else {
-                handleSectorCrossing(sector, pending.candidate, movement)
+            when {
+                sector != null -> handleSectorCrossing(sector, pending.candidate, movement)
+                pending.candidate.line == TimingLineRef.Finish -> handleFinish(pending.candidate, movement)
+                else -> handleStartFinish(pending.candidate, movement)
             }
         }
 
@@ -166,8 +171,31 @@ class LapEngine(
                 }
                 startFirstLap(candidate)
             }
-            LapPhase.Timing -> completeLap(candidate)
+            LapPhase.Timing -> {
+                if (course.finishLine == null) {
+                    completeLap(candidate)
+                }
+            }
         }
+    }
+
+    private fun handleFinish(candidate: CrossingCandidate, movement: MovementSegment) {
+        if (course.finishLine == null || state.phase != LapPhase.Timing) return
+
+        val reject = qualityReject(movement)
+        if (reject != null) {
+            state = state.copy(lastRejectReason = reject)
+            return
+        }
+
+        val lapStart = state.currentLapStartMillis ?: return
+        val duration = candidate.crossingMillis - lapStart
+        if (duration < config.minLapDurationMillis) {
+            state = state.copy(lastRejectReason = LapRejectReason.BelowMinLapDuration)
+            return
+        }
+
+        completePointToPointRun(candidate)
     }
 
     private fun startFirstLap(candidate: CrossingCandidate) {
@@ -255,6 +283,52 @@ class LapEngine(
             currentLapNumber = lapNumber + 1,
             currentLapStartMillis = candidate.crossingMillis,
             currentLapElapsedMillis = 0,
+            lastLapMillis = completed.durationMillis,
+            bestLapMillis = best,
+            completedLaps = state.completedLaps + completed,
+            latestSectorResult = finalSectorResult ?: state.latestSectorResult,
+            completedSectorResults = finalSectorResult
+                ?.let { state.completedSectorResults + it }
+                ?: state.completedSectorResults,
+            sectors = resetSectors(),
+            lastRejectReason = null,
+        )
+    }
+
+    private fun completePointToPointRun(candidate: CrossingCandidate) {
+        val lapStart = state.currentLapStartMillis ?: return
+        val lapNumber = state.currentLapNumber ?: 1
+        val completed = LapEvent(lapNumber, lapStart, candidate.crossingMillis)
+        val best = state.bestLapMillis?.let { min(it, completed.durationMillis) }
+            ?: completed.durationMillis
+
+        val boundaries = course.orderedSectors
+        val finalSectorResult: SectorResult? =
+            if (boundaries.isNotEmpty() && nextBoundaryIndex == boundaries.size) {
+                val open = sectorOpenMillis ?: lapStart
+                val order = boundaries.size + 1
+                SectorResult(
+                    lapNumber = lapNumber,
+                    sectorId = "sector-$order",
+                    sectorOrder = order,
+                    startedAtMillis = open,
+                    endedAtMillis = candidate.crossingMillis,
+                    durationMillis = candidate.crossingMillis - open,
+                    cumulativeSplitMillis = candidate.crossingMillis - lapStart,
+                )
+            } else {
+                null
+            }
+
+        lastStartFinishAcceptMillis = candidate.crossingMillis
+        nextBoundaryIndex = 0
+        sectorOpenMillis = null
+        state = state.copy(
+            phase = LapPhase.AwaitingStart,
+            lapCount = lapNumber,
+            currentLapNumber = null,
+            currentLapStartMillis = null,
+            currentLapElapsedMillis = null,
             lastLapMillis = completed.durationMillis,
             bestLapMillis = best,
             completedLaps = state.completedLaps + completed,

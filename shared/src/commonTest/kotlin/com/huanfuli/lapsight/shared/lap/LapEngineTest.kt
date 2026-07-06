@@ -48,6 +48,28 @@ class LapEngineTest {
     }
 
     @Test
+    fun pointToPointFinishCompletesOneRunWithoutOpeningNextLap() {
+        val openCourse = CourseDefinition(
+            startFinish = verticalStartFinish(),
+            finishLine = StartFinishLine(
+                pointA = GeoPoint(LapTestSupport.latForMetersNorth(-20.0), LapTestSupport.lonForMetersEast(100.0)),
+                pointB = GeoPoint(LapTestSupport.latForMetersNorth(20.0), LapTestSupport.lonForMetersEast(100.0)),
+            ),
+        )
+        val engine = LapEngine(openCourse, lenient)
+        engine.onSample(sample(0, -10.0))
+        engine.onSample(sample(2_000, 10.0)) // start at t=1000
+        engine.onSample(sample(9_000, 90.0))
+        val state = engine.onSample(sample(11_000, 110.0)) // finish at t=10000
+
+        assertEquals(1, state.lapCount)
+        assertTrue(state.lastLapMillis in 8_999L..9_000L)
+        assertEquals(LapPhase.AwaitingStart, state.phase)
+        assertNull(state.currentLapNumber)
+        assertEquals(1, state.completedLaps.size)
+    }
+
+    @Test
     fun bestLapUpdatesOnlyWhenFaster() {
         val engine = LapEngine(course, lenient)
         // start lap1 at t=1000

@@ -37,6 +37,7 @@ data class TrackReviewState(
     val trackName: String,
     val extraction: ReferenceLineExtraction,
     val startFinish: StartFinishLineDto? = null,
+    val finishLine: StartFinishLineDto? = null,
     val sectors: List<SectorLineDto> = emptyList(),
 ) {
     /** True when the extractor derived a usable reference line. */
@@ -85,6 +86,8 @@ data class TrackReviewState(
             source = source,
             referenceLine = extraction.referenceLine,
             startFinish = startFinish,
+            finishLine = finishLine,
+            topology = extraction.topology,
             sectors = sectors,
         )
     }
@@ -126,11 +129,14 @@ data class TrackReviewState(
                 emptyList()
             }
 
+        val finishAsLine = finishLine?.let {
+            listOf(SectorLineDto("finish", "Finish", 999, it.pointA, it.pointB))
+        } ?: emptyList()
         return com.huanfuli.lapsight.shared.review.buildTrackTraceLayers(
             markingSamples = markingSamples,
             referenceLine = refLine,
             startFinish = startFinish,
-            sectors = sectors,
+            sectors = sectors + finishAsLine,
             outlierSamples = outlierSamples,
             viewWidth = viewWidth,
             viewHeight = viewHeight,

@@ -535,9 +535,14 @@ private fun TimingTraceSection(
     val sessionPayload = (sessionResult as? LoadResult.Loaded<TimingSessionPayloadV1>)?.value
 
     val samples = sessionPayload?.samples ?: emptyList()
-    val refPoints = track?.referenceLine?.points ?: emptyList()
+    val referenceLine = track?.referenceLine
+    val refPoints = referenceLine?.points ?: emptyList()
     val startFinish = sessionPayload?.session?.startFinish ?: track?.startFinish
+    val finishLine = sessionPayload?.session?.finishLine ?: track?.finishLine
     val sectors = sessionPayload?.session?.sectors?.takeIf { it.isNotEmpty() } ?: track?.sectors ?: emptyList()
+    val finishAsLine = finishLine?.let {
+        listOf(com.huanfuli.lapsight.shared.track.SectorLineDto("finish", "Finish", 999, it.pointA, it.pointB))
+    } ?: emptyList()
 
     if (samples.isEmpty() && refPoints.isEmpty()) {
         Text(
@@ -550,9 +555,10 @@ private fun TimingTraceSection(
 
     val layers = buildTimingTraceLayers(
         referenceLinePoints = refPoints,
+        referenceLineClosed = referenceLine?.isClosed ?: true,
         sessionSamples = samples,
         startFinish = startFinish,
-        sectors = sectors,
+        sectors = sectors + finishAsLine,
         selectedLapStartMillis = selectedLapStartMillis,
         selectedLapEndMillis = selectedLapEndMillis,
         viewWidth = 400.0,

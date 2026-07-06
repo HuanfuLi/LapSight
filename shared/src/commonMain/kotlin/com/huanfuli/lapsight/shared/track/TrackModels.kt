@@ -33,6 +33,16 @@ data class SectorLineDto(
     val pointB: GeoPointDto,
 )
 
+/** Shape of a timed course. */
+@Serializable
+enum class CourseTopology {
+    /** A normal closed circuit: one start/finish line opens and closes each lap. */
+    Circuit,
+
+    /** An open point-to-point course: a start line opens one run and a finish line closes it. */
+    PointToPoint,
+}
+
 /**
  * Derived closed-loop reference polyline for a track (D-17, D-18).
  *
@@ -74,6 +84,8 @@ data class Track(
     val source: SourceMetadata,
     val referenceLine: TrackReferenceLine? = null,
     val startFinish: StartFinishLineDto? = null,
+    val finishLine: StartFinishLineDto? = null,
+    val topology: CourseTopology = CourseTopology.Circuit,
     val sectors: List<SectorLineDto> = emptyList(),
 )
 

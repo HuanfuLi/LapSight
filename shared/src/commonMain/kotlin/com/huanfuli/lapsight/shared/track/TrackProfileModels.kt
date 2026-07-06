@@ -71,8 +71,11 @@ data class SectorBoundary(
  */
 @Serializable
 data class CourseSetup(
+    val topology: CourseTopology = CourseTopology.Circuit,
     val startFinish: StartFinishLineDto? = null,
+    val finishLine: StartFinishLineDto? = null,
     val startFinishProgress: Double? = null,
+    val finishProgress: Double? = null,
     val sectorsEnabled: Boolean = false,
     val sectorCount: Int = 0,
     val boundaries: List<SectorBoundary> = emptyList(),
@@ -166,8 +169,10 @@ data class CourseSnapshot(
     val revisionId: String,
     val geometryCompatibilityId: String,
     val direction: CourseDirection,
+    val topology: CourseTopology = CourseTopology.Circuit,
     val referenceLine: TrackReferenceLine,
     val startFinish: StartFinishLineDto,
+    val finishLine: StartFinishLineDto? = null,
     val boundaries: List<SectorBoundary> = emptyList(),
     val legacySplits: List<LegacyCumulativeSplit> = emptyList(),
     val isLegacyMigrated: Boolean = false,

@@ -80,6 +80,7 @@ data class CourseDefinition(
     val startFinish: StartFinishLine,
     val sectors: List<SectorLine> = emptyList(),
     val acceptedStartFinishSign: Double? = null,
+    val finishLine: StartFinishLine? = null,
 ) {
     /** Intermediate boundaries sorted by their declared [SectorLine.order]. */
     val orderedSectors: List<SectorLine>

@@ -6,6 +6,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.huanfuli.lapsight.shared.LanguageMode
 import com.huanfuli.lapsight.shared.systemLanguageTag
+import com.huanfuli.lapsight.shared.track.CourseTopology
 
 internal enum class AppLanguage {
     English,
@@ -119,6 +120,9 @@ internal class LocalizedStrings(
     val current: String,
     val needsStartFinishBeforeTiming: String,
     val direction: String,
+    val courseType: String,
+    val circuit: String,
+    val pointToPoint: String,
     val recorded: String,
     val reverse: String,
     val switchToLandscape: String,
@@ -199,6 +203,60 @@ internal class LocalizedStrings(
         AppLanguage.Japanese -> buildRevisionAndSectors("リビジョン", revision, "セクター", sectorCount)
         AppLanguage.French -> buildRevisionAndSectors("Rév.", revision, "secteurs", sectorCount)
         AppLanguage.Spanish -> buildRevisionAndSectors("Rev.", revision, "sectores", sectorCount)
+    }
+
+    fun markingGuidanceFor(topology: CourseTopology): String = when (language) {
+        AppLanguage.English -> when (topology) {
+            CourseTopology.Circuit -> "Record one complete lap, then stop marking. Extra laps only improve smoothing."
+            CourseTopology.PointToPoint -> "Record one pass from start to finish, then stop marking."
+        }
+        AppLanguage.Chinese -> when (topology) {
+            CourseTopology.Circuit -> "完整记录一圈后即可停止标记；多跑几圈只会让地图更平滑。"
+            CourseTopology.PointToPoint -> "从起点到终点完整记录一次，然后停止标记。"
+        }
+        AppLanguage.Korean -> when (topology) {
+            CourseTopology.Circuit -> "한 바퀴를 완전히 기록한 뒤 마킹을 중지하세요. 추가 랩은 지도 평활화만 개선합니다."
+            CourseTopology.PointToPoint -> "출발점부터 도착점까지 한 번 기록한 뒤 마킹을 중지하세요."
+        }
+        AppLanguage.Japanese -> when (topology) {
+            CourseTopology.Circuit -> "1周を完全に記録したらマーキングを停止できます。追加周回は地図の平滑化だけを改善します。"
+            CourseTopology.PointToPoint -> "スタートからフィニッシュまで1回記録したらマーキングを停止してください。"
+        }
+        AppLanguage.French -> when (topology) {
+            CourseTopology.Circuit -> "Enregistrez un tour complet, puis arrêtez le marquage. Les tours en plus ne servent qu'a lisser la carte."
+            CourseTopology.PointToPoint -> "Enregistrez un passage du départ a l'arrivée, puis arrêtez le marquage."
+        }
+        AppLanguage.Spanish -> when (topology) {
+            CourseTopology.Circuit -> "Registra una vuelta completa y luego detén el marcado. Las vueltas extra solo suavizan el mapa."
+            CourseTopology.PointToPoint -> "Registra una pasada desde la salida hasta la meta y luego detén el marcado."
+        }
+    }
+
+    fun failedCaptureStatusFor(topology: CourseTopology): String = when (language) {
+        AppLanguage.English -> when (topology) {
+            CourseTopology.Circuit -> "Couldn't build the course. Re-record one complete lap; extra laps are optional for smoother mapping."
+            CourseTopology.PointToPoint -> "Couldn't build the open course. Re-record one clear start-to-finish pass."
+        }
+        AppLanguage.Chinese -> when (topology) {
+            CourseTopology.Circuit -> "无法生成赛道。请重新完整记录一圈；多跑几圈只是为了让地图更平滑。"
+            CourseTopology.PointToPoint -> "无法生成开放赛道。请重新记录一次清晰的起点到终点轨迹。"
+        }
+        AppLanguage.Korean -> when (topology) {
+            CourseTopology.Circuit -> "코스를 만들 수 없습니다. 한 바퀴를 다시 완전히 기록하세요. 추가 랩은 선택 사항입니다."
+            CourseTopology.PointToPoint -> "오픈 코스를 만들 수 없습니다. 출발점부터 도착점까지 한 번 선명하게 다시 기록하세요."
+        }
+        AppLanguage.Japanese -> when (topology) {
+            CourseTopology.Circuit -> "コースを作成できませんでした。1周を完全に再記録してください。追加周回は任意です。"
+            CourseTopology.PointToPoint -> "オープンコースを作成できませんでした。スタートからフィニッシュまで明確に1回再記録してください。"
+        }
+        AppLanguage.French -> when (topology) {
+            CourseTopology.Circuit -> "Impossible de construire le parcours. Réenregistrez un tour complet; les tours en plus sont optionnels."
+            CourseTopology.PointToPoint -> "Impossible de construire le parcours ouvert. Réenregistrez un passage clair du départ a l'arrivée."
+        }
+        AppLanguage.Spanish -> when (topology) {
+            CourseTopology.Circuit -> "No se pudo crear el recorrido. Vuelve a registrar una vuelta completa; las vueltas extra son opcionales."
+            CourseTopology.PointToPoint -> "No se pudo crear el recorrido abierto. Vuelve a registrar una pasada clara de salida a meta."
+        }
     }
 
     private fun buildRevisionAndSectors(
@@ -301,7 +359,7 @@ private val StringsEn = LocalizedStrings(
     recordRawGpsDiagnostic = "Record raw GPS (diagnostic)",
     rawGpsRecordingShort = "Recording raw GPS for diagnosis.",
     rawGpsRecordingLong = "Recording raw GPS for diagnosis. No lap timing is running.",
-    markingGuidance = "Drive at least 3 continuous loops of the course, then stop marking.",
+    markingGuidance = "Record one complete course pass, then stop marking.",
     waitingForFirstGpsFix = "Waiting for the first GPS fix...",
     markingTime = "MARKING TIME",
     points = "POINTS",
@@ -309,12 +367,15 @@ private val StringsEn = LocalizedStrings(
     newTrack = "New Track",
     noTrackSelected = "No track selected",
     pickSavedTrack = "Pick a saved track to start timing.",
-    markFirstTrack = "Mark your first track by driving loops of the course.",
+    markFirstTrack = "Choose a course type, then record one complete pass.",
     noSavedTracksYet = "No saved tracks yet.",
     track = "TRACK",
     current = "Current",
     needsStartFinishBeforeTiming = "Needs start/finish before timing",
     direction = "DIRECTION",
+    courseType = "COURSE",
+    circuit = "Circuit",
+    pointToPoint = "Point-to-point",
     recorded = "Recorded",
     reverse = "Reverse",
     switchToLandscape = "Switch to landscape",
@@ -333,7 +394,7 @@ private val StringsEn = LocalizedStrings(
     cleanLoopsCaptured = "clean loops captured",
     startFinishSet = "Start/finish is set.",
     savingPlacesStartFinish = "Saving places the start/finish at the recorded start. Adjustable later in the course editor.",
-    failedCaptureStatus = "Couldn't build a clean track. Re-record 3 continuous closed-course loops and avoid long stops.",
+    failedCaptureStatus = "Couldn't build the course. Re-record one complete pass with a clear GPS trace.",
     noLapTimesYet = "No lap times yet",
     noLapTimesNote = "Marking capture does not produce lap times.",
     captureDetails = "Capture details",
@@ -423,7 +484,7 @@ private val StringsZh = LocalizedStrings(
     recordRawGpsDiagnostic = "记录原始 GPS（诊断）",
     rawGpsRecordingShort = "正在记录原始 GPS 用于诊断。",
     rawGpsRecordingLong = "正在记录原始 GPS 用于诊断。圈速计时未运行。",
-    markingGuidance = "请连续驾驶至少 3 圈，然后停止标记。",
+    markingGuidance = "完整记录一次路线后即可停止标记。",
     waitingForFirstGpsFix = "等待第一次 GPS 定位...",
     markingTime = "标记时间",
     points = "点数",
@@ -431,12 +492,15 @@ private val StringsZh = LocalizedStrings(
     newTrack = "新赛道",
     noTrackSelected = "未选择赛道",
     pickSavedTrack = "选择已保存赛道以开始计时。",
-    markFirstTrack = "沿赛道驾驶多圈来标记你的第一条赛道。",
+    markFirstTrack = "先选择路线类型，然后完整记录一次路线。",
     noSavedTracksYet = "还没有保存的赛道。",
     track = "赛道",
     current = "当前",
     needsStartFinishBeforeTiming = "计时前需要设置起终点",
     direction = "方向",
+    courseType = "路线",
+    circuit = "闭合赛道",
+    pointToPoint = "开放赛道",
     recorded = "记录方向",
     reverse = "反向",
     switchToLandscape = "切换到横屏",
@@ -455,7 +519,7 @@ private val StringsZh = LocalizedStrings(
     cleanLoopsCaptured = "个干净圈已捕获",
     startFinishSet = "起终点已设置。",
     savingPlacesStartFinish = "保存时会把起终点放在记录开始处，之后可在赛道编辑器中调整。",
-    failedCaptureStatus = "无法生成干净赛道。请重新记录 3 个连续封闭赛道圈，并避免长时间停车。",
+    failedCaptureStatus = "无法生成赛道。请重新记录一次清晰、完整的 GPS 轨迹。",
     noLapTimesYet = "暂无圈速",
     noLapTimesNote = "赛道标记不会生成圈速。",
     captureDetails = "捕获详情",
@@ -545,7 +609,7 @@ private val StringsKo = LocalizedStrings(
     recordRawGpsDiagnostic = "원시 GPS 기록(진단)",
     rawGpsRecordingShort = "진단용 원시 GPS를 기록 중입니다.",
     rawGpsRecordingLong = "진단용 원시 GPS를 기록 중입니다. 랩 계시는 실행 중이 아닙니다.",
-    markingGuidance = "코스를 연속으로 최소 3바퀴 주행한 뒤 마킹을 중지하세요.",
+    markingGuidance = "코스 한 번을 완전히 기록한 뒤 마킹을 중지하세요.",
     waitingForFirstGpsFix = "첫 GPS 위치를 기다리는 중...",
     markingTime = "마킹 시간",
     points = "포인트",
@@ -553,12 +617,15 @@ private val StringsKo = LocalizedStrings(
     newTrack = "새 트랙",
     noTrackSelected = "선택한 트랙 없음",
     pickSavedTrack = "저장된 트랙을 선택해 계시를 시작하세요.",
-    markFirstTrack = "코스를 여러 바퀴 주행해 첫 트랙을 마킹하세요.",
+    markFirstTrack = "코스 유형을 선택한 뒤 한 번 완전히 기록하세요.",
     noSavedTracksYet = "저장된 트랙이 없습니다.",
     track = "트랙",
     current = "현재",
     needsStartFinishBeforeTiming = "계시 전 스타트/피니시가 필요합니다",
     direction = "방향",
+    courseType = "코스",
+    circuit = "서킷",
+    pointToPoint = "포인트 투 포인트",
     recorded = "기록 방향",
     reverse = "역방향",
     switchToLandscape = "가로 화면으로 전환",
@@ -577,7 +644,7 @@ private val StringsKo = LocalizedStrings(
     cleanLoopsCaptured = "개의 깨끗한 랩 캡처됨",
     startFinishSet = "스타트/피니시가 설정되었습니다.",
     savingPlacesStartFinish = "저장하면 기록 시작 지점에 스타트/피니시가 배치됩니다. 나중에 코스 편집기에서 조정할 수 있습니다.",
-    failedCaptureStatus = "깨끗한 트랙을 만들 수 없습니다. 폐쇄 코스를 연속 3바퀴 다시 기록하고 긴 정지를 피하세요.",
+    failedCaptureStatus = "코스를 만들 수 없습니다. 선명한 GPS 트레이스로 한 번 완전히 다시 기록하세요.",
     noLapTimesYet = "랩 타임 없음",
     noLapTimesNote = "트랙 마킹은 랩 타임을 만들지 않습니다.",
     captureDetails = "캡처 세부 정보",
@@ -667,7 +734,7 @@ private val StringsJa = LocalizedStrings(
     recordRawGpsDiagnostic = "生 GPS を記録(診断)",
     rawGpsRecordingShort = "診断用の生 GPS を記録中です。",
     rawGpsRecordingLong = "診断用の生 GPS を記録中です。ラップ計測は実行されていません。",
-    markingGuidance = "コースを連続で最低 3 周走ってからマーキングを停止してください。",
+    markingGuidance = "コースを1回完全に記録したらマーキングを停止できます。",
     waitingForFirstGpsFix = "最初の GPS 測位を待っています...",
     markingTime = "マーキング時間",
     points = "ポイント",
@@ -675,12 +742,15 @@ private val StringsJa = LocalizedStrings(
     newTrack = "新規トラック",
     noTrackSelected = "トラック未選択",
     pickSavedTrack = "保存済みトラックを選んで計測を開始します。",
-    markFirstTrack = "コースを複数周走って最初のトラックをマーキングします。",
+    markFirstTrack = "コース種別を選び、1回完全に記録してください。",
     noSavedTracksYet = "保存済みトラックはありません。",
     track = "トラック",
     current = "現在",
     needsStartFinishBeforeTiming = "計測前にスタート/フィニッシュが必要です",
     direction = "方向",
+    courseType = "コース",
+    circuit = "周回",
+    pointToPoint = "ポイント間",
     recorded = "記録方向",
     reverse = "逆方向",
     switchToLandscape = "横向きに切り替え",
@@ -699,7 +769,7 @@ private val StringsJa = LocalizedStrings(
     cleanLoopsCaptured = "件のクリーンな周回を取得",
     startFinishSet = "スタート/フィニッシュが設定されています。",
     savingPlacesStartFinish = "保存すると記録開始位置にスタート/フィニッシュを配置します。後でコースエディタで調整できます。",
-    failedCaptureStatus = "クリーンなトラックを作成できませんでした。閉鎖コースを連続 3 周再記録し、長い停止を避けてください。",
+    failedCaptureStatus = "コースを作成できませんでした。明確な GPS トレースで1回完全に再記録してください。",
     noLapTimesYet = "ラップタイムなし",
     noLapTimesNote = "トラックマーキングではラップタイムは生成されません。",
     captureDetails = "キャプチャ詳細",
@@ -789,7 +859,7 @@ private val StringsFr = LocalizedStrings(
     recordRawGpsDiagnostic = "Enregistrer le GPS brut (diagnostic)",
     rawGpsRecordingShort = "Enregistrement du GPS brut pour diagnostic.",
     rawGpsRecordingLong = "Enregistrement du GPS brut pour diagnostic. Aucun chrono au tour n'est en cours.",
-    markingGuidance = "Parcourez au moins 3 tours continus, puis arrêtez le marquage.",
+    markingGuidance = "Enregistrez un passage complet, puis arrêtez le marquage.",
     waitingForFirstGpsFix = "Attente du premier point GPS...",
     markingTime = "TEMPS DE MARQUAGE",
     points = "POINTS",
@@ -797,12 +867,15 @@ private val StringsFr = LocalizedStrings(
     newTrack = "Nouveau circuit",
     noTrackSelected = "Aucun circuit sélectionné",
     pickSavedTrack = "Choisissez un circuit enregistré pour démarrer le chrono.",
-    markFirstTrack = "Marquez votre premier circuit en effectuant plusieurs tours.",
+    markFirstTrack = "Choisissez un type de parcours, puis enregistrez un passage complet.",
     noSavedTracksYet = "Aucun circuit enregistré.",
     track = "CIRCUIT",
     current = "Actuel",
     needsStartFinishBeforeTiming = "Départ/arrivée requis avant le chrono",
     direction = "DIRECTION",
+    courseType = "PARCOURS",
+    circuit = "Circuit",
+    pointToPoint = "Point à point",
     recorded = "Enregistré",
     reverse = "Inverse",
     switchToLandscape = "Passer en paysage",
@@ -821,7 +894,7 @@ private val StringsFr = LocalizedStrings(
     cleanLoopsCaptured = "tours propres capturés",
     startFinishSet = "Le départ/arrivée est défini.",
     savingPlacesStartFinish = "L'enregistrement place le départ/arrivée au début enregistré. Ajustable plus tard dans l'éditeur de circuit.",
-    failedCaptureStatus = "Impossible de construire un circuit propre. Réenregistrez 3 tours continus sur circuit fermé et évitez les longs arrêts.",
+    failedCaptureStatus = "Impossible de construire le parcours. Réenregistrez un passage complet avec une trace GPS claire.",
     noLapTimesYet = "Aucun temps au tour",
     noLapTimesNote = "Le marquage du circuit ne produit pas de temps au tour.",
     captureDetails = "Détails de capture",
@@ -911,7 +984,7 @@ private val StringsEs = LocalizedStrings(
     recordRawGpsDiagnostic = "Registrar GPS bruto (diagnóstico)",
     rawGpsRecordingShort = "Registrando GPS bruto para diagnóstico.",
     rawGpsRecordingLong = "Registrando GPS bruto para diagnóstico. No hay cronómetro de vueltas en marcha.",
-    markingGuidance = "Conduce al menos 3 vueltas continuas del circuito y luego detén el marcado.",
+    markingGuidance = "Registra una pasada completa del recorrido y luego detén el marcado.",
     waitingForFirstGpsFix = "Esperando la primera posición GPS...",
     markingTime = "TIEMPO DE MARCADO",
     points = "PUNTOS",
@@ -919,12 +992,15 @@ private val StringsEs = LocalizedStrings(
     newTrack = "Nueva pista",
     noTrackSelected = "No hay pista seleccionada",
     pickSavedTrack = "Elige una pista guardada para iniciar el cronómetro.",
-    markFirstTrack = "Marca tu primera pista conduciendo vueltas del circuito.",
+    markFirstTrack = "Elige un tipo de recorrido y registra una pasada completa.",
     noSavedTracksYet = "Aún no hay pistas guardadas.",
     track = "PISTA",
     current = "Actual",
     needsStartFinishBeforeTiming = "Necesita salida/meta antes de cronometrar",
     direction = "DIRECCIÓN",
+    courseType = "RECORRIDO",
+    circuit = "Circuito",
+    pointToPoint = "Punto a punto",
     recorded = "Grabada",
     reverse = "Invertida",
     switchToLandscape = "Cambiar a horizontal",
@@ -943,7 +1019,7 @@ private val StringsEs = LocalizedStrings(
     cleanLoopsCaptured = "vueltas limpias capturadas",
     startFinishSet = "La salida/meta está configurada.",
     savingPlacesStartFinish = "Al guardar se coloca la salida/meta en el inicio registrado. Luego puedes ajustarla en el editor de circuito.",
-    failedCaptureStatus = "No se pudo crear una pista limpia. Vuelve a registrar 3 vueltas continuas en circuito cerrado y evita paradas largas.",
+    failedCaptureStatus = "No se pudo crear el recorrido. Vuelve a registrar una pasada completa con una traza GPS clara.",
     noLapTimesYet = "Sin tiempos de vuelta",
     noLapTimesNote = "El marcado de pista no produce tiempos de vuelta.",
     captureDetails = "Detalles de captura",

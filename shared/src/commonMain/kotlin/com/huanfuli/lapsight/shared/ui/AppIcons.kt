@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
@@ -179,5 +180,6 @@ val ExportActionIcon: ImageVector get() = Icons.Filled.FileDownload
 val PauseActionIcon: ImageVector get() = Icons.Filled.Pause
 val ReplayActionIcon: ImageVector get() = Icons.Filled.Replay
 val ResumeActionIcon: ImageVector get() = Icons.Filled.PlayArrow
+val PointToPointCourseIcon: ImageVector get() = Icons.Filled.Route
 val SaveActionIcon: ImageVector get() = Icons.Filled.Save
 val SaveSessionIcon: ImageVector get() = Icons.Filled.Folder

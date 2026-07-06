@@ -8,7 +8,6 @@ import com.huanfuli.lapsight.shared.session.toDto
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -73,6 +72,29 @@ class ReferenceLineExtractorTest {
         assertTrue(result.acceptedLoopCount >= 3)
     }
 
+    @Test
+    fun singleLoopCircuitCaptureIsSaveable() {
+        val result = ReferenceLineExtractor.extract(marking(GpsFixtureLibrary.singleLoopCircuit()))
+
+        assertTrue(result.isReady, "a one-loop circuit capture should be saveable")
+        val line = assertNotNull(result.referenceLine)
+        assertTrue(line.isClosed)
+        assertEquals(1, result.acceptedLoopCount)
+    }
+
+    @Test
+    fun pointToPointCaptureProducesOpenReferenceLine() {
+        val result = ReferenceLineExtractor.extract(
+            marking(GpsFixtureLibrary.pointToPointRun()),
+            topology = CourseTopology.PointToPoint,
+        )
+
+        assertTrue(result.isReady, "a one-pass open course should be saveable")
+        val line = assertNotNull(result.referenceLine)
+        assertTrue(!line.isClosed)
+        assertEquals(CourseTopology.PointToPoint, result.topology)
+    }
+
     // --- D-09: outlier rejection without producing laps -----------------------
 
     @Test
@@ -95,27 +117,26 @@ class ReferenceLineExtractorTest {
     // --- D-09 / D-11: degrade gracefully on poor captures (no crash) ----------
 
     @Test
-    fun noiseAndDriftCaptureDegradesToNotReady() {
+    fun noiseAndDriftCaptureSavesSmoothedReferenceWithDiagnostic() {
         val result = ReferenceLineExtractor.extract(marking(GpsFixtureLibrary.noiseDrift()))
 
-        assertTrue(!result.isReady, "a noisy/drifting capture is not reference-ready")
-        assertNull(result.referenceLine, "no reference line is emitted when not ready")
-        assertTrue(result.notReadyReasons.isNotEmpty(), "the reason for not-ready must be reported")
+        assertTrue(result.isReady, "a noisy/drifting capture should still save a usable reference")
+        assertNotNull(result.referenceLine)
         assertTrue(
-            result.notReadyReasons.contains(NotReadyReason.InconsistentLoops),
-            "noise/drift should be reported as inconsistent loops",
+            result.diagnostics.any { it.kind == DiagnosticKind.Noisy },
+            "noise/drift should be reported as a diagnostic",
         )
     }
 
     @Test
-    fun droppedLowFrequencyCaptureDegradesToNotReady() {
+    fun droppedLowFrequencyCaptureSavesWithSparseDiagnostic() {
         val result = ReferenceLineExtractor.extract(marking(GpsFixtureLibrary.droppedLowFrequency()))
 
-        assertTrue(!result.isReady, "a sparse/dropped capture is not reference-ready")
-        assertNull(result.referenceLine)
+        assertTrue(result.isReady, "a sparse capture should still save when geometry is usable")
+        assertNotNull(result.referenceLine)
         assertTrue(
-            result.notReadyReasons.contains(NotReadyReason.SparseSampling),
-            "dropped/low-frequency capture should be reported as sparse sampling",
+            result.diagnostics.any { it.kind == DiagnosticKind.Dropped },
+            "dropped/low-frequency capture should be reported as sparse",
         )
     }
 
@@ -156,7 +177,7 @@ class ReferenceLineExtractorTest {
 
     @Test
     fun reviewStateBlocksSaveOnNotReadyCapture() {
-        val degraded = ReferenceLineExtractor.extract(marking(GpsFixtureLibrary.noiseDrift()))
+        val degraded = ReferenceLineExtractor.extract(marking(GpsFixtureLibrary.cleanTenLoop().take(5)))
         val review = TrackReviewState.from(name = "Noisy", extraction = degraded)
 
         assertTrue(!review.isReferenceReady)

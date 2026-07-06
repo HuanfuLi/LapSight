@@ -9,6 +9,7 @@ import com.huanfuli.lapsight.shared.ghost.GhostCompatibility
 import com.huanfuli.lapsight.shared.track.CourseDirection
 import com.huanfuli.lapsight.shared.track.CourseSetup
 import com.huanfuli.lapsight.shared.track.CourseSnapshot
+import com.huanfuli.lapsight.shared.track.CourseTopology
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.GhostReferencePayloadV2
 import com.huanfuli.lapsight.shared.track.LegacyCumulativeSplit
@@ -205,7 +206,9 @@ object SchemaMigrations {
             sourceMarkingSessionId = track.sourceMarkingSessionId,
             referenceLine = track.referenceLine ?: TrackReferenceLine(points = emptyList(), isClosed = true),
             courseSetup = CourseSetup(
+                topology = track.topology,
                 startFinish = track.startFinish,
+                finishLine = track.finishLine,
                 sectorsEnabled = sectorsEnabled,
                 sectorCount = if (sectorsEnabled) boundaries.size + 1 else 0,
                 boundaries = boundaries,
@@ -256,8 +259,10 @@ object SchemaMigrations {
             revisionId = migratedRevisionId(session.trackId),
             geometryCompatibilityId = migratedGeometryCompatibilityId(session.trackId),
             direction = CourseDirection.Recorded,
+            topology = session.topology,
             referenceLine = TrackReferenceLine(points = emptyList(), isClosed = true),
             startFinish = session.startFinish,
+            finishLine = session.finishLine,
             boundaries = boundaries,
             legacySplits = legacySplits,
             isLegacyMigrated = true,
@@ -326,6 +331,7 @@ object SchemaMigrations {
             if (line.points.any { !isFiniteLatLon(it) }) return "non-finite reference point"
         }
         track.startFinish?.let { if (!isFiniteLine(it)) return "non-finite start/finish" }
+        track.finishLine?.let { if (!isFiniteLine(it)) return "non-finite finish line" }
         if (track.sectors.size > MAX_LEGACY_SECTOR_LINES) return "too many legacy sector lines"
         track.sectors.forEach { line ->
             if (!isSafeId(line.id)) return "unsafe sector id"
@@ -370,6 +376,10 @@ object SchemaMigrations {
 
     private fun validateCourseSetup(setup: CourseSetup): String? {
         setup.startFinish?.let { if (!isFiniteLine(it)) return "non-finite start/finish" }
+        setup.finishLine?.let { if (!isFiniteLine(it)) return "non-finite finish line" }
+        if (setup.topology == CourseTopology.PointToPoint && setup.startFinish != null && setup.finishLine == null) {
+            return "point-to-point course missing finish line"
+        }
         if (setup.sectorsEnabled) {
             if (setup.sectorCount !in 2..6) return "sector count out of range"
             if (setup.boundaries.size != setup.sectorCount - 1) return "boundary count must be sectorCount - 1"
@@ -390,6 +400,10 @@ object SchemaMigrations {
         if (!isSafeId(snapshot.revisionId)) return "unsafe snapshot revision id"
         if (snapshot.geometryCompatibilityId.isBlank()) return "missing geometry compatibility id"
         if (!isFiniteLine(snapshot.startFinish)) return "non-finite start/finish"
+        snapshot.finishLine?.let { if (!isFiniteLine(it)) return "non-finite finish line" }
+        if (snapshot.topology == CourseTopology.PointToPoint && snapshot.finishLine == null) {
+            return "point-to-point snapshot missing finish line"
+        }
         if (payload.samples.size > MAX_SAMPLES) return "too many samples"
         return validateSamples(payload.samples)
     }

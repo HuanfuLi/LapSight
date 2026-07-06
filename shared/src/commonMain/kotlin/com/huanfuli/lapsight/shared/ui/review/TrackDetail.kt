@@ -28,6 +28,7 @@ import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
 import com.huanfuli.lapsight.shared.track.CourseGeometryBuilder
 import com.huanfuli.lapsight.shared.track.CourseProfileEditor
 import com.huanfuli.lapsight.shared.track.CourseSetup
+import com.huanfuli.lapsight.shared.track.CourseTopology
 import com.huanfuli.lapsight.shared.track.CourseValidation
 import com.huanfuli.lapsight.shared.track.CreateProfileResult
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
@@ -149,6 +150,54 @@ private fun TrackCourseDetailSection(
 
     val pathResult = remember(referenceLine) {
         referenceLine?.let { ClosedReferencePath.fromReferenceLine(it) }
+    }
+    if (referenceLine != null && !referenceLine.isClosed) {
+        TrackTraceSection(
+            rowId = row.id,
+            type = row.type,
+            sessionStore = sessionStore,
+            refreshVersion = refreshVersion,
+        )
+        val timingReady = initialSetup?.startFinish != null &&
+            (initialSetup.topology != CourseTopology.PointToPoint || initialSetup.finishLine != null)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            StatusChip(
+                text = if (timingReady) "Timing-ready" else "Needs start/finish",
+                tone = if (timingReady) ChipTone.Ready else ChipTone.Caution,
+            )
+            latest?.let {
+                Text(
+                    text = "Rev ${it.ordinal}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        var selectMessage by remember(trackId) { mutableStateOf<String?>(null) }
+        LapButton(
+            text = "Set current",
+            onClick = { selectMessage = setAsCurrentTrack(sessionStore, trackId) },
+            icon = CheckActionIcon,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        selectMessage?.let { msg ->
+            StatusMessage(
+                text = msg,
+                tone = if (msg.startsWith("Couldn't")) ChipTone.Error else ChipTone.Ready,
+            )
+        }
+        Text(
+            text = "Point-to-point course editing is not available here yet.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        DisclosureSection(title = "Details") {
+            EntryMetadata(row)
+        }
+        return
     }
     if (referenceLine == null || referenceLine.points.isEmpty() || pathResult !is ClosedReferencePathResult.Loaded) {
         Text(
@@ -401,7 +450,9 @@ private fun legacyCourseSetup(track: Track?): CourseSetup? {
         )
     }
     return CourseSetup(
+        topology = track.topology,
         startFinish = track.startFinish,
+        finishLine = track.finishLine,
         sectorsEnabled = boundaries.isNotEmpty(),
         sectorCount = if (boundaries.isNotEmpty()) boundaries.size + 1 else 0,
         boundaries = boundaries,
@@ -454,15 +505,19 @@ internal fun TrackTraceSection(
     }
 
     val startFinish = track?.startFinish ?: profile?.latestRevision?.courseSetup?.startFinish
+    val finishLine = track?.finishLine ?: profile?.latestRevision?.courseSetup?.finishLine
     val sectors = track?.sectors ?: profile?.latestRevision?.courseSetup?.boundaries?.map {
         SectorLineDto(id = it.id, name = "Sector ${it.order}", order = it.order, pointA = it.pointA, pointB = it.pointB)
+    } ?: emptyList()
+    val finishAsLine = finishLine?.let {
+        listOf(SectorLineDto("finish", "Finish", 999, it.pointA, it.pointB))
     } ?: emptyList()
 
     val layers = com.huanfuli.lapsight.shared.review.buildTrackTraceLayers(
         markingSamples = samples,
         referenceLine = referenceLine,
         startFinish = startFinish,
-        sectors = sectors,
+        sectors = sectors + finishAsLine,
         outlierSamples = emptyList(),
         viewWidth = 400.0,
         viewHeight = 300.0,

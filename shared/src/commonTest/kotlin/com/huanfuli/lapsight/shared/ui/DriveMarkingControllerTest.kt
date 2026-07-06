@@ -13,6 +13,7 @@ import com.huanfuli.lapsight.shared.track.ClosedReferencePath
 import com.huanfuli.lapsight.shared.track.ClosedReferencePathResult
 import com.huanfuli.lapsight.shared.track.CourseDirection
 import com.huanfuli.lapsight.shared.track.CourseGeometryBuilder
+import com.huanfuli.lapsight.shared.track.CourseTopology
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.ReferenceLineExtractor
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
@@ -150,10 +151,14 @@ class DriveMarkingControllerTest {
         assertNotNull(startFinish)
         val path = ClosedReferencePath.fromReferenceLine(referenceLine)
         assertTrue(path is ClosedReferencePathResult.Loaded)
-        val expected = CourseGeometryBuilder.buildStartFinishLine(path.path, progress = 0.0)
-        assertEquals(expected, startFinish)
+        val recommendedProgress = path.path.projectGeo(
+            com.huanfuli.lapsight.shared.session.GeoPointDto(
+                latitude = (startFinish.pointA.latitude + startFinish.pointB.latitude) / 2.0,
+                longitude = (startFinish.pointA.longitude + startFinish.pointB.longitude) / 2.0,
+            ),
+        ).progressMeters
         assertNotEquals(oldPathSegmentLine, startFinish, "timing line must not be the first path segment")
-        assertEquals(1, CourseGeometryBuilder.pathCrossingCount(path.path, progress = 0.0))
+        assertEquals(1, CourseGeometryBuilder.pathCrossingCount(path.path, progress = recommendedProgress))
     }
 
     @Test
@@ -198,6 +203,36 @@ class DriveMarkingControllerTest {
         assertNotNull(track)
         assertEquals(LocationSource.PhoneGps, track.source.source)
         assertFalse(track.source.isSimulated)
+    }
+
+    @Test
+    fun pointToPointMarkingSavesOpenTrackWithFinishLine() {
+        val samples = GpsFixtureLibrary.pointToPointRun()
+        val controller = DriveMarkingController(
+            provider = ListLocationSampleProvider(samples),
+            store = InMemorySessionStore(),
+            appMetadata = app,
+            now = { 1_700_000_000_200L },
+        )
+
+        controller.selectTopology(CourseTopology.PointToPoint)
+        controller.beginMarking()
+        controller.captureSamples(samples.size)
+        controller.stopMarking()
+
+        val review = controller.snapshot().reviewState
+        assertNotNull(review)
+        assertEquals(CourseTopology.PointToPoint, review.extraction.topology)
+        assertTrue(review.canSave)
+        assertNotNull(review.startFinish)
+        assertNotNull(review.finishLine)
+
+        val track = controller.saveTrack()
+
+        assertNotNull(track)
+        assertEquals(CourseTopology.PointToPoint, track.topology)
+        assertTrue(track.referenceLine?.isClosed == false)
+        assertNotNull(track.finishLine)
     }
 
     // D-01 / D-03: a persisted explicit selection resolves on a fresh controller, and
@@ -307,14 +342,14 @@ class DriveMarkingControllerTest {
     }
 
     @Test
-    fun stopMarkingOnNoisyCaptureDegradesToNotSaveReadyReview() {
+    fun stopMarkingOnTooShortCaptureDegradesToNotSaveReadyReview() {
         val controller = controller(scenarioId = GpsFixtureLibrary.NOISE_DRIFT)
         controller.beginMarking()
-        controller.captureSamples(8 * 240) // noise-drift fixture
+        controller.captureSamples(5)
         controller.stopMarking()
         val review = controller.snapshot().reviewState
         assertNotNull(review)
-        assertFalse(review.canSave, "noisy capture must not be save-ready (D-31)")
+        assertFalse(review.canSave, "too-short capture must not be save-ready")
         assertTrue(review.notReadyReasons.isNotEmpty())
         // Save is refused; only Re-record/Discard offered.
         assertFalse(TrackReviewDecision.Save in review.availableDecisions)

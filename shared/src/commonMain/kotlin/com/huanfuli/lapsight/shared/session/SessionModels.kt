@@ -15,6 +15,7 @@ import com.huanfuli.lapsight.shared.lap.LapEvent
 import com.huanfuli.lapsight.shared.lap.SectorEvent
 import com.huanfuli.lapsight.shared.lap.SectorResult
 import com.huanfuli.lapsight.shared.track.CourseDirection
+import com.huanfuli.lapsight.shared.track.CourseTopology
 import com.huanfuli.lapsight.shared.track.GhostReferencePayloadV2
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
@@ -302,6 +303,8 @@ data class TimingSession(
     val createdAtEpochMillis: Long,
     val source: SourceMetadata,
     val startFinish: StartFinishLineDto,
+    val finishLine: StartFinishLineDto? = null,
+    val topology: CourseTopology = CourseTopology.Circuit,
     val sectors: List<SectorLineDto> = emptyList(),
     /**
      * The Course Direction this run was timed under (D-18). Defaulted to

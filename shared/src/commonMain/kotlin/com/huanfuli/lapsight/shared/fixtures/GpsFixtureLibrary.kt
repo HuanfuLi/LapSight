@@ -213,6 +213,65 @@ object GpsFixtureLibrary {
     /** Field-test minimum: three clean loops plus the closing start-point crossing. */
     fun minimumThreeLoop(): List<LocationSample> = ovalSession(loops = 3, seed = 212L).withClosingAnchor()
 
+    /** One clean closed pass, used to prove single-pass circuit marking is saveable. */
+    fun singleLoopCircuit(): List<LocationSample> = ovalSession(loops = 1, seed = 213L).withClosingAnchor()
+
+    /** One open course pass with straight start and finish regions. */
+    fun pointToPointRun(): List<LocationSample> {
+        val points = listOf(
+            0.0 to 0.0,
+            60.0 to 0.0,
+            110.0 to 25.0,
+            155.0 to 55.0,
+            215.0 to 55.0,
+            275.0 to 55.0,
+        )
+        val out = ArrayList<LocationSample>()
+        var elapsed = 0L
+        var previous: Pair<Double, Double>? = null
+        for (segment in 1 until points.size) {
+            val start = points[segment - 1]
+            val end = points[segment]
+            val steps = 24
+            for (i in 0 until steps) {
+                if (segment > 1 && i == 0) continue
+                val t = i.toDouble() / steps.toDouble()
+                val east = start.first + (end.first - start.first) * t
+                val north = start.second + (end.second - start.second) * t
+                val prev = previous
+                val heading = if (prev == null) {
+                    90.0
+                } else {
+                    (atan2(east - prev.first, north - prev.second) * 180.0 / PI + 360.0) % 360.0
+                }
+                out += LocationSample(
+                    elapsedMillis = elapsed,
+                    latitude = lat(north),
+                    longitude = lon(east),
+                    horizontalAccuracyMeters = CLEAN_ACCURACY_M,
+                    speedMetersPerSecond = 12.0,
+                    headingDegrees = heading,
+                    altitudeMeters = ALTITUDE_M,
+                    source = LocationSource.Simulated,
+                )
+                previous = east to north
+                elapsed += 500L
+            }
+        }
+        val last = points.last()
+        out += LocationSample(
+            elapsedMillis = elapsed,
+            latitude = lat(last.second),
+            longitude = lon(last.first),
+            horizontalAccuracyMeters = CLEAN_ACCURACY_M,
+            speedMetersPerSecond = 12.0,
+            headingDegrees = 90.0,
+            altitudeMeters = ALTITUDE_M,
+            source = LocationSource.Simulated,
+        )
+        return out
+    }
+
     /** Clean trace with one bad/outlier loop (D-04). */
     fun oneOutlierLoop(): List<LocationSample> =
         withOutlierLoop(ovalSession(loops = 10, seed = 303L))

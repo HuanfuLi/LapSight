@@ -21,6 +21,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.review.buildTrackTraceLayers
+import com.huanfuli.lapsight.shared.track.CourseTopology
+import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.TrackReviewState
 import com.huanfuli.lapsight.shared.ui.CloseActionIcon
 import com.huanfuli.lapsight.shared.ui.DeleteActionIcon
@@ -151,12 +153,21 @@ internal fun TrackReviewContent(
 
 /** One-line status for a clean capture, shared by both orientations. */
 private fun cleanCaptureStatus(review: TrackReviewState, s: LocalizedStrings): String =
-    "${review.extraction.acceptedLoopCount} ${s.cleanLoopsCaptured}. " +
-        if (review.startFinish != null) {
-            s.startFinishSet
-        } else {
-            s.savingPlacesStartFinish
+    when (review.extraction.topology) {
+        CourseTopology.PointToPoint -> "${s.pointToPoint}. ${s.startFinishSet}"
+        CourseTopology.Circuit -> {
+            val capture = if (review.extraction.acceptedLoopCount <= 1) {
+                "1 ${s.accepted}"
+            } else {
+                "${review.extraction.acceptedLoopCount} ${s.cleanLoopsCaptured}"
+            }
+            "$capture. " + if (review.startFinish != null) {
+                s.startFinishSet
+            } else {
+                s.savingPlacesStartFinish
+            }
         }
+    }
 
 @Composable
 private fun TrackReviewPortraitCard(
@@ -217,7 +228,7 @@ private fun TrackReviewPortraitCard(
             )
         } else {
             Text(
-                text = s.failedCaptureStatus,
+                text = s.failedCaptureStatusFor(review.extraction.topology),
                 color = LapSightTheme.colors.statusCaution,
                 style = MaterialTheme.typography.bodyLarge,
             )
@@ -348,7 +359,7 @@ private fun TrackReviewLandscape(
                 )
             } else {
                 Text(
-                    text = s.failedCaptureStatus,
+                    text = s.failedCaptureStatusFor(review.extraction.topology),
                     color = LapSightTheme.colors.statusCaution,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -391,11 +402,14 @@ private fun CapturedCourseMap(
     fillParent: Boolean = false,
 ) {
     val layers = remember(review) {
+        val finishAsLine = review.finishLine?.let {
+            listOf(SectorLineDto("finish", "Finish", 999, it.pointA, it.pointB))
+        } ?: emptyList()
         buildTrackTraceLayers(
             markingSamples = review.extraction.markingSession.samples,
             referenceLine = review.extraction.referenceLine,
             startFinish = review.startFinish,
-            sectors = emptyList(),
+            sectors = finishAsLine,
             outlierSamples = emptyList(),
             viewWidth = 400.0,
             viewHeight = 300.0,

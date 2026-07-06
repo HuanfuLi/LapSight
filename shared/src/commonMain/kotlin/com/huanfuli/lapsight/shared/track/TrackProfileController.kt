@@ -109,7 +109,9 @@ class TrackProfileController(
     ): AppendRevisionResult {
         // A confirmed start/finish is mandatory for a timing-ready revision (D-05). Reject
         // an invalid/partial setup WITHOUT writing so a half-finished edit never appends.
-        if (courseSetup.startFinish == null) {
+        if (courseSetup.startFinish == null ||
+            (courseSetup.topology == CourseTopology.PointToPoint && courseSetup.finishLine == null)
+        ) {
             return AppendRevisionResult.Rejected("course setup has no confirmed start/finish")
         }
 
@@ -138,7 +140,9 @@ class TrackProfileController(
         // the reference line or start/finish geometry changes.
         val geometryChanged = latest == null ||
             latest.referenceLine != referenceLine ||
-            latest.courseSetup.startFinish != courseSetup.startFinish
+            latest.courseSetup.topology != courseSetup.topology ||
+            latest.courseSetup.startFinish != courseSetup.startFinish ||
+            latest.courseSetup.finishLine != courseSetup.finishLine
         val geometryCompatibilityId = if (geometryChanged) {
             "$profileId:g$nextOrdinal"
         } else {
@@ -338,7 +342,10 @@ class TrackProfileController(
         // Normal selection resolves ONLY the latest revision (D-14); it must carry a
         // confirmed start/finish to be timing-ready (D-05).
         val revision = profile.latestRevision
-        if (revision == null || revision.courseSetup.startFinish == null) {
+        if (revision == null ||
+            revision.courseSetup.startFinish == null ||
+            (revision.courseSetup.topology == CourseTopology.PointToPoint && revision.courseSetup.finishLine == null)
+        ) {
             return CurrentProfileResolution.NotTimingReady
         }
 
