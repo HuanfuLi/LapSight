@@ -49,6 +49,7 @@ import com.huanfuli.lapsight.shared.DriveDisplaySettings
 import com.huanfuli.lapsight.shared.LocationFeedMode
 import com.huanfuli.lapsight.shared.LocationSample
 import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
+import com.huanfuli.lapsight.shared.VelocityAidedGpsFilter
 import com.huanfuli.lapsight.shared.lap.formatLapTime
 import com.huanfuli.lapsight.shared.review.TraceLayer
 import com.huanfuli.lapsight.shared.review.TraceRole
@@ -446,6 +447,28 @@ private fun MarkingMetricsRow(
 /** Distance a fix must travel before the heading arrow re-aims (anti-jitter). */
 private const val HEADING_ANCHOR_METERS = 3.0
 
+/**
+ * Runs the live fix stream through [VelocityAidedGpsFilter] for display.
+ *
+ * Each new fix (identified by its elapsed timestamp) is folded into a filter
+ * scoped to [key], so position jitter is damped before the heading anchor and
+ * the between-fix smoother consume it. Display only: timing, recording, and
+ * Ready gating all keep reading the raw fixes.
+ */
+@Composable
+private fun rememberFilteredLivePosition(
+    key: Any?,
+    livePosition: LocationSample?,
+): LocationSample? {
+    val filter = remember(key) { VelocityAidedGpsFilter() }
+    var filtered by remember(key) { mutableStateOf<LocationSample?>(null) }
+    LaunchedEffect(key, livePosition?.elapsedMillis) {
+        val fix = livePosition ?: return@LaunchedEffect
+        filtered = filter.update(fix)
+    }
+    return filtered ?: livePosition
+}
+
 /** Live-dot smoothing ticker period (~30 fps) and its bounded forward lead. */
 private const val LIVE_SMOOTHING_FRAME_MILLIS = 33L
 
@@ -836,9 +859,12 @@ private fun SelectedTrackPreview(
     // viewport so it lands on the drawn course. Heading comes from an earlier
     // fix, advanced only once the driver has moved a few meters, so a parked car
     // shows a steady arrow instead of chasing GPS jitter.
-    // Heading anchoring works off the raw ~1 Hz fixes (a parked car keeps a steady
-    // arrow); the drawn dot itself is smoothed between fixes via the predictor.
-    val rawCurrent = livePosition?.let { GeoPointDto(it.latitude, it.longitude) }
+    // The fix stream is first run through the velocity-aided filter (display
+    // only — timing/recording keep consuming raw fixes), then heading anchoring
+    // works off the filtered ~1 Hz fixes and the drawn dot is additionally
+    // smoothed between them via the predictor.
+    val filteredPosition = rememberFilteredLivePosition(profileId, livePosition)
+    val rawCurrent = filteredPosition?.let { GeoPointDto(it.latitude, it.longitude) }
     var headingAnchor by remember(profileId) { mutableStateOf<GeoPointDto?>(null) }
     var headingFrom by remember(profileId) { mutableStateOf<GeoPointDto?>(null) }
     LaunchedEffect(profileId, rawCurrent?.latitude, rawCurrent?.longitude) {
@@ -851,7 +877,7 @@ private fun SelectedTrackPreview(
             headingAnchor = c
         }
     }
-    val current = rememberSmoothedLivePosition(profileId, livePosition)
+    val current = rememberSmoothedLivePosition(profileId, filteredPosition)
     val marker = courseMarker(trace.viewport, current, headingFrom)
 
     val spacing = LapSightTheme.spacing
