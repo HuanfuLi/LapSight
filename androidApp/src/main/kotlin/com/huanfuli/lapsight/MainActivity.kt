@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
@@ -16,6 +17,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.tooling.preview.Preview
+import com.huanfuli.lapsight.glasses.GlassesBridge
 import com.huanfuli.lapsight.shared.App
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DisplaySettingsStore
@@ -30,6 +32,11 @@ import com.huanfuli.lapsight.shared.ThemeMode
 import com.huanfuli.lapsight.shared.export.AndroidExportShareTarget
 import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.storage.StoragePaths
+import com.meta.wearable.dat.core.Wearables
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 class MainActivity : ComponentActivity() {
     private val fineLocationPermissionGranted = mutableStateOf(false)
@@ -43,10 +50,24 @@ class MainActivity : ComponentActivity() {
      */
     private var sessionController: SessionController? = null
 
+    /**
+     * The Meta glasses bridge (Phase 7 MR-01/MR-03), constructed once
+     * [sessionController] is captured. Owns its own [glassesScope] so its DAT
+     * session/render-loop coroutines outlive individual recompositions and are
+     * cancelled together in [onDestroy].
+     */
+    private var glassesBridge: GlassesBridge? = null
+    private val glassesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     private val requestLocationPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             fineLocationPermissionGranted.value = hasFineLocationPermission()
         }
+
+    // BLUETOOTH_CONNECT is a runtime (dangerous) permission only from API 31;
+    // the manifest grant covers API 29-30 (Phase 7 minSdk floor, see 07-01).
+    private val requestBluetoothPermission =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
 
     // Locks the window to the user's chosen orientation using fixed
     // (sensor-independent) values. Never SENSOR_*/USER_* — a mounted phone must
@@ -110,6 +131,14 @@ class MainActivity : ComponentActivity() {
             useDirectGnss = { displaySettingsStore.load().useDirectGnss },
         )
 
+        // Meta DAT SDK bootstrap (Phase 7 MR-01). Non-fatal on failure — a
+        // glasses-less phone session must still work.
+        Wearables.initialize(this)
+            .onFailure { error, _ -> Log.e("MainActivity", "Wearables.initialize failed: ${error.description}") }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            requestBluetoothPermission.launch(arrayOf(Manifest.permission.BLUETOOTH_CONNECT))
+        }
+
         setContent {
             App(
                 orientationController = orientationController,
@@ -130,7 +159,10 @@ class MainActivity : ComponentActivity() {
                 ),
                 sessionStore = StoragePaths.fileSessionStore(),
                 exportShareTarget = shareTarget,
-                onSessionControllerReady = { sessionController = it },
+                onSessionControllerReady = { controller ->
+                    sessionController = controller
+                    glassesBridge = GlassesBridge(controller, glassesScope)
+                },
             )
         }
     }
@@ -142,6 +174,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         phoneGpsProvider?.stop()
+        glassesBridge?.stop()
+        glassesScope.cancel()
         super.onDestroy()
     }
 

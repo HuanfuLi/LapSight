@@ -21,6 +21,12 @@ dependencies {
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
+
+    // MockDeviceKit (Phase 7 07-03): instrumented tests only, never shipped in
+    // the app itself.
+    androidTestImplementation(libs.mwdat.mockdevice)
+    androidTestImplementation(libs.androidx.testExt.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
 }
 
 android {
@@ -33,6 +39,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Meta DAT SDK Developer Mode credentials (0/0 = no Wearables Developer Center
         // account needed to build). Real credentials are a production-signing concern,
