@@ -20,7 +20,12 @@ class TraceProjectionTest {
 
     // ── Test helpers ─────────────────────────────────────────────────────────
 
+    private val metersPerDegree = 111_320.0
+
     private fun geo(lat: Double, lon: Double) = GeoPointDto(lat, lon)
+
+    private fun localMeters(east: Double, north: Double): GeoPointDto =
+        geo(lat = north / metersPerDegree, lon = east / metersPerDegree)
 
     /** A ~500m oval that looks like a kart track when projected. */
     private fun sampleOval(): List<GeoPointDto> {
@@ -248,5 +253,78 @@ class TraceProjectionTest {
         // The ratio should be close to 1.0 (±30%) since the input is roughly square.
         val ratio = xSpanPx / ySpanPx
         assertTrue(ratio > 0.7 && ratio < 1.3, "pixel aspect should be ~1:1, got xSpanPx/ySpanPx=$ratio")
+    }
+
+    @Test
+    fun projectionDrawsEastRightAndNorthUp() {
+        val points = listOf(
+            localMeters(east = 0.0, north = 0.0),
+            localMeters(east = 100.0, north = 0.0),
+            localMeters(east = 0.0, north = 100.0),
+        )
+
+        val projected = TraceProjection.project(
+            layers = listOf(points),
+            width = 400.0,
+            height = 300.0,
+            padding = 0.0,
+        )[0]
+
+        val origin = projected[0]
+        val east = projected[1]
+        val north = projected[2]
+        assertTrue(east.x > origin.x, "eastward movement should draw to the right")
+        assertTrue(north.y < origin.y, "northward movement should draw upward")
+    }
+
+    @Test
+    fun projectionPreservesRightTurnHandednessOnScreen() {
+        val points = listOf(
+            localMeters(east = 0.0, north = 0.0),
+            localMeters(east = 0.0, north = 100.0),
+            localMeters(east = 100.0, north = 100.0),
+        )
+
+        val projected = TraceProjection.project(
+            layers = listOf(points),
+            width = 400.0,
+            height = 300.0,
+            padding = 0.0,
+        )[0]
+
+        val firstLegX = projected[1].x - projected[0].x
+        val firstLegY = projected[1].y - projected[0].y
+        val secondLegX = projected[2].x - projected[1].x
+        val secondLegY = projected[2].y - projected[1].y
+        val screenCross = firstLegX * secondLegY - firstLegY * secondLegX
+
+        assertTrue(
+            screenCross > 0.0,
+            "north then east is a right turn in screen coordinates; projection must not mirror it",
+        )
+    }
+
+    @Test
+    fun viewportInverseKeepsNorthPositiveAfterYFlip() {
+        val viewport = requireNotNull(
+            TraceViewport.fromLayers(
+                layers = listOf(
+                    listOf(
+                        localMeters(east = 0.0, north = 0.0),
+                        localMeters(east = 100.0, north = 0.0),
+                        localMeters(east = 0.0, north = 100.0),
+                    ),
+                ),
+                width = 400.0,
+                height = 300.0,
+                padding = 0.0,
+            ),
+        )
+
+        val normalized = viewport.geoToNormalized(localMeters(east = 0.0, north = 100.0))
+        val local = viewport.normalizedToLocal(normalized.x, normalized.y)
+
+        assertEquals(0.0, local.x, 1e-6)
+        assertEquals(100.0, local.y, 1e-6)
     }
 }

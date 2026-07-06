@@ -72,8 +72,8 @@ data class TraceLayer(
  * coordinates and normalized [0..1] render space (Plan 05-06, D-10).
  *
  * Built once from a set of geo layers via [TraceViewport.fromLayers], it captures
- * the single common bounding-box projection (origin [LocalProjection], min corner,
- * aspect-preserving scale, and centering offset) used by [TraceProjection].
+ * the single common bounding-box projection (origin [LocalProjection], left/top
+ * bounds, aspect-preserving scale, and centering offset) used by [TraceProjection].
  * Unlike the one-way [TraceProjection.project], a viewport also inverts: an editor
  * surface converts a pointer position in normalized space back to local meters /
  * latitude-longitude so a drag forwards only a *candidate* progress and never a
@@ -89,8 +89,10 @@ data class TraceLayer(
 class TraceViewport internal constructor(
     /** The canonical projection around the first geo point of the source layers. */
     val projection: LocalProjection,
+    /** Left/east-west bound in local meters. */
     private val minX: Double,
-    private val minY: Double,
+    /** Top/north bound in local meters. Screen y grows down, so north maps upward. */
+    private val maxY: Double,
     /** Meters → normalized-x; `scaleX * width == scaleY * height` (pixel-uniform). */
     private val scaleX: Double,
     /** Meters → normalized-y; see [scaleX]. */
@@ -101,7 +103,7 @@ class TraceViewport internal constructor(
     /** Local meters → normalized [0..1] render point. */
     fun localToNormalized(point: LocalPoint): TracePoint = TracePoint(
         x = offsetX + (point.x - minX) * scaleX,
-        y = offsetY + (point.y - minY) * scaleY,
+        y = offsetY + (maxY - point.y) * scaleY,
     )
 
     /** Canonical lat/lon → normalized [0..1] render point. */
@@ -111,7 +113,7 @@ class TraceViewport internal constructor(
     /** Normalized [0..1] render point → local meters (inverse of [localToNormalized]). */
     fun normalizedToLocal(normalizedX: Double, normalizedY: Double): LocalPoint = LocalPoint(
         x = minX + (normalizedX - offsetX) / scaleX,
-        y = minY + (normalizedY - offsetY) / scaleY,
+        y = maxY - (normalizedY - offsetY) / scaleY,
     )
 
     /** Normalized [0..1] render point → canonical lat/lon (inverse of [geoToNormalized]). */
@@ -180,7 +182,7 @@ class TraceViewport internal constructor(
             val offsetX = padded + (usable - spanX * scaleX) / 2.0
             val offsetY = padded + (usable - spanY * scaleY) / 2.0
 
-            return TraceViewport(projection, minX, minY, scaleX, scaleY, offsetX, offsetY)
+            return TraceViewport(projection, minX, maxY, scaleX, scaleY, offsetX, offsetY)
         }
     }
 }
