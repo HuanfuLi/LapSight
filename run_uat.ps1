@@ -1,5 +1,13 @@
+param(
+    [switch]$AllowDestructiveDataReset
+)
+
 $ErrorActionPreference = "Stop"
 $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+
+if (-not $AllowDestructiveDataReset) {
+    throw "run_uat.ps1 clears com.huanfuli.lapsight app data. Re-run with -AllowDestructiveDataReset only after explicit owner authorization."
+}
 
 & $adb shell pm clear com.huanfuli.lapsight
 & $adb shell monkey -p com.huanfuli.lapsight -c android.intent.category.LAUNCHER 1
