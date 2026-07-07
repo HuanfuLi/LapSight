@@ -1,0 +1,12 @@
+# Example local.properties file.
+# Copy this file to local.properties and fill in your actual paths/tokens.
+# Note: local.properties is ignored by git, but this example file is checked in.
+
+# Location of the SDK. This is only used by Gradle.
+# For Mac:
+# sdk.dir=/Users/username/Library/Android/sdk
+# For Windows:
+sdk.dir=C\:\\Users\\YourUsername\\AppData\\Local\\Android\\Sdk
+
+# GitHub token for package access or other services
+github_token=your_github_token_here

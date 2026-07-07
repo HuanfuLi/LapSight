@@ -5,6 +5,7 @@
 xcuserdata
 !src/**/build/
 local.properties
+!local.properties.example
 .idea
 .DS_Store
 captures
