@@ -11,6 +11,7 @@ import com.meta.wearable.dat.display.views.ContentScope
 import com.meta.wearable.dat.display.views.FlexBoxBackground
 import com.meta.wearable.dat.display.views.IconName
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -136,6 +137,22 @@ class HudRenderSmokeTest {
         neutral.assertText("--")
         assertFalse("Neutral delta should not render CARET_DOWN", neutral.icons.contains(IconName.CARET_DOWN.value))
         assertFalse("Neutral delta should not render CARET_UP", neutral.icons.contains(IconName.CARET_UP.value))
+    }
+
+    @Test
+    fun rootClickHandlerIsAttachedWhenProvided() {
+        var clicked = false
+        val view = HudRenderer.render(
+            scope = ContentScope(),
+            model = model(),
+            onClick = { clicked = true },
+        )
+        val root = view.callGetter("root")
+        val onClick = root?.callGetter("onClick") as? Function0<*>
+
+        assertNotNull("Root flexBox should carry the clickable fallback handler", onClick)
+        onClick?.invoke()
+        assertTrue("Root click should invoke the supplied callback", clicked)
     }
 
     private fun renderTree(model: HudModel): RenderTree {

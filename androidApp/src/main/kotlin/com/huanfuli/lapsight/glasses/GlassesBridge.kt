@@ -112,6 +112,14 @@ class GlassesBridge(
     /** Active HUD page (D-01); mutated by the phone-side page selector (07-05). */
     @Volatile var page: HudPage = HudPage.FOCUSED
 
+    private val glassesInput = GlassesInput(
+        currentPage = { page },
+        selectPage = { selectedPage ->
+            Log.i(TAG, "Glasses display click selected HUD page: $selectedPage")
+            page = selectedPage
+        },
+    )
+
     /** Sector-flash window end (D-04); set by lap-crossing detection wired in a later plan. */
     @Volatile var flashUntilEpochMs: Long? = null
 
@@ -304,7 +312,11 @@ class GlassesBridge(
         if (model == lastSentModel) return
 
         display.sendContent {
-            HudRenderer.render(this, model)
+            HudRenderer.render(
+                scope = this,
+                model = model,
+                onClick = { glassesInput.handle(GlassesInputAction.DisplayClick) },
+            )
         }.onFailure { error, _ -> Log.e(TAG, "sendContent failed: ${error.description}") }
 
         lastSentModel = model

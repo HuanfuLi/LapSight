@@ -18,13 +18,18 @@ import kotlin.math.roundToInt
 
 /** Maps the pure shared [HudModel] to one complete Meta DAT display tree. */
 object HudRenderer {
-    fun render(scope: ContentScope, model: HudModel): DisplayComponent = with(scope) {
+    fun render(
+        scope: ContentScope,
+        model: HudModel,
+        onClick: (() -> Unit)? = null,
+    ): DisplayComponent = with(scope) {
         flexBox(
             direction = Direction.COLUMN,
             gap = 12,
             padding = 24,
             alignment = Alignment.CENTER,
             crossAlignment = Alignment.STRETCH,
+            onClick = onClick,
         ) {
             if (model.isIdle) {
                 idleScreen(model)
