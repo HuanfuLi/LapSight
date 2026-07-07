@@ -21,6 +21,16 @@ available.
 <decisions>
 ## Implementation Decisions
 
+- **D-01:** Phase 6 completion means "protocol compatibility preview": RaceBox/NMEA protocol parsing, replay, Android UX, and source provenance are implemented and tested without real receiver hardware.
+- **D-02:** No RaceBox or equivalent receiver will be purchased for this phase; real BLE behavior, firmware variation, antenna placement, and on-track precision remain unvalidated risks.
+- **D-03:** Protocol targets are RaceBox live BLE protocol for Mini/Mini S/Micro class devices and NMEA 0183 byte streams, including NMEA over BLE/TCP/replay where available.
+- **D-04:** External GNSS must feed the existing `LocationSampleProvider` seam; lap engine/session/review/ghost/glasses code must not gain hardware-specific timing logic.
+- **D-05:** External samples use `LocationSource.ExternalGnss` and preserve protocol/source/hardware-validation provenance in session/review/export surfaces.
+- **D-06:** Replay fixtures are the acceptance backbone: public/generated NMEA, synthetic RaceBox frames, high-rate bursts, reconnect gaps, and full timing-pipeline replay.
+- **D-07:** GPL or unlicensed RaceBox implementations are research signals only; implementation and fixtures must be clean-room.
+- **D-08:** Drive remains simple; detailed diagnostics stay out of the main Drive surface, while Settings may expose source/protocol selection and connection state.
+- **D-09:** EXT-03 is scoped to basic optional sensor/vehicle telemetry ingestion when a protocol exposes it. Phase 6 may model, parse, record, and export basic IMU/vehicle fields, but must not add IMU fusion, vehicle-CAN integrations, or timing dependence on telemetry.
+
 ### D-01 Protocol-first completion
 - Phase 6 completion means "protocol compatibility preview": RaceBox/NMEA
   protocol parsing, replay, and Android UX are implemented and tested without
@@ -68,6 +78,13 @@ available.
 - The Drive page should expose a simple external GNSS source state and quality.
 - Detailed diagnostic raw GPS tooling stays out of the main Drive surface.
 - Settings may expose protocol/source selection and connection status.
+
+### D-09 Basic telemetry scope for EXT-03
+- Basic IMU/vehicle telemetry is optional and protocol-driven: if a supported
+  external GNSS protocol exposes acceleration, gyro, or simple vehicle channels,
+  LapSight may parse, record, and export them with source provenance.
+- Phase 6 does not add IMU fusion, vehicle-CAN adapters, or timing behavior that
+  depends on telemetry. Lap timing remains driven by normalized location samples.
 
 ### the agent's Discretion
 - Exact package names, parser class names, fixture file formats, and Android BLE

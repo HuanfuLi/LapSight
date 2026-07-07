@@ -451,9 +451,10 @@ Plans:
 
 **Goal:** As a user who needs better timing precision, I want to connect an external GPS receiver, so that LapSight can exceed phone GPS limitations.
 **Mode:** mvp
-**Status:** Resumed as a protocol-first compatibility preview. Real hardware validation is explicitly deferred until a receiver or user feedback is available.
+**Status:** Planned and verified as a protocol-first compatibility preview. Real hardware validation is explicitly deferred until a receiver or user feedback is available.
 
 **Requirements:** EXT-01, EXT-02, EXT-03
+**Planning Gate:** Approved for execution on 2026-07-07; see `06-VALIDATION.md` and `06-PLAN-REVIEW.md`.
 
 **Plans:** 0/4 plans complete
 
@@ -489,6 +490,7 @@ Plans:
 - Keep the existing `LocationSampleProvider` boundary as the ingestion seam so Phase 7 can consume the same phone-owned timing state regardless of whether samples come from phone GPS now or external GNSS later.
 - Do not copy GPL or unlicensed RaceBox client/emulator code. Use official RaceBox protocol documentation when available and clean-room tests/fixtures for parser implementation.
 - Supported-hardware wording must be conservative: RaceBox and NMEA can be listed as protocol targets, not guaranteed hardware compatibility, until field feedback confirms real receivers.
+- EXT-03 is limited in this phase to optional basic telemetry metadata/capture when a supported protocol exposes those fields; no IMU fusion, vehicle-CAN integration, or lap-timing dependence on telemetry.
 
 ## Milestone 3: Meta DAT Display Extension
 

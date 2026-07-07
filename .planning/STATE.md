@@ -3,20 +3,20 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 7 complete through 07-06 fallback — ready to commit, merge, and clean workspace
-last_updated: "2026-07-07T16:36:51-04:00"
+stopped_at: Phase 6 plan verified — ready to execute from clean main
+last_updated: "2026-07-07T17:01:02-04:00"
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 47
-  completed_plans: 42
-  percent: 70
+  completed_plans: 43
+  percent: 91
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5.1 complete and Phase 7 is complete through the optional 07-06 fallback. Phase 7 delivered DAT build integration, SessionController/HudModel seam, GlassesBridge lifecycle/render loop, full DAT HUD renderer, phone-side Settings/Drive glasses controls, real-glasses readability/passivity acceptance, and a documented Display-click fallback after raw captouch receive proved unavailable in DAT 0.8 public APIs. The Android field-UAT gate is accepted by the product owner; iOS real-device UAT remains an explicit unvalidated risk. Phase 6 external GNSS has been replanned as a protocol-first compatibility preview because suitable receivers are too expensive/unavailable for local validation; real hardware behavior remains a tracked unvalidated risk.
+**Current Status:** Phase 5.1 complete and Phase 7 is complete through the optional 07-06 fallback. Phase 7 delivered DAT build integration, SessionController/HudModel seam, GlassesBridge lifecycle/render loop, full DAT HUD renderer, phone-side Settings/Drive glasses controls, real-glasses readability/passivity acceptance, and a documented Display-click fallback after raw captouch receive proved unavailable in DAT 0.8 public APIs. The Android field-UAT gate is accepted by the product owner; iOS real-device UAT remains an explicit unvalidated risk. Phase 6 external GNSS has been replanned and plan-verified as a protocol-first compatibility preview because suitable receivers are too expensive/unavailable for local validation; real hardware behavior remains a tracked unvalidated risk.
 
 ## Project Reference
 
@@ -26,18 +26,17 @@ See: `.planning/PROJECT.md`
 
 ## Current Focus
 
-**Phase 7 complete — clean workspace before Phase 6 execution**
+**Phase 6 plan verified — ready for execution**
 
 Phase 5.1 froze feature expansion, hardened the mounted-phone Android MVP, and
 closed the validation gate with an Android-phone Go decision. The phone app
 remains the source of truth for GPS, sessions, lap engine state, and future HUD
 outputs.
 
-Next step: commit the completed Phase 7 07-06 fallback, merge the experimental
-branch back into the integration branch, and clean the workspace before Phase 6
-execution. Phase 6 can then proceed as protocol-complete from parser/replay/build
-verification, but it must remain explicitly hardware-unvalidated until a real
-RaceBox/NMEA receiver or user feedback confirms behavior.
+Next step: execute Phase 6 plan 06-01 from clean `main`. Phase 6 can proceed as
+protocol-complete from parser/replay/build verification, but it must remain
+explicitly hardware-unvalidated until a real RaceBox/NMEA receiver or user
+feedback confirms behavior.
 
 ## Working Assumptions
 
@@ -52,8 +51,8 @@ RaceBox/NMEA receiver or user feedback confirms behavior.
 
 ## Next Command Candidates
 
-- Commit/merge the completed Phase 7 07-06 fallback work.
 - Continue Phase 6 plan 06-01 after workspace cleanup: shared external GNSS contracts, NMEA parser, and replay provider.
+- Use `.planning/phases/06-external-gnss-and-sensor-ingestion/06-VALIDATION.md` and `06-PLAN-REVIEW.md` as the execution gate: Phase 6 is protocol-first, clean-room, replay-backed, and hardware-unvalidated.
 - Phase 7 07-06 is closed as a Display-click fallback; raw captouch/tap-and-hold remains a future SDK/API-dependent item.
 - Preserve the Android phone source-of-truth boundary; the DAT Display layer must consume summarized timing state from the existing timing pipeline.
 - Keep Phase 6 wording honest: protocol-complete is allowed from replay/build verification, but hardware validation remains open until a receiver or user feedback exists.
