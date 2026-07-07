@@ -492,14 +492,6 @@ private fun LandscapeCockpit(
                                 actions = glassesActions,
                                 compact = compactControls,
                             )
-                            if (dashReady is ReadyState.NotReady) {
-                                LapButton(
-                                    text = s.recordRawGpsDiagnostic,
-                                    onClick = onStartRawRecording,
-                                    style = LapButtonStyle.Ghost,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
                         }
                         DriveActionRow(
                             primaryIcon = PlayActionIcon,
@@ -875,16 +867,6 @@ private fun ControlPanel(
                     actions = glassesActions,
                     compact = compact,
                 )
-                // Keep this secondary escape hatch above the fixed primary action,
-                // so appearing/disappearing GPS diagnosis never moves Start.
-                if (dashReady is ReadyState.NotReady) {
-                    LapButton(
-                        text = s.recordRawGpsDiagnostic,
-                        onClick = onStartRawRecording,
-                        style = LapButtonStyle.Ghost,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
                 if (fillHeight && snapshot.currentTrackName != null) {
                     Spacer(Modifier.weight(1f))
                 }
