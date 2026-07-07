@@ -3,20 +3,20 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 7 plan 07-05 auto tasks complete — waiting for real-glasses human verification
-last_updated: "2026-07-06T18:21:53.2778009-04:00"
+stopped_at: Phase 7 plan 07-05 complete — preparing 07-06 experimental captouch branch
+last_updated: "2026-07-07T02:47:01.3336919-04:00"
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 43
-  completed_plans: 40
+  completed_plans: 41
   percent: 60
 ---
 
 # State: LapSight
 
 **Initialized:** 2026-06-25
-**Current Status:** Phase 5.1 complete and Phase 7 is in progress. Phase 7 plans 07-01 through 07-04 are complete: DAT build integration, SessionController/HudModel seam, GlassesBridge lifecycle/render loop, and the full DAT HUD renderer are implemented. Phase 7 plan 07-05 has completed its automated implementation tasks: Settings now has a Glasses area, Drive has cast/status/page controls, and glasses HUD speed units mirror the phone setting. Plan 07-05 remains blocked on the real-glasses human verification gate. The Android field-UAT gate is accepted by the product owner; iOS real-device UAT remains an explicit unvalidated risk. Phase 6 external GNSS is deferred because no suitable receiver is currently available for validation; Phase 7 continues because real Meta Display Glasses are available for testing.
+**Current Status:** Phase 5.1 complete and Phase 7 is in progress. Phase 7 plans 07-01 through 07-05 are complete: DAT build integration, SessionController/HudModel seam, GlassesBridge lifecycle/render loop, full DAT HUD renderer, phone-side Settings/Drive glasses controls, and the real-glasses readability/passivity gate are accepted. The Android field-UAT gate is accepted by the product owner; iOS real-device UAT remains an explicit unvalidated risk. Phase 6 external GNSS is deferred because no suitable receiver is currently available for validation; Phase 7 continues because real Meta Display Glasses are available for testing.
 
 ## Project Reference
 
@@ -33,13 +33,12 @@ closed the validation gate with an Android-phone Go decision. The phone app
 remains the source of truth for GPS, sessions, lap engine state, and future HUD
 outputs.
 
-Next step: complete 07-05 Task 3 real-glasses verification. The code path is
-built, but no Android device was connected in the current session, so the app
-was not installed and the 600x600 glasses HUD was not validated. Phase 6
-external GNSS remains deferred until suitable hardware is available; do not mark
-Phase 6 complete from simulator-only work. Phase 7 must consume the existing
-phone-owned timing state and must not duplicate GPS, lap detection, session
-storage, or ghost-delta logic in the glasses display layer.
+Next step: commit and push the 07-05 acceptance docs, then open a separate
+experimental 07-06 branch for captouch input. Phase 6 external GNSS remains
+deferred until suitable hardware is available; do not mark Phase 6 complete from
+simulator-only work. Phase 7 must consume the existing phone-owned timing state
+and must not duplicate GPS, lap detection, session storage, or ghost-delta logic
+in the glasses display layer.
 
 ## Working Assumptions
 
@@ -54,7 +53,8 @@ storage, or ghost-delta logic in the glasses display layer.
 
 ## Next Command Candidates
 
-- Continue Phase 7 with plan 07-05: Phone UX for Settings Glasses area, Drive cast/status/page controls, and real-glasses gate.
+- Commit and push Phase 7 plan 07-05 acceptance docs.
+- Continue Phase 7 with plan 07-06 on a separate experimental branch: captouch input if the real-device receive API is available; otherwise document skip/abandonment.
 - Preserve the Android phone source-of-truth boundary; the DAT Display layer must consume summarized timing state from the existing timing pipeline.
 - Keep Phase 6 deferred until external GNSS hardware is available for real-device validation.
 - Keep iOS real-device UAT tracked as an explicit platform risk.
@@ -149,7 +149,7 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Quick task 260702-vn1 fixed the Track detail duplicate-map regression: the original `Trace` now uses the shared beautified circuit canvas, and `Edit course` switches that same map into edit mode in place. Verification: `:shared:testAndroidHostTest`, `:androidApp:assembleDebug`, `:androidApp:installDebug`, and ADB launch on device `25053RT47C` passed.
 - Phase 6 external GNSS is deferred until suitable hardware is available for real-device validation. Phase 7 is allowed to proceed first because the user has real Meta Display Glasses available, and the glasses bridge consumes summarized phone-owned timing state rather than owning GPS, lap detection, storage, or ghost logic.
 - Phase 7 plan 07-04 completed the full DAT HudRenderer/DeltaPill path and replaced the 07-03 placeholder render. `HudRenderSmokeTest` compiles and inspects generated DAT content trees directly; full MockDeviceKit Display-session testing remains impossible with `mwdat-mockdevice:0.8.0` because it has no Display capability handler. Real-glasses validation is deferred to 07-05.
-- Phase 7 plan 07-05 automated tasks added the Settings Glasses area, Android `GlassesActions` wiring, selected-device persistence, Drive "Cast to glasses" controls, non-blocking reconnect chip, phone-side HUD page selector, and phone speed-unit mirroring in `GlassesBridge`. Verification passed: `:shared:testAndroidHostTest`, `:androidApp:assembleDebug`, and `:androidApp:compileDebugAndroidTestKotlin`. Real-glasses Task 3 remains the blocking gate; no Android device was connected for install/UAT in this session.
+- Phase 7 plan 07-05 added the Settings Glasses area, Android `GlassesActions` wiring, selected-device persistence, Drive "Cast to glasses" controls, non-blocking reconnect chip, phone-side HUD page selector, and phone speed-unit mirroring in `GlassesBridge`. Verification passed: `:shared:testAndroidHostTest`, `:androidApp:assembleDebug`, and `:androidApp:compileDebugAndroidTestKotlin`. Product-owner real-glasses UAT accepted the HUD readability and passive display behavior on 2026-07-07, closing the 07-05 Task 3 gate.
 
 ## Performance Metrics
 
@@ -176,9 +176,9 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 ## Session Continuity
 
 **Last session:** 2026-07-06T09:19:36.756Z
-**Stopped At:** Phase 7 plan 07-05 auto tasks complete — waiting for real-glasses human verification
-**Resume File:** .planning/phases/07-phone-to-glasses-dat-display-bridge/07-05-PLAN.md
+**Stopped At:** Phase 7 plan 07-05 complete — preparing 07-06 experimental captouch branch
+**Resume File:** .planning/phases/07-phone-to-glasses-dat-display-bridge/07-06-PLAN.md
 
 ---
 
-*Last updated: 2026-07-06 after Phase 7 plan 07-04 HUD renderer execution*
+*Last updated: 2026-07-07 after Phase 7 plan 07-05 real-glasses acceptance*

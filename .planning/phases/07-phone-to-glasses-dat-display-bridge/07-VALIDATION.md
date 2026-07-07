@@ -62,9 +62,9 @@ instrumented.
 | 07-04 T1 | 04 | 3 | MR-02 | T-07-10 | Palette limited to NONE/CARD/PRIMARY/SECONDARY + carets | build | `./gradlew :androidApp:assembleDebug` | DeltaPill.kt | ⬜ pending |
 | 07-04 T2 | 04 | 3 | MR-02 | T-07-03, T-07-09 | Stale dims speed/delta; glanceable pages | build | `./gradlew :androidApp:assembleDebug` | HudRenderer.kt, GlassesBridge.kt | ⬜ pending |
 | 07-04 T3 | 04 | 3 | MR-02 | T-07-09, T-07-10 | Per-page + non-timing elements asserted on content tree | instrumented | `./gradlew :androidApp:connectedAndroidTest --tests "*HudRenderSmokeTest"` | HudRenderSmokeTest.kt | ⬜ pending |
-| 07-05 T1 | 05 | 4 | MR-02/MR-03 | T-07-12, T-07-18 | Shared UI binds shared types only; no DAT import | build + shared unit | `./gradlew :shared:testAndroidHostTest :androidApp:assembleDebug` | SettingsScreen.kt, App.kt, AppShell.kt | ⬜ pending |
-| 07-05 T2 | 05 | 4 | MR-02/MR-03 | T-07-11 | Non-blocking reconnect chip; phone-side page control | build + shared unit | `./gradlew :shared:testAndroidHostTest :androidApp:assembleDebug` | DriveConfigSurface.kt | ⬜ pending |
-| 07-05 T3 | 05 | 4 | MR-02/MR-03 | T-07-11 | HUD legible + passive on real 600×600 glasses | checkpoint:human-verify (hardware) | `<human-check>` (real Meta Ray-Ban Display) | — | ⬜ manual |
+| 07-05 T1 | 05 | 4 | MR-02/MR-03 | T-07-12, T-07-18 | Shared UI binds shared types only; no DAT import | build + shared unit | `./gradlew :shared:testAndroidHostTest :androidApp:assembleDebug` | SettingsScreen.kt, App.kt, AppShell.kt | ✅ green |
+| 07-05 T2 | 05 | 4 | MR-02/MR-03 | T-07-11 | Non-blocking reconnect chip; phone-side page control | build + shared unit | `./gradlew :shared:testAndroidHostTest :androidApp:assembleDebug` | DriveConfigSurface.kt | ✅ green |
+| 07-05 T3 | 05 | 4 | MR-02/MR-03 | T-07-11 | HUD legible + passive on real 600×600 glasses | checkpoint:human-verify (hardware) | `<human-check>` (real Meta Ray-Ban Display) | — | ✅ human-accepted 2026-07-07 |
 | 07-06 T1 | 06 | 5 | MR-03 | — | Captouch receive API confirmed before any mapping (Open Q1) | checkpoint:human-verify (hardware) | `<human-check>` (real glasses / Meta Wearables MCP) | — | ⬜ manual/hardware-gated |
 | 07-06 T2 | 06 | 5 | MR-03 | T-07-14, T-07-15, T-07-16 | Glasses only trigger; phone owns timing; unmapped events ignored | instrumented (gated on T1) | `./gradlew :androidApp:connectedAndroidTest --tests "*CaptouchInputTest"` | GlassesInput.kt, CaptouchInputTest.kt | ⬜ pending (gated) |
 
@@ -93,7 +93,7 @@ phase; it is not a sampling gap but a hard external dependency (07-RESEARCH.md
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | GitHub `read:packages` PAT + first DAT resolve/build | MR-01 | Requires the user's GitHub account; Claude cannot mint a PAT | Add `github_token` to gitignored `local.properties`; run `:androidApp:assembleDebug` (07-01 T3) |
-| HUD readable + passive on real 600×600 glasses | MR-02, MR-03 | Requires physical Meta Display Glasses; no emulator surface | Cast during a session; verify all pages/idle/stale states legible and no interaction needed while moving (07-05 T3) |
+| HUD readable + passive on real 600×600 glasses | MR-02, MR-03 | Requires physical Meta Display Glasses; no emulator surface | Accepted by product owner on 2026-07-07 after real-glasses UAT; HUD readability and passive display behavior have no blocking issue (07-05 T3) |
 | Real-device captouch tap / tap-and-hold (experimental) | MR-03 (D-07/D-08) | Receive API undocumented in DAT 0.8 | Attempt on hardware / Meta Wearables MCP; if unreachable, phone-side selector remains the guaranteed control (07-06 T1) |
 
 ---

@@ -477,7 +477,7 @@ Plans:
 
 **Requirements:** MR-01, MR-02, MR-03
 
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 
 Plans:
 
@@ -496,7 +496,7 @@ Plans:
 
 **Wave 4** *(after Wave 3)*
 
-- [ ] 07-05-PLAN.md — Phone UX: Settings Glasses area + Drive cast/status/page controls + real-glasses gate
+- [x] 07-05-PLAN.md — Phone UX: Settings Glasses area + Drive cast/status/page controls + real-glasses gate
 
 **Wave 5** *(after Wave 4; optional/experimental)*
 
