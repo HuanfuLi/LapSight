@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.nowEpochMillis
 import com.huanfuli.lapsight.shared.session.AppMetadata
+import com.huanfuli.lapsight.shared.storage.DeleteResult
 import com.huanfuli.lapsight.shared.storage.LoadResult
 import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.AppendRevisionResult
@@ -36,6 +37,7 @@ import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
 import com.huanfuli.lapsight.shared.track.DuplicateProfileResult
 import com.huanfuli.lapsight.shared.track.RenameProfileResult
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
+import com.huanfuli.lapsight.shared.track.RestoreProfileResult
 import com.huanfuli.lapsight.shared.track.SectorBoundary
 import com.huanfuli.lapsight.shared.track.SectorLineDto
 import com.huanfuli.lapsight.shared.track.Track
@@ -629,6 +631,30 @@ internal fun duplicateTrack(
     ) {
         is DuplicateProfileResult.Duplicated -> "Duplicated as \"${result.duplicate.name}\"."
         is DuplicateProfileResult.Rejected -> "Couldn't duplicate: ${result.reason}."
+    }
+}
+
+/** Restores an archived Track/Profile to the active Track list without selecting it. */
+internal fun restoreTrack(store: LocalSessionStore, trackId: String): String {
+    val profile = ensureProfile(store, trackId) ?: return "Couldn't load this track."
+    val app = trackApp(store, trackId) ?: return "Couldn't load this track."
+    return when (val result = TrackProfileController(store).restoreProfile(profile.profileId, app)) {
+        is RestoreProfileResult.Restored -> "Restored \"${result.profile.name}\"."
+        is RestoreProfileResult.Rejected -> "Couldn't restore: ${result.reason}."
+    }
+}
+
+/** Permanently deletes one Review item from local storage. */
+internal fun deleteReviewEntry(store: LocalSessionStore, row: ReviewRowViewModel): String {
+    val result = when (row.type) {
+        ReviewEntryType.TimingSession -> store.deleteTimingSession(row.id)
+        ReviewEntryType.Track -> store.deleteTrack(row.id)
+        ReviewEntryType.TrackMarking -> store.deleteTrackMarking(row.id)
+    }
+    return when (result) {
+        DeleteResult.Deleted -> "Deleted."
+        DeleteResult.NotFound -> "Couldn't delete: item not found."
+        is DeleteResult.Rejected -> "Couldn't delete: ${result.reason}."
     }
 }
 

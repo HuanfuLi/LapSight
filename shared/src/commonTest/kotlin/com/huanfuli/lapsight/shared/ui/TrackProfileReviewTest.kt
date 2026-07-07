@@ -12,6 +12,7 @@ import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.CourseSetup
 import com.huanfuli.lapsight.shared.track.CurrentProfileResolution
 import com.huanfuli.lapsight.shared.track.CurrentTrackSelection
+import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.StartFinishLineDto
 import com.huanfuli.lapsight.shared.track.Track
 import com.huanfuli.lapsight.shared.track.TrackMarkingSession
@@ -116,6 +117,58 @@ class TrackProfileReviewTest {
         )
         assertEquals("track-a", selected.profile.profileId)
         assertTrue(store.listActiveProfiles().none { it.profileId == "track-b" })
+    }
+
+    @Test
+    fun reviewListMovesArchivedTracksOutOfDefaultTracksAndRestoreBringsThemBack() {
+        val store = InMemorySessionStore()
+        seedTrack(store, "track-a", "Alpha")
+        promote(store, "track-a")
+
+        val archiveMessage = archiveTrack(store, "track-a", now = { 6_000L })
+        assertFalse(archiveMessage.startsWith("Couldn't"), archiveMessage)
+
+        val archivedRows = ReviewListState.from(store)
+        assertTrue(
+            archivedRows.none { it.type == ReviewEntryType.Track && it.id == "track-a" && !it.isArchived },
+            "archived Track must leave the default active Track section",
+        )
+        assertTrue(
+            archivedRows.any { it.type == ReviewEntryType.Track && it.id == "track-a" && it.isArchived },
+            "archived Track must still be reachable in the Archived tracks section",
+        )
+
+        val restoreMessage = restoreTrack(store, "track-a")
+        assertFalse(restoreMessage.startsWith("Couldn't"), restoreMessage)
+
+        val restoredRows = ReviewListState.from(store)
+        assertTrue(
+            restoredRows.any { it.type == ReviewEntryType.Track && it.id == "track-a" && !it.isArchived },
+            "restored Track must return to the active Track section",
+        )
+    }
+
+    @Test
+    fun hardDeletingTrackRemovesProfileAndTrackRowButKeepsRawCapture() {
+        val store = InMemorySessionStore()
+        seedTrack(store, "track-a", "Alpha")
+        promote(store, "track-a")
+        store.setCurrentSelection(CurrentTrackSelection(profileId = "track-a"))
+
+        val row = ReviewListState.from(store).first {
+            it.type == ReviewEntryType.Track && it.id == "track-a"
+        }
+        val message = deleteReviewEntry(store, row)
+        assertFalse(message.startsWith("Couldn't"), message)
+
+        assertIs<LoadResult.NotFound>(store.loadProfile("track-a"))
+        assertIs<LoadResult.NotFound>(store.loadTrack("track-a"))
+        assertEquals(CurrentProfileResolution.None, TrackProfileController(store).resolveCurrent())
+        assertTrue(store.readIndex().rows.none { it.type == ReviewEntryType.Track && it.id == "track-a" })
+        assertTrue(
+            store.readIndex().rows.any { it.type == ReviewEntryType.TrackMarking && it.id == "track-a-mark" },
+            "deleting a Track must not delete its raw capture; raw captures have their own delete action",
+        )
     }
 
     // --- D-16: duplicate forks an independent profile ---------------------------

@@ -441,6 +441,60 @@ class FileSessionStore(
         if (fileSystem.exists(currentSelectionPath)) fileSystem.delete(currentSelectionPath)
     }
 
+    override fun deleteTimingSession(sessionId: String): DeleteResult {
+        if (!SchemaMigrations.isSafeId(sessionId)) return DeleteResult.Rejected("unsafe session id")
+        val removedPayload = deleteIfExists(sessionsDir / "$sessionId.json")
+        val removedV2Payload = deleteIfExists(sessionsV2Dir / "$sessionId.json")
+        val removedReferences = deleteReferencesForSession(sessionId)
+        val removedRow = removeIndexRow(sessionId, ReviewEntryType.TimingSession)
+        return if (removedPayload || removedV2Payload || removedReferences || removedRow) {
+            DeleteResult.Deleted
+        } else {
+            DeleteResult.NotFound
+        }
+    }
+
+    override fun deleteTrackMarking(markingId: String): DeleteResult {
+        if (!SchemaMigrations.isSafeId(markingId)) return DeleteResult.Rejected("unsafe marking id")
+        val removedPayload = deleteIfExists(markingsDir / "$markingId.json")
+        val removedRow = removeIndexRow(markingId, ReviewEntryType.TrackMarking)
+        return if (removedPayload || removedRow) {
+            DeleteResult.Deleted
+        } else {
+            DeleteResult.NotFound
+        }
+    }
+
+    override fun deleteTrack(trackId: String): DeleteResult {
+        if (!SchemaMigrations.isSafeId(trackId)) return DeleteResult.Rejected("unsafe track id")
+        val removedTrackPayload = deleteIfExists(tracksDir / "$trackId.json")
+        val removedProfilePayload = deleteIfExists(profilePath(trackId))
+        val removedProfileIndex = removeProfileIndexId(trackId)
+        val removedReferences = deleteReferencesForTrack(trackId)
+        val removedRow = removeIndexRow(trackId, ReviewEntryType.Track)
+        val clearedSelection = when (val selection = loadCurrentSelection()) {
+            is LoadResult.Loaded -> if (selection.value.profileId == trackId) {
+                clearCurrentSelection()
+                true
+            } else {
+                false
+            }
+            LoadResult.NotFound, is LoadResult.Corrupt -> false
+        }
+        return if (
+            removedTrackPayload ||
+            removedProfilePayload ||
+            removedProfileIndex ||
+            removedReferences ||
+            removedRow ||
+            clearedSelection
+        ) {
+            DeleteResult.Deleted
+        } else {
+            DeleteResult.NotFound
+        }
+    }
+
     private fun readProfileIndex(): ProfileIndex {
         if (!fileSystem.exists(profilesIndexPath)) return ProfileIndex()
         return try {
@@ -457,6 +511,70 @@ class FileSessionStore(
         (fileSystem.listOrNull(dir) ?: emptyList())
             .filter { it.name.endsWith(".json") && !it.name.endsWith(TMP_SUFFIX) }
             .sortedBy { it.name }
+
+    private fun deleteIfExists(path: Path): Boolean {
+        if (!fileSystem.exists(path)) return false
+        fileSystem.delete(path)
+        return true
+    }
+
+    private fun removeIndexRow(id: String, type: ReviewEntryType): Boolean {
+        val index = readIndex()
+        val updatedRows = index.rows.filterNot { it.id == id && it.type == type }
+        if (updatedRows.size == index.rows.size) return false
+        writeAtomically(indexPath, json.encodeToString(index.copy(rows = updatedRows)))
+        return true
+    }
+
+    private fun removeProfileIndexId(profileId: String): Boolean {
+        val index = readProfileIndex()
+        val updatedIds = index.profileIds.filterNot { it == profileId }
+        if (updatedIds.size == index.profileIds.size) return false
+        writeAtomically(profilesIndexPath, json.encodeToString(ProfileIndex.serializer(), index.copy(profileIds = updatedIds)))
+        return true
+    }
+
+    private fun deleteReferencesForSession(sessionId: String): Boolean {
+        var removed = false
+        for (path in listJsonPayloads(referencesDir)) {
+            val payload = decodeOrNull<GhostReferencePayloadV1>(path) ?: continue
+            if (payload.sessionId == sessionId) {
+                removed = deleteIfExists(path) || removed
+            }
+        }
+        for (path in listJsonPayloads(referencesV2Dir)) {
+            val payload = decodeOrNull<GhostReferencePayloadV2>(path) ?: continue
+            if (payload.sessionId == sessionId) {
+                removed = deleteIfExists(path) || removed
+            }
+        }
+        return removed
+    }
+
+    private fun deleteReferencesForTrack(trackId: String): Boolean {
+        var removed = false
+        for (path in listJsonPayloads(referencesDir)) {
+            val payload = decodeOrNull<GhostReferencePayloadV1>(path) ?: continue
+            if (payload.trackId == trackId) {
+                removed = deleteIfExists(path) || removed
+            }
+        }
+        for (path in listJsonPayloads(referencesV2Dir)) {
+            val payload = decodeOrNull<GhostReferencePayloadV2>(path) ?: continue
+            if (payload.compatibilityKey.profileId == trackId) {
+                removed = deleteIfExists(path) || removed
+            }
+        }
+        return removed
+    }
+
+    private inline fun <reified T> decodeOrNull(path: Path): T? = try {
+        json.decodeFromString<T>(readText(path))
+    } catch (_: SerializationException) {
+        null
+    } catch (_: IllegalArgumentException) {
+        null
+    }
 
     private fun readText(path: Path): String = fileSystem.read(path) { readUtf8() }
 

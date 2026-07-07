@@ -1,6 +1,8 @@
 package com.huanfuli.lapsight.shared.ui
 
 import com.huanfuli.lapsight.shared.LocationSource
+import com.huanfuli.lapsight.shared.storage.LoadResult
+import com.huanfuli.lapsight.shared.storage.LocalSessionStore
 import com.huanfuli.lapsight.shared.track.ReviewEntryType
 import com.huanfuli.lapsight.shared.track.ReviewIndex
 import com.huanfuli.lapsight.shared.track.ReviewIndexRow
@@ -22,6 +24,7 @@ data class ReviewRowViewModel(
     val sampleCount: Int?,
     val payloadPath: String,
     val bestLapMillis: Long? = null,
+    val isArchived: Boolean = false,
 ) {
     /** Human-readable type label for the row. */
     val typeLabel: String
@@ -40,9 +43,19 @@ data class ReviewRowViewModel(
  */
 object ReviewListState {
     fun from(index: ReviewIndex): List<ReviewRowViewModel> =
-        index.rows.map(::rowToViewModel)
+        index.rows.map { rowToViewModel(it, isArchived = false) }
 
-    private fun rowToViewModel(row: ReviewIndexRow): ReviewRowViewModel {
+    fun from(store: LocalSessionStore): List<ReviewRowViewModel> =
+        store.readIndex().rows.map { row ->
+            rowToViewModel(row, isArchived = isArchivedTrack(row, store))
+        }
+
+    private fun isArchivedTrack(row: ReviewIndexRow, store: LocalSessionStore): Boolean {
+        if (row.type != ReviewEntryType.Track) return false
+        return (store.loadProfile(row.id) as? LoadResult.Loaded)?.value?.isArchived == true
+    }
+
+    private fun rowToViewModel(row: ReviewIndexRow, isArchived: Boolean): ReviewRowViewModel {
         val label = row.source.label
             ?: when (row.source.source) {
                 LocationSource.Simulated -> "Simulated"
@@ -59,6 +72,7 @@ object ReviewListState {
             sampleCount = row.sampleCount,
             payloadPath = row.payloadPath,
             bestLapMillis = row.bestLapMillis,
+            isArchived = isArchived,
         )
     }
 }

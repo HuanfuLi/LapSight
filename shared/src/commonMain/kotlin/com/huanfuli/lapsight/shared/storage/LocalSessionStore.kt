@@ -190,6 +190,22 @@ interface LocalSessionStore {
 
     /** Clears any persisted current selection (used on archive of the current Track). */
     fun clearCurrentSelection()
+
+    // --- Review lifecycle actions ------------------------------------------
+
+    /** Permanently removes one saved timing session and any ghost reference derived from it. */
+    fun deleteTimingSession(sessionId: String): DeleteResult
+
+    /** Permanently removes one raw Track marking capture. Saved Tracks derived from it are retained. */
+    fun deleteTrackMarking(markingId: String): DeleteResult
+
+    /**
+     * Permanently removes one Track/Profile from active and archived Track history.
+     *
+     * Historical timing sessions are retained because they carry their own immutable course
+     * snapshot. Users can delete those sessions explicitly from Review.
+     */
+    fun deleteTrack(trackId: String): DeleteResult
 }
 
 /**
@@ -216,6 +232,13 @@ data class MigrationSkip(
 sealed interface SaveResult {
     /** All payloads and the index were written successfully. */
     data class Saved(val trackPath: String, val markingPath: String) : SaveResult
+}
+
+/** Outcome of a destructive Review delete operation. */
+sealed interface DeleteResult {
+    data object Deleted : DeleteResult
+    data object NotFound : DeleteResult
+    data class Rejected(val reason: String) : DeleteResult
 }
 
 /**

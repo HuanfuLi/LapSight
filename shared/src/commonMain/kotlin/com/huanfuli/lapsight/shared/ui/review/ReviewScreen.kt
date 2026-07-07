@@ -73,7 +73,7 @@ fun ReviewScreen(
     exportShareTarget: ExportShareTarget = NoOpExportShareTarget,
 ) {
     val s = strings
-    var rows by remember { mutableStateOf(ReviewListState.from(sessionStore.readIndex())) }
+    var rows by remember { mutableStateOf(ReviewListState.from(sessionStore)) }
     var openedKey by remember { mutableStateOf<String?>(null) }
     var localRefreshVersion by remember { mutableStateOf(0L) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
@@ -81,7 +81,7 @@ fun ReviewScreen(
 
     // Re-read the index when the Drive tab reports a new save (D-27).
     LaunchedEffect(savedVersion, localRefreshVersion) {
-        rows = ReviewListState.from(sessionStore.readIndex())
+        rows = ReviewListState.from(sessionStore)
     }
 
     val openedRow = openedKey?.let { key -> rows.firstOrNull { it.key() == key } }
@@ -105,7 +105,8 @@ fun ReviewScreen(
     }
 
     val sessions = rows.filter { it.type == ReviewEntryType.TimingSession }
-    val tracks = rows.filter { it.type == ReviewEntryType.Track }
+    val tracks = rows.filter { it.type == ReviewEntryType.Track && !it.isArchived }
+    val archivedTracks = rows.filter { it.type == ReviewEntryType.Track && it.isArchived }
     val rawCaptures = rows.filter { it.type == ReviewEntryType.TrackMarking }
 
     val spacing = LapSightTheme.spacing
@@ -132,6 +133,15 @@ fun ReviewScreen(
             reviewSection(
                 title = s.tracks,
                 rows = tracks,
+                sessionStore = sessionStore,
+                exportShareTarget = exportShareTarget,
+                onOpen = { openedKey = it },
+                onMessage = { actionMessage = it },
+                onDataChanged = refreshRows,
+            )
+            reviewSection(
+                title = s.archivedTracks,
+                rows = archivedTracks,
                 sessionStore = sessionStore,
                 exportShareTarget = exportShareTarget,
                 onOpen = { openedKey = it },
@@ -237,6 +247,7 @@ private fun ReviewRow(
     var menuOpen by remember(row.key()) { mutableStateOf(false) }
     var renameOpen by remember(row.id) { mutableStateOf(false) }
     var archiveConfirmOpen by remember(row.id) { mutableStateOf(false) }
+    var deleteConfirmOpen by remember(row.id) { mutableStateOf(false) }
     var renameValue by remember(row.id, row.name) { mutableStateOf(row.name) }
 
     LapCard(
@@ -261,6 +272,7 @@ private fun ReviewRow(
                         style = MaterialTheme.typography.titleMedium,
                     )
                     if (row.isDemo) StatusChip(text = "DEMO", tone = ChipTone.Demo)
+                    if (row.isArchived) StatusChip(text = s.archived, tone = ChipTone.Neutral)
                 }
                 Text(
                     text = formatEpochMillis(row.createdAtEpochMillis),
@@ -298,6 +310,12 @@ private fun ReviewRow(
                     onDismiss = { menuOpen = false },
                     onRenameRequested = { renameOpen = true },
                     onArchiveRequested = { archiveConfirmOpen = true },
+                    onRestoreRequested = {
+                        val msg = restoreTrack(sessionStore, row.id)
+                        onMessage(msg)
+                        if (!isReviewActionError(msg)) onDataChanged()
+                    },
+                    onDeleteRequested = { deleteConfirmOpen = true },
                     onMessage = onMessage,
                     onDataChanged = onDataChanged,
                 )
@@ -352,6 +370,26 @@ private fun ReviewRow(
             dismissContentDescription = s.cancel,
         )
     }
+    if (deleteConfirmOpen) {
+        LapDialog(
+            title = s.delete,
+            text = s.deleteReviewItemText,
+            onDismissRequest = { deleteConfirmOpen = false },
+            confirmText = s.delete,
+            destructiveConfirm = true,
+            confirmIcon = DeleteActionIcon,
+            onConfirm = {
+                deleteConfirmOpen = false
+                val msg = deleteReviewEntry(sessionStore, row)
+                onMessage(msg)
+                if (!isReviewActionError(msg)) onDataChanged()
+            },
+            dismissText = s.cancel,
+            dismissIcon = CloseActionIcon,
+            dismissIconOnly = true,
+            dismissContentDescription = s.cancel,
+        )
+    }
 }
 
 @Composable
@@ -363,6 +401,8 @@ private fun ReviewRowActionsMenu(
     onDismiss: () -> Unit,
     onRenameRequested: () -> Unit,
     onArchiveRequested: () -> Unit,
+    onRestoreRequested: () -> Unit,
+    onDeleteRequested: () -> Unit,
     onMessage: (String?) -> Unit,
     onDataChanged: () -> Unit,
 ) {
@@ -386,16 +426,35 @@ private fun ReviewRowActionsMenu(
                         onMessage(exportTimingSessionGpx(row, sessionStore, exportShareTarget))
                     },
                 )
-            }
-            ReviewEntryType.Track -> {
                 DropdownMenuItem(
-                    text = { Text(s.rename) },
-                    leadingIcon = { Icon(EditActionIcon, contentDescription = null) },
+                    text = { Text(s.delete) },
+                    leadingIcon = { Icon(DeleteActionIcon, contentDescription = null) },
                     onClick = {
                         onDismiss()
-                        onRenameRequested()
+                        onDeleteRequested()
                     },
                 )
+            }
+            ReviewEntryType.Track -> {
+                if (row.isArchived) {
+                    DropdownMenuItem(
+                        text = { Text(s.restore) },
+                        leadingIcon = { Icon(RestoreActionIcon, contentDescription = null) },
+                        onClick = {
+                            onDismiss()
+                            onRestoreRequested()
+                        },
+                    )
+                } else {
+                    DropdownMenuItem(
+                        text = { Text(s.rename) },
+                        leadingIcon = { Icon(EditActionIcon, contentDescription = null) },
+                        onClick = {
+                            onDismiss()
+                            onRenameRequested()
+                        },
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(s.duplicate) },
                     leadingIcon = { Icon(DuplicateActionIcon, contentDescription = null) },
@@ -406,20 +465,30 @@ private fun ReviewRowActionsMenu(
                         if (!isReviewActionError(msg)) onDataChanged()
                     },
                 )
-                DropdownMenuItem(
-                    text = { Text(s.archive) },
-                    leadingIcon = { Icon(ArchiveActionIcon, contentDescription = null) },
-                    onClick = {
-                        onDismiss()
-                        onArchiveRequested()
-                    },
-                )
+                if (!row.isArchived) {
+                    DropdownMenuItem(
+                        text = { Text(s.archive) },
+                        leadingIcon = { Icon(ArchiveActionIcon, contentDescription = null) },
+                        onClick = {
+                            onDismiss()
+                            onArchiveRequested()
+                        },
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(s.exportJson) },
                     leadingIcon = { Icon(ExportActionIcon, contentDescription = null) },
                     onClick = {
                         onDismiss()
                         onMessage(exportTrackJson(row, sessionStore, exportShareTarget))
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(s.delete) },
+                    leadingIcon = { Icon(DeleteActionIcon, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        onDeleteRequested()
                     },
                 )
             }
@@ -430,6 +499,14 @@ private fun ReviewRowActionsMenu(
                     onClick = {
                         onDismiss()
                         onMessage(exportTrackMarkingJson(row, sessionStore, exportShareTarget))
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(s.delete) },
+                    leadingIcon = { Icon(DeleteActionIcon, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        onDeleteRequested()
                     },
                 )
             }

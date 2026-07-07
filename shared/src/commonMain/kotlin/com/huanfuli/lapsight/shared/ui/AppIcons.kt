@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -180,6 +181,7 @@ val ExportActionIcon: ImageVector get() = Icons.Filled.FileDownload
 val PauseActionIcon: ImageVector get() = Icons.Filled.Pause
 val ReplayActionIcon: ImageVector get() = Icons.Filled.Replay
 val ResumeActionIcon: ImageVector get() = Icons.Filled.PlayArrow
+val RestoreActionIcon: ImageVector get() = Icons.Filled.Unarchive
 val PointToPointCourseIcon: ImageVector get() = Icons.Filled.Route
 val SaveActionIcon: ImageVector get() = Icons.Filled.Save
 val SaveSessionIcon: ImageVector get() = Icons.Filled.Folder

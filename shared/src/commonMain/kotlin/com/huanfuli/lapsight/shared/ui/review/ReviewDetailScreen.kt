@@ -97,6 +97,9 @@ internal fun ReviewDetailScreen(
             if (row.isDemo) {
                 StatusChip(text = "DEMO", tone = ChipTone.Demo)
             }
+            if (row.isArchived) {
+                StatusChip(text = s.archived, tone = ChipTone.Neutral)
+            }
             if (row.type == ReviewEntryType.Track) {
                 TrackActionsMenu(
                     row = row,
@@ -104,6 +107,7 @@ internal fun ReviewDetailScreen(
                     exportShareTarget = exportShareTarget,
                     onMessage = { actionMessage = it },
                     onDataChanged = onDataChanged,
+                    onDeleted = onBack,
                 )
             }
         }
@@ -161,11 +165,13 @@ private fun TrackActionsMenu(
     exportShareTarget: ExportShareTarget,
     onMessage: (String?) -> Unit,
     onDataChanged: () -> Unit,
+    onDeleted: () -> Unit,
 ) {
     val s = strings
     var menuOpen by remember { mutableStateOf(false) }
     var renameOpen by remember { mutableStateOf(false) }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
+    var deleteConfirmOpen by remember { mutableStateOf(false) }
     var renameValue by remember(row.id) { mutableStateOf(row.name) }
 
     Box {
@@ -177,14 +183,27 @@ private fun TrackActionsMenu(
             )
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(s.rename) },
-                leadingIcon = { Icon(EditActionIcon, contentDescription = null) },
-                onClick = {
-                    menuOpen = false
-                    renameOpen = true
-                },
-            )
+            if (row.isArchived) {
+                DropdownMenuItem(
+                    text = { Text(s.restore) },
+                    leadingIcon = { Icon(RestoreActionIcon, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        val msg = restoreTrack(sessionStore, row.id)
+                        onMessage(msg)
+                        if (!msg.startsWith("Couldn't")) onDataChanged()
+                    },
+                )
+            } else {
+                DropdownMenuItem(
+                    text = { Text(s.rename) },
+                    leadingIcon = { Icon(EditActionIcon, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        renameOpen = true
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text(s.duplicate) },
                 leadingIcon = { Icon(DuplicateActionIcon, contentDescription = null) },
@@ -195,20 +214,30 @@ private fun TrackActionsMenu(
                     if (!msg.startsWith("Couldn't")) onDataChanged()
                 },
             )
-            DropdownMenuItem(
-                text = { Text(s.archive) },
-                leadingIcon = { Icon(ArchiveActionIcon, contentDescription = null) },
-                onClick = {
-                    menuOpen = false
-                    archiveConfirmOpen = true
-                },
-            )
+            if (!row.isArchived) {
+                DropdownMenuItem(
+                    text = { Text(s.archive) },
+                    leadingIcon = { Icon(ArchiveActionIcon, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        archiveConfirmOpen = true
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text(s.exportJson) },
                 leadingIcon = { Icon(ExportActionIcon, contentDescription = null) },
                 onClick = {
                     menuOpen = false
                     onMessage(exportTrackJson(row, sessionStore, exportShareTarget))
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(s.delete) },
+                leadingIcon = { Icon(DeleteActionIcon, contentDescription = null) },
+                onClick = {
+                    menuOpen = false
+                    deleteConfirmOpen = true
                 },
             )
         }
@@ -254,6 +283,29 @@ private fun TrackActionsMenu(
                 val msg = archiveTrack(sessionStore, row.id)
                 onMessage(msg)
                 if (!msg.startsWith("Couldn't")) onDataChanged()
+            },
+            dismissText = s.cancel,
+            dismissIcon = CloseActionIcon,
+            dismissIconOnly = true,
+            dismissContentDescription = s.cancel,
+        )
+    }
+    if (deleteConfirmOpen) {
+        LapDialog(
+            title = s.delete,
+            text = s.deleteReviewItemText,
+            onDismissRequest = { deleteConfirmOpen = false },
+            confirmText = s.delete,
+            destructiveConfirm = true,
+            confirmIcon = DeleteActionIcon,
+            onConfirm = {
+                deleteConfirmOpen = false
+                val msg = deleteReviewEntry(sessionStore, row)
+                onMessage(msg)
+                if (!msg.startsWith("Couldn't")) {
+                    onDataChanged()
+                    onDeleted()
+                }
             },
             dismissText = s.cancel,
             dismissIcon = CloseActionIcon,

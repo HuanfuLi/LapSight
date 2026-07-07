@@ -336,6 +336,52 @@ class InMemorySessionStore : LocalSessionStore {
         currentSelection = null
     }
 
+    override fun deleteTimingSession(sessionId: String): DeleteResult {
+        val removedPayload = sessions.remove(sessionId) != null
+        val removedV2Payload = sessionsV2.remove(sessionId) != null
+        val removedRow = rows.removeAll {
+            it.id == sessionId && it.type == ReviewEntryType.TimingSession
+        }
+        references.entries.removeAll { it.value.sessionId == sessionId }
+        referencesV2.entries.removeAll { it.value.sessionId == sessionId }
+        return if (removedPayload || removedV2Payload || removedRow) {
+            DeleteResult.Deleted
+        } else {
+            DeleteResult.NotFound
+        }
+    }
+
+    override fun deleteTrackMarking(markingId: String): DeleteResult {
+        val removedPayload = markings.remove(markingId) != null
+        val removedRow = rows.removeAll {
+            it.id == markingId && it.type == ReviewEntryType.TrackMarking
+        }
+        return if (removedPayload || removedRow) {
+            DeleteResult.Deleted
+        } else {
+            DeleteResult.NotFound
+        }
+    }
+
+    override fun deleteTrack(trackId: String): DeleteResult {
+        val removedTrack = tracks.remove(trackId) != null
+        val removedProfile = profiles.remove(trackId) != null
+        val removedProfileIndex = profileIndex.removeAll { it == trackId }
+        val removedRow = rows.removeAll {
+            it.id == trackId && it.type == ReviewEntryType.Track
+        }
+        references.entries.removeAll { it.value.trackId == trackId }
+        referencesV2.entries.removeAll { it.value.compatibilityKey.profileId == trackId }
+        if (currentSelection?.profileId == trackId) {
+            currentSelection = null
+        }
+        return if (removedTrack || removedProfile || removedProfileIndex || removedRow) {
+            DeleteResult.Deleted
+        } else {
+            DeleteResult.NotFound
+        }
+    }
+
     private fun legacyReferenceKey(trackId: String, isSimulated: Boolean): String =
         "${trackId}__${if (isSimulated) "sim" else "real"}"
 

@@ -241,6 +241,23 @@ class TrackProfileController(
     }
 
     /**
+     * Restores an archived profile to the active Track list without changing current selection.
+     *
+     * Restore is metadata-only: revisions, sessions, and Ghost references are copied forward
+     * unchanged. The user still explicitly chooses the current Track from Drive.
+     */
+    fun restoreProfile(profileId: String, app: AppMetadata): RestoreProfileResult {
+        val profile = when (val loaded = store.loadProfile(profileId)) {
+            is LoadResult.Loaded -> loaded.value
+            LoadResult.NotFound -> return RestoreProfileResult.Rejected("no such profile")
+            is LoadResult.Corrupt -> return RestoreProfileResult.Rejected("profile payload corrupt: ${loaded.reason}")
+        }
+        val restored = profile.copy(archivedAtEpochMillis = null)
+        store.saveProfile(restored, app)
+        return RestoreProfileResult.Restored(restored)
+    }
+
+    /**
      * Duplicates a profile into a fully INDEPENDENT logical profile (D-16).
      *
      * Behavior contract:
@@ -475,6 +492,16 @@ sealed interface ArchiveProfileResult {
 
     /** The target profile was missing or corrupt; nothing was written. */
     data class Rejected(val reason: String) : ArchiveProfileResult
+}
+
+/** Typed outcome of [TrackProfileController.restoreProfile]. */
+sealed interface RestoreProfileResult {
+
+    /** The profile is active again; no current Track was auto-selected. */
+    data class Restored(val profile: TrackProfile) : RestoreProfileResult
+
+    /** The target profile was missing or corrupt; nothing was written. */
+    data class Rejected(val reason: String) : RestoreProfileResult
 }
 
 /**
