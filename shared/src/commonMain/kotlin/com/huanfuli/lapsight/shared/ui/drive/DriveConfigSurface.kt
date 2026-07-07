@@ -226,6 +226,7 @@ internal fun DriveSurface(
                 glassesCastingEnabled = glassesCastingEnabled,
                 glassesPage = glassesPage,
                 glassesActions = glassesActions,
+                compactControls = isCompactLandscape,
             )
         } else {
             // Portrait: the middle of the screen belongs to the course — a live
@@ -281,9 +282,9 @@ internal fun DriveSurface(
  *
  * The left pane shows the thing that matters for the current phase — the
  * selected course, the live marking trace, or the empty state. The right rail
- * stacks status (2×2 metrics), the phase's controls, and bottom-anchors the
- * action row so Start/Stop and the orientation toggle sit in the same corner
- * in every state. Nothing scrolls; every control is on screen.
+ * stacks status (2×2 metrics), a scrollable phase control area, and a fixed
+ * bottom action row so Start/Stop and the orientation toggle remain reachable
+ * even when future controls are added.
  */
 @Composable
 private fun LandscapeCockpit(
@@ -310,6 +311,7 @@ private fun LandscapeCockpit(
     glassesCastingEnabled: StateFlow<Boolean>,
     glassesPage: StateFlow<HudPage>,
     glassesActions: GlassesActions,
+    compactControls: Boolean,
 ) {
     val spacing = LapSightTheme.spacing
     val s = strings
@@ -392,13 +394,19 @@ private fun LandscapeCockpit(
             )
             when {
                 snapshot.phase == DriveMarkingPhase.Capturing -> {
-                    MarkingMetricsRow(snapshot = snapshot)
-                    Text(
-                        text = s.markingGuidanceFor(snapshot.selectedTopology),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Spacer(Modifier.weight(1f))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                    ) {
+                        MarkingMetricsRow(snapshot = snapshot)
+                        Text(
+                            text = s.markingGuidanceFor(snapshot.selectedTopology),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     DriveActionRow(
                         primaryIcon = StopActionIcon,
                         primaryLabel = s.stopMarking,
@@ -409,15 +417,22 @@ private fun LandscapeCockpit(
                         onPrimary = onStopMarking,
                         orientation = orientation,
                         onToggleOrientation = onToggleOrientation,
+                        compact = compactControls,
                     )
                 }
                 rawRecordingActive -> {
-                    Text(
-                        text = s.rawGpsRecordingLong,
-                        color = LapSightTheme.colors.statusCaution,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Spacer(Modifier.weight(1f))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                    ) {
+                        Text(
+                            text = s.rawGpsRecordingLong,
+                            color = LapSightTheme.colors.statusCaution,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     DriveActionRow(
                         primaryIcon = StopActionIcon,
                         primaryLabel = s.stopRawRecording,
@@ -428,27 +443,43 @@ private fun LandscapeCockpit(
                         onPrimary = onStopRawRecording,
                         orientation = orientation,
                         onToggleOrientation = onToggleOrientation,
+                        compact = compactControls,
                     )
                 }
                 else -> {
-                    TrackSelectorSection(
-                        snapshot = snapshot,
-                        onClick = { showTrackPicker = true },
-                    )
-                    if (snapshot.canStartTiming && snapshot.currentTrackTopology != CourseTopology.PointToPoint) {
-                        DirectionSelectorSection(
-                            selected = snapshot.selectedDirection,
-                            onSelectDirection = onSelectDirection,
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                    ) {
+                        TrackSelectorSection(
+                            snapshot = snapshot,
+                            onClick = { showTrackPicker = true },
                         )
+                        if (snapshot.canStartTiming && snapshot.currentTrackTopology != CourseTopology.PointToPoint) {
+                            DirectionSelectorSection(
+                                selected = snapshot.selectedDirection,
+                                onSelectDirection = onSelectDirection,
+                            )
+                        }
+                        GlassesDriveControls(
+                            connectionState = glassesConnectionState,
+                            selectedDeviceId = glassesSelectedDeviceId,
+                            castingEnabled = glassesCastingEnabled,
+                            page = glassesPage,
+                            actions = glassesActions,
+                            compact = compactControls,
+                        )
+                        if (dashReady is ReadyState.NotReady) {
+                            LapButton(
+                                text = s.recordRawGpsDiagnostic,
+                                onClick = onStartRawRecording,
+                                style = LapButtonStyle.Ghost,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
-                    GlassesDriveControls(
-                        connectionState = glassesConnectionState,
-                        selectedDeviceId = glassesSelectedDeviceId,
-                        castingEnabled = glassesCastingEnabled,
-                        page = glassesPage,
-                        actions = glassesActions,
-                    )
-                    Spacer(Modifier.weight(1f))
                     DriveActionRow(
                         primaryIcon = PlayActionIcon,
                         primaryLabel = s.startTiming,
@@ -459,15 +490,8 @@ private fun LandscapeCockpit(
                         onPrimary = onStartTiming,
                         orientation = orientation,
                         onToggleOrientation = onToggleOrientation,
+                        compact = compactControls,
                     )
-                    if (dashReady is ReadyState.NotReady) {
-                        LapButton(
-                            text = s.recordRawGpsDiagnostic,
-                            onClick = onStartRawRecording,
-                            style = LapButtonStyle.Ghost,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
                 }
             }
         }
@@ -1044,7 +1068,6 @@ private fun SelectedTrackPreview(
     val marker = courseMarker(trace.viewport, current, headingFrom)
 
     val spacing = LapSightTheme.spacing
-    val s = strings
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(spacing.xs),
@@ -1064,12 +1087,6 @@ private fun SelectedTrackPreview(
                 positionMarker = marker,
             )
         }
-        val sectorCount = latest.courseSetup.boundaries.size
-        Text(
-            text = s.revisionAndSectors(latest.ordinal, sectorCount),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-        )
     }
 }
 
