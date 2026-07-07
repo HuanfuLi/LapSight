@@ -11,6 +11,7 @@
 [![Status: Phase 5.1](https://img.shields.io/badge/Status-Phase_5.1_Validation-4285F4?style=for-the-badge)](.planning/STATE.md)
 [![Platform: Android | iOS](https://img.shields.io/badge/Platform-Android_%7C_iOS-6C63FF?style=for-the-badge)](#)
 [![Tech: Kotlin Multiplatform](https://img.shields.io/badge/Tech-Kotlin_Multiplatform-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=for-the-badge)](LICENSE)
 
 <br/>
 
@@ -159,6 +160,12 @@ The app should remain **passive while moving**. Users should configure sessions 
 - 📄 Current state: `.planning/STATE.md`
 - 📄 Stack research: `.planning/research/STACK.md`
 - 📄 Lap engine research: `.planning/research/LAP_ENGINE.md`
+
+---
+
+## 📜 License
+
+This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
 ---
 

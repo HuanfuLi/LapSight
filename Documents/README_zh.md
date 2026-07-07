@@ -11,6 +11,7 @@
 [![Status: Phase 5.1](https://img.shields.io/badge/Status-Phase_5.1_Validation-4285F4?style=for-the-badge)](../.planning/STATE.md)
 [![Platform: Android | iOS](https://img.shields.io/badge/Platform-Android_%7C_iOS-6C63FF?style=for-the-badge)](#)
 [![Tech: Kotlin Multiplatform](https://img.shields.io/badge/Tech-Kotlin_Multiplatform-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=for-the-badge)](../LICENSE)
 
 <br/>
 
@@ -158,6 +159,12 @@ LapSight/
 - 📄 当前状态: `.planning/STATE.md`
 - 📄 技术栈研究: `.planning/research/STACK.md`
 - 📄 单圈引擎研究: `.planning/research/LAP_ENGINE.md`
+
+---
+
+## 📜 开源协议
+
+本项目采用 GNU Affero General Public License v3.0 开源协议 - 详情请查看 [LICENSE](../LICENSE) 文件。
 
 ---
 
