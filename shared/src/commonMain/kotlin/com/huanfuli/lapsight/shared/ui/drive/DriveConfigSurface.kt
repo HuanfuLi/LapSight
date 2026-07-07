@@ -3,8 +3,10 @@ package com.huanfuli.lapsight.shared.ui.drive
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -94,7 +96,6 @@ import com.huanfuli.lapsight.shared.ui.components.MetricCell
 import com.huanfuli.lapsight.shared.ui.components.MetricCellSize
 import com.huanfuli.lapsight.shared.ui.components.SegmentedControl
 import com.huanfuli.lapsight.shared.ui.components.ChipTone
-import com.huanfuli.lapsight.shared.ui.components.LapSwitchRow
 import com.huanfuli.lapsight.shared.ui.components.StatusChip
 import lapsight.shared.generated.resources.Res
 import lapsight.shared.generated.resources.material_symbols_laps
@@ -334,7 +335,7 @@ private fun LandscapeCockpit(
         )
     }
 
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             // Fullscreen Drive still needs content-safe insets for rounded
@@ -342,156 +343,170 @@ private fun LandscapeCockpit(
             // The parent background fills edge-to-edge; only controls move in.
             .safeContentPadding()
             .padding(spacing.sm),
-        horizontalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
-        BoxWithConstraints(
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            val previewSize = minOf(maxWidth, maxHeight)
-            when {
-                snapshot.phase == DriveMarkingPhase.Capturing -> MarkingTracePane(
-                    samples = snapshot.capturedSamples,
-                    modifier = Modifier.size(previewSize),
-                )
-                snapshot.currentTrackName != null -> SelectedTrackPreview(
-                    profileId = snapshot.timingReadyTrackId,
-                    sessionStore = sessionStore,
-                    compact = false,
-                    livePosition = snapshot.latestSample,
-                    fillParent = true,
-                    modifier = Modifier.size(previewSize),
-                )
-                rawRecordingActive -> Text(
-                    text = s.rawGpsRecordingShort,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-                else -> NoTrackState(
-                    hasSavedTracks = snapshot.selectableProfiles.isNotEmpty(),
-                    onChooseTrack = { showTrackPicker = true },
-                    onBeginMarking = { showNewTrackDialog = true },
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+        val railWidth = if (compactControls) {
+            minOf(maxWidth * 0.44f, LandscapeCompactRailMaxWidth)
+        } else {
+            minOf(maxWidth * 0.40f, LandscapeRailMaxWidth)
         }
-
-        Column(
-            modifier = Modifier.width(300.dp).fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(spacing.md),
         ) {
-            DriveStatusBar(
-                snapshot = snapshot,
-                displaySettings = displaySettings,
-                locationFeedMode = locationFeedMode,
-                phoneGpsPermission = phoneGpsPermission,
-                dashReady = dashReady,
-                rawRecordingActive = rawRecordingActive,
-                rawSnapshot = rawSnapshot,
-                modifier = Modifier.fillMaxWidth(),
-                grid = true,
-            )
-            when {
-                snapshot.phase == DriveMarkingPhase.Capturing -> {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(spacing.sm),
-                    ) {
-                        MarkingMetricsRow(snapshot = snapshot)
-                        Text(
-                            text = s.markingGuidanceFor(snapshot.selectedTopology),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    DriveActionRow(
-                        primaryIcon = StopActionIcon,
-                        primaryLabel = s.stopMarking,
-                        primaryDescription = s.stopMarking,
-                        primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
-                        primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        primaryEnabled = true,
-                        onPrimary = onStopMarking,
-                        orientation = orientation,
-                        onToggleOrientation = onToggleOrientation,
-                        compact = compactControls,
+            BoxWithConstraints(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                val previewHeight = minOf(maxHeight, maxWidth / CoursePreviewAspectRatio)
+                val previewWidth = previewHeight * CoursePreviewAspectRatio
+                val previewModifier = Modifier
+                    .width(previewWidth)
+                    .height(previewHeight)
+                when {
+                    snapshot.phase == DriveMarkingPhase.Capturing -> MarkingTracePane(
+                        samples = snapshot.capturedSamples,
+                        modifier = previewModifier,
+                    )
+                    snapshot.currentTrackName != null -> SelectedTrackPreview(
+                        profileId = snapshot.timingReadyTrackId,
+                        sessionStore = sessionStore,
+                        compact = false,
+                        livePosition = snapshot.latestSample,
+                        fillParent = true,
+                        modifier = previewModifier,
+                    )
+                    rawRecordingActive -> Text(
+                        text = s.rawGpsRecordingShort,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
+                    else -> NoTrackState(
+                        hasSavedTracks = snapshot.selectableProfiles.isNotEmpty(),
+                        onChooseTrack = { showTrackPicker = true },
+                        onBeginMarking = { showNewTrackDialog = true },
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
-                rawRecordingActive -> {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(spacing.sm),
-                    ) {
-                        Text(
-                            text = s.rawGpsRecordingLong,
-                            color = LapSightTheme.colors.statusCaution,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    DriveActionRow(
-                        primaryIcon = StopActionIcon,
-                        primaryLabel = s.stopRawRecording,
-                        primaryDescription = s.stopRawRecording,
-                        primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
-                        primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        primaryEnabled = true,
-                        onPrimary = onStopRawRecording,
-                        orientation = orientation,
-                        onToggleOrientation = onToggleOrientation,
-                        compact = compactControls,
-                    )
-                }
-                else -> {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(spacing.sm),
-                    ) {
-                        TrackSelectorSection(
-                            snapshot = snapshot,
-                            onClick = { showTrackPicker = true },
-                        )
-                        if (snapshot.canStartTiming && snapshot.currentTrackTopology != CourseTopology.PointToPoint) {
-                            DirectionSelectorSection(
-                                selected = snapshot.selectedDirection,
-                                onSelectDirection = onSelectDirection,
+            }
+
+            Column(
+                modifier = Modifier.width(railWidth).fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(spacing.sm),
+            ) {
+                DriveStatusBar(
+                    snapshot = snapshot,
+                    displaySettings = displaySettings,
+                    locationFeedMode = locationFeedMode,
+                    phoneGpsPermission = phoneGpsPermission,
+                    dashReady = dashReady,
+                    rawRecordingActive = rawRecordingActive,
+                    rawSnapshot = rawSnapshot,
+                    modifier = Modifier.fillMaxWidth(),
+                    grid = true,
+                    dense = compactControls,
+                )
+                when {
+                    snapshot.phase == DriveMarkingPhase.Capturing -> {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                        ) {
+                            MarkingMetricsRow(snapshot = snapshot)
+                            Text(
+                                text = s.markingGuidanceFor(snapshot.selectedTopology),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        GlassesDriveControls(
-                            connectionState = glassesConnectionState,
-                            selectedDeviceId = glassesSelectedDeviceId,
-                            castingEnabled = glassesCastingEnabled,
-                            page = glassesPage,
-                            actions = glassesActions,
+                        DriveActionRow(
+                            primaryIcon = StopActionIcon,
+                            primaryLabel = s.stopMarking,
+                            primaryDescription = s.stopMarking,
+                            primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
+                            primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            primaryEnabled = true,
+                            onPrimary = onStopMarking,
+                            orientation = orientation,
+                            onToggleOrientation = onToggleOrientation,
                             compact = compactControls,
                         )
-                        if (dashReady is ReadyState.NotReady) {
-                            LapButton(
-                                text = s.recordRawGpsDiagnostic,
-                                onClick = onStartRawRecording,
-                                style = LapButtonStyle.Ghost,
-                                modifier = Modifier.fillMaxWidth(),
+                    }
+                    rawRecordingActive -> {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                        ) {
+                            Text(
+                                text = s.rawGpsRecordingLong,
+                                color = LapSightTheme.colors.statusCaution,
+                                style = MaterialTheme.typography.bodySmall,
                             )
                         }
+                        DriveActionRow(
+                            primaryIcon = StopActionIcon,
+                            primaryLabel = s.stopRawRecording,
+                            primaryDescription = s.stopRawRecording,
+                            primaryContainerColor = MaterialTheme.colorScheme.errorContainer,
+                            primaryContentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            primaryEnabled = true,
+                            onPrimary = onStopRawRecording,
+                            orientation = orientation,
+                            onToggleOrientation = onToggleOrientation,
+                            compact = compactControls,
+                        )
                     }
-                    DriveActionRow(
-                        primaryIcon = PlayActionIcon,
-                        primaryLabel = s.startTiming,
-                        primaryDescription = s.startTiming,
-                        primaryContainerColor = MaterialTheme.colorScheme.primary,
-                        primaryContentColor = MaterialTheme.colorScheme.onPrimary,
-                        primaryEnabled = snapshot.canStartTiming,
-                        onPrimary = onStartTiming,
-                        orientation = orientation,
-                        onToggleOrientation = onToggleOrientation,
-                        compact = compactControls,
-                    )
+                    else -> {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                        ) {
+                            TrackSelectorSection(
+                                snapshot = snapshot,
+                                onClick = { showTrackPicker = true },
+                            )
+                            if (snapshot.canStartTiming && snapshot.currentTrackTopology != CourseTopology.PointToPoint) {
+                                DirectionSelectorSection(
+                                    selected = snapshot.selectedDirection,
+                                    onSelectDirection = onSelectDirection,
+                                )
+                            }
+                            GlassesDriveControls(
+                                connectionState = glassesConnectionState,
+                                selectedDeviceId = glassesSelectedDeviceId,
+                                castingEnabled = glassesCastingEnabled,
+                                page = glassesPage,
+                                actions = glassesActions,
+                                compact = compactControls,
+                            )
+                            if (dashReady is ReadyState.NotReady) {
+                                LapButton(
+                                    text = s.recordRawGpsDiagnostic,
+                                    onClick = onStartRawRecording,
+                                    style = LapButtonStyle.Ghost,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                        DriveActionRow(
+                            primaryIcon = PlayActionIcon,
+                            primaryLabel = s.startTiming,
+                            primaryDescription = s.startTiming,
+                            primaryContainerColor = MaterialTheme.colorScheme.primary,
+                            primaryContentColor = MaterialTheme.colorScheme.onPrimary,
+                            primaryEnabled = snapshot.canStartTiming,
+                            onPrimary = onStartTiming,
+                            orientation = orientation,
+                            onToggleOrientation = onToggleOrientation,
+                            compact = compactControls,
+                        )
+                    }
                 }
             }
         }
@@ -676,7 +691,7 @@ private fun MarkingTracePane(
     modifier: Modifier = Modifier,
 ) {
     val s = strings
-    Box(modifier = modifier) {
+    CourseMapSurface(modifier = modifier) {
         val layerStep = samples.size / 10
         val layers = remember(layerStep) {
             buildTrackTraceLayers(
@@ -824,7 +839,7 @@ private fun ControlPanel(
                         sessionStore = sessionStore,
                         compact = compact,
                         livePosition = snapshot.latestSample,
-                        modifier = if (fillHeight) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 } else {
                     NoTrackState(
@@ -849,6 +864,19 @@ private fun ControlPanel(
                     actions = glassesActions,
                     compact = compact,
                 )
+                // Keep this secondary escape hatch above the fixed primary action,
+                // so appearing/disappearing GPS diagnosis never moves Start.
+                if (dashReady is ReadyState.NotReady) {
+                    LapButton(
+                        text = s.recordRawGpsDiagnostic,
+                        onClick = onStartRawRecording,
+                        style = LapButtonStyle.Ghost,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (fillHeight && snapshot.currentTrackName != null) {
+                    Spacer(Modifier.weight(1f))
+                }
                 DriveActionRow(
                     primaryIcon = PlayActionIcon,
                     primaryLabel = s.startTiming,
@@ -861,17 +889,6 @@ private fun ControlPanel(
                     onToggleOrientation = onToggleOrientation,
                     compact = compact,
                 )
-                // When not Ready the user cannot start trustworthy formal timing, so
-                // expose the raw-recording diagnostic path — low emphasis, it's a
-                // diagnostic tool, not part of the driving flow (D-16).
-                if (dashReady is ReadyState.NotReady) {
-                    LapButton(
-                        text = s.recordRawGpsDiagnostic,
-                        onClick = onStartRawRecording,
-                        style = LapButtonStyle.Ghost,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
             }
         }
     }
@@ -894,56 +911,47 @@ private fun GlassesDriveControls(
     val s = strings
     val hasSelectedDevice = selectedId != null
     val castChecked = casting && hasSelectedDevice
-    val supporting = if (!hasSelectedDevice) {
-        s.noGlassesSelected
-    } else {
-        when (val current = state) {
-            GlassesConnectionState.Idle -> s.glassesIdle
-            GlassesConnectionState.Connecting -> s.glassesConnecting
-            GlassesConnectionState.Connected -> s.glassesConnected
-            is GlassesConnectionState.Reconnecting -> current.reason ?: s.glassesReconnecting
-            is GlassesConnectionState.Error -> current.message
-        }
-    }
+    val selectedIndex = if (castChecked) selectedPage.ordinal + 1 else 0
 
     Column(
         verticalArrangement = Arrangement.spacedBy(if (compact) spacing.xs else spacing.sm),
     ) {
-        LapSwitchRow(
-            label = s.castToGlasses,
-            supporting = supporting,
-            checked = castChecked,
-            enabled = hasSelectedDevice,
-            onCheckedChange = { enabled ->
-                if (enabled) {
-                    actions.startCasting()
-                } else {
-                    actions.stopCasting()
-                }
-            },
-        )
-        if (state is GlassesConnectionState.Reconnecting) {
-            StatusChip(text = s.glassesReconnecting, tone = ChipTone.Caution)
-        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             Text(
-                text = s.glassesPage,
+                text = s.glasses,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.weight(0.6f),
+                modifier = Modifier.weight(0.45f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             SegmentedControl(
-                options = listOf(s.hudDeltaOnly, s.hudFocused, s.hudTelemetry),
-                selectedIndex = selectedPage.ordinal,
-                onSelect = { index -> actions.setPage(HudPage.values()[index]) },
-                modifier = Modifier.weight(1.4f),
+                options = listOf(s.glassesOff, s.hudDeltaOnly, s.hudFocused, s.hudTelemetry),
+                selectedIndex = selectedIndex,
+                onSelect = { index ->
+                    if (index == 0) {
+                        actions.stopCasting()
+                    } else {
+                        actions.setPage(HudPage.values()[index - 1])
+                        if (!castChecked) actions.startCasting()
+                    }
+                },
+                optionEnabled = { index -> index == 0 || hasSelectedDevice },
+                modifier = Modifier.weight(1.55f),
             )
+        }
+        when (val current = state) {
+            is GlassesConnectionState.Reconnecting -> {
+                StatusChip(text = current.reason ?: s.glassesReconnecting, tone = ChipTone.Caution)
+            }
+            is GlassesConnectionState.Error -> {
+                StatusChip(text = current.message, tone = ChipTone.Caution)
+            }
+            else -> Unit
         }
     }
 }
@@ -981,12 +989,13 @@ private fun MarkingLiveSection(
             )
         }
         if (layers.isNotEmpty()) {
-            TraceView(
-                layers = layers,
-                minHeight = if (compact) 120.dp else 200.dp,
-                maxHeight = if (compact) 170.dp else 340.dp,
-                positionMarker = liveHeadingMarker(layers),
-            )
+            BoundedCourseMapSurface(compact = compact) {
+                TraceView(
+                    layers = layers,
+                    fillParent = true,
+                    positionMarker = liveHeadingMarker(layers),
+                )
+            }
         } else {
             Text(
                 text = s.waitingForFirstGpsFix,
@@ -1067,28 +1076,70 @@ private fun SelectedTrackPreview(
     val current = rememberSmoothedLivePosition(profileId, filteredPosition)
     val marker = courseMarker(trace.viewport, current, headingFrom)
 
-    val spacing = LapSightTheme.spacing
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(spacing.xs),
-    ) {
-        if (fillParent) {
+    val frameModifier = if (fillParent) {
+        modifier
+    } else {
+        modifier
+    }
+    if (fillParent) {
+        CourseMapSurface(modifier = frameModifier) {
             TraceView(
                 layers = trace.layers,
-                modifier = Modifier.weight(1f),
                 fillParent = true,
                 positionMarker = marker,
             )
-        } else {
+        }
+    } else {
+        BoundedCourseMapSurface(compact = compact, modifier = frameModifier) {
             TraceView(
                 layers = trace.layers,
-                minHeight = if (compact) 120.dp else 200.dp,
-                maxHeight = if (compact) 180.dp else 360.dp,
+                fillParent = true,
                 positionMarker = marker,
             )
         }
     }
 }
+
+@Composable
+private fun BoundedCourseMapSurface(
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    CourseMapSurface(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(if (compact) CompactCoursePreviewAspectRatio else CoursePreviewAspectRatio),
+        content = content,
+    )
+}
+
+@Composable
+private fun CourseMapSurface(
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val spacing = LapSightTheme.spacing
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, LapSightTheme.colors.cardBorder),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(spacing.sm),
+            contentAlignment = Alignment.Center,
+            content = content,
+        )
+    }
+}
+
+private const val CoursePreviewAspectRatio = 4f / 3f
+private const val CompactCoursePreviewAspectRatio = 16f / 9f
+private val LandscapeCompactRailMaxWidth = 400.dp
+private val LandscapeRailMaxWidth = 420.dp
 
 /**
  * Centered empty state when no Track is selected: names the situation once

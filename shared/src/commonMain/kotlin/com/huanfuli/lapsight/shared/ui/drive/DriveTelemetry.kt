@@ -48,6 +48,7 @@ internal fun DriveStatusBar(
     rawSnapshot: RawRecordingSnapshot,
     modifier: Modifier = Modifier,
     grid: Boolean = false,
+    dense: Boolean = false,
 ) {
     val speedMultiplier = when (displaySettings.speedUnit) {
         SpeedUnit.KilometersPerHour -> 3.6
@@ -160,18 +161,28 @@ internal fun DriveStatusBar(
                 "SAMPLES" to snapshot.feedSampleCount.toString(),
                 "RATE" to "$rateLabel Hz",
             )
-            cells.chunked(if (grid) 2 else cells.size).forEach { rowCells ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(spacing.xs),
-                ) {
-                    rowCells.forEach { (label, value) ->
-                        MetricCell(
-                            label = label,
-                            value = value,
-                            modifier = Modifier.weight(1f),
-                            size = MetricCellSize.Compact,
-                        )
+            if (dense) {
+                Text(
+                    text = "SPD $speedLabel $speedUnit | ACC ${snapshot.accuracyLabel} m | RATE $rateLabel Hz",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else {
+                cells.chunked(if (grid) 2 else cells.size).forEach { rowCells ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                    ) {
+                        rowCells.forEach { (label, value) ->
+                            MetricCell(
+                                label = label,
+                                value = value,
+                                modifier = Modifier.weight(1f),
+                                size = MetricCellSize.Compact,
+                            )
+                        }
                     }
                 }
             }

@@ -12,7 +12,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -29,6 +32,7 @@ import com.huanfuli.lapsight.shared.review.TraceViewport
 import com.huanfuli.lapsight.shared.session.GeoPointDto
 import kotlin.math.atan2
 import kotlin.math.hypot
+import kotlin.math.min
 
 /**
  * Offline vector trace renderer (SESS-03, D-33 through D-36).
@@ -96,6 +100,7 @@ fun TraceView(
 
         // Resolve every role up front — DrawScope is not composable.
         val roleColors = TraceRole.entries.associateWith { it.traceColor() }
+        val traceHaloColor = LapSightTheme.colors.dashBackground
 
         Canvas(
             modifier = Modifier
@@ -108,25 +113,60 @@ fun TraceView(
                 val color = roleColors.getValue(layer.role)
                 val strokePx = with(density) { layer.strokeWidth.dp.toPx() }
 
-                // A closed circuit repeats the first point so the closing segment
-                // draws — otherwise a loop shows a gap at start/finish (D-34).
                 val canvasPoints = layer.points.map { frame.toCanvas(it) }
-                val drawPoints =
-                    if (layer.closed) canvasPoints + canvasPoints.first() else canvasPoints
 
-                if (layer.dashed) {
-                    drawTracePath(
-                        points = drawPoints,
-                        color = color,
-                        strokeWidth = strokePx,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f),
-                    )
-                } else {
-                    drawTraceLines(
-                        points = drawPoints,
-                        color = color,
-                        strokeWidth = strokePx,
-                    )
+                when (layer.role) {
+                    TraceRole.Reference -> {
+                        drawTracePath(
+                            points = canvasPoints,
+                            color = traceHaloColor,
+                            strokeWidth = (strokePx * 2.7f).coerceAtLeast(with(density) { 11.dp.toPx() }),
+                            closed = layer.closed,
+                            smooth = true,
+                        )
+                        drawTracePath(
+                            points = canvasPoints,
+                            color = color,
+                            strokeWidth = (strokePx * 1.75f).coerceAtLeast(with(density) { 7.dp.toPx() }),
+                            closed = layer.closed,
+                            smooth = true,
+                        )
+                    }
+                    TraceRole.StartFinish -> {
+                        drawShortTimingLine(
+                            points = canvasPoints,
+                            halo = traceHaloColor,
+                            color = color,
+                            outerWidth = (strokePx * 2.0f).coerceAtLeast(with(density) { 7.dp.toPx() }),
+                            innerWidth = (strokePx * 1.15f).coerceAtLeast(with(density) { 4.dp.toPx() }),
+                        )
+                    }
+                    TraceRole.Sector -> {
+                        drawTraceLines(
+                            points = canvasPoints,
+                            color = traceHaloColor,
+                            strokeWidth = (strokePx * 2.0f).coerceAtLeast(with(density) { 5.dp.toPx() }),
+                        )
+                        drawTraceLines(points = canvasPoints, color = color, strokeWidth = strokePx)
+                    }
+                    else -> if (layer.dashed) {
+                        drawTracePath(
+                            points = canvasPoints,
+                            color = color,
+                            strokeWidth = strokePx,
+                            closed = layer.closed,
+                            smooth = false,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f),
+                        )
+                    } else {
+                        drawTracePath(
+                            points = canvasPoints,
+                            color = color,
+                            strokeWidth = strokePx,
+                            closed = layer.closed,
+                            smooth = layer.points.size >= 5,
+                        )
+                    }
                 }
             }
 
@@ -336,32 +376,94 @@ private fun DrawScope.drawTraceLines(
             start = points[i - 1],
             end = points[i],
             strokeWidth = strokeWidth,
+            cap = StrokeCap.Round,
         )
     }
 }
 
 /**
- * Draw connected path segments for a dashed trace layer.
+ * Draw a finite timing boundary as a short stripe centered on its projected line.
+ * The persisted line remains full-length; only this display marker is shortened.
+ */
+private fun DrawScope.drawShortTimingLine(
+    points: List<Offset>,
+    halo: Color,
+    color: Color,
+    outerWidth: Float,
+    innerWidth: Float,
+) {
+    if (points.size < 2) return
+    val a = points.first()
+    val b = points.last()
+    val dx = b.x - a.x
+    val dy = b.y - a.y
+    val length = hypot(dx.toDouble(), dy.toDouble()).toFloat()
+    if (length <= 1e-3f) return
+
+    val markerLength = min(length, innerWidth * 7f)
+    val half = markerLength / 2f
+    val ux = dx / length
+    val uy = dy / length
+    val center = Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
+    val start = Offset(center.x - ux * half, center.y - uy * half)
+    val end = Offset(center.x + ux * half, center.y + uy * half)
+    drawLine(color = halo, start = start, end = end, strokeWidth = outerWidth, cap = StrokeCap.Square)
+    drawLine(color = color, start = start, end = end, strokeWidth = innerWidth, cap = StrokeCap.Square)
+}
+
+/**
+ * Draw connected trace segments, optionally as a smoothed render-only path.
  */
 private fun DrawScope.drawTracePath(
     points: List<Offset>,
     color: Color,
     strokeWidth: Float,
-    pathEffect: PathEffect,
+    closed: Boolean = false,
+    smooth: Boolean = false,
+    pathEffect: PathEffect? = null,
 ) {
     if (points.size < 2) return
-    val path = androidx.compose.ui.graphics.Path().apply {
-        moveTo(points[0].x, points[0].y)
-        for (i in 1 until points.size) {
-            lineTo(points[i].x, points[i].y)
-        }
-    }
+    val path = if (smooth && points.size >= 3) smoothPath(points, closed) else straightPath(points, closed)
     drawPath(
         path = path,
         color = color,
-        style = androidx.compose.ui.graphics.drawscope.Stroke(
+        style = Stroke(
             width = strokeWidth,
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round,
             pathEffect = pathEffect,
         ),
     )
 }
+
+private fun straightPath(points: List<Offset>, closed: Boolean): Path = Path().apply {
+    moveTo(points[0].x, points[0].y)
+    for (i in 1 until points.size) {
+        lineTo(points[i].x, points[i].y)
+    }
+    if (closed) close()
+}
+
+private fun smoothPath(points: List<Offset>, closed: Boolean): Path = Path().apply {
+    if (closed && points.size >= 3) {
+        val start = midpoint(points.last(), points.first())
+        moveTo(start.x, start.y)
+        for (i in points.indices) {
+            val current = points[i]
+            val next = points[(i + 1) % points.size]
+            val mid = midpoint(current, next)
+            quadraticTo(current.x, current.y, mid.x, mid.y)
+        }
+        close()
+    } else {
+        moveTo(points[0].x, points[0].y)
+        for (i in 1 until points.lastIndex) {
+            val mid = midpoint(points[i], points[i + 1])
+            quadraticTo(points[i].x, points[i].y, mid.x, mid.y)
+        }
+        lineTo(points.last().x, points.last().y)
+    }
+}
+
+private fun midpoint(a: Offset, b: Offset): Offset =
+    Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
