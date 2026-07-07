@@ -270,7 +270,12 @@ class MainActivity : ComponentActivity() {
         glassesBridge = bridge
         glassesBridgeCollectionJobs = listOf(
             glassesScope.launch {
-                bridge.connectionState.collect { state -> glassesConnectionState.value = state }
+                bridge.connectionState.collect { state ->
+                    glassesConnectionState.value = state
+                    if (state is GlassesConnectionState.Error) {
+                        glassesCastingEnabled.value = false
+                    }
+                }
             },
             glassesScope.launch {
                 bridge.devices.collect { devices -> glassesDevices.value = devices }

@@ -157,13 +157,7 @@ class GlassesBridge(
                 }
                 val errorJob = scope.launch {
                     newSession.errors.collect { error ->
-                        Log.e(TAG, "Session error: ${error.description}")
-                        if (error == DeviceSessionError.DAT_APP_ON_THE_GLASSES_UPDATE_REQUIRED) {
-                            _connectionState.value = GlassesConnectionState.Error(
-                                message = error.description,
-                                datAppUpdateRequired = true,
-                            )
-                        }
+                        handleSessionError(error)
                     }
                 }
                 synchronized(lock) {
@@ -190,6 +184,7 @@ class GlassesBridge(
         session: DeviceSession,
         state: DeviceSessionState,
     ) {
+        Log.i(TAG, "Session state: $state")
         when (state) {
             DeviceSessionState.STARTED -> {
                 val alreadyAttached = synchronized(lock) { display != null }
@@ -214,11 +209,28 @@ class GlassesBridge(
             },
             onFailure = { error, _ ->
                 Log.e(TAG, "addDisplay failed: ${error.description}")
+                synchronized(lock) { intentionalStop = true }
+                _connectionState.value = GlassesConnectionState.Error(error.description)
             },
         )
     }
 
+    private fun handleSessionError(error: DeviceSessionError) {
+        Log.e(TAG, "Session error: ${error.description}")
+        if (error == DeviceSessionError.DAT_APP_ON_THE_GLASSES_UPDATE_REQUIRED) {
+            // This is a terminal capability/version problem, not a transient link
+            // drop. Do not enter the silent reconnect loop; Settings owns the
+            // update action and the user can retry casting after updating.
+            synchronized(lock) { intentionalStop = true }
+            _connectionState.value = GlassesConnectionState.Error(
+                message = error.description,
+                datAppUpdateRequired = true,
+            )
+        }
+    }
+
     private fun handleDisplayState(state: DisplayState) {
+        Log.i(TAG, "Display state: $state")
         when (state) {
             DisplayState.STARTED -> {
                 displayReady = true
