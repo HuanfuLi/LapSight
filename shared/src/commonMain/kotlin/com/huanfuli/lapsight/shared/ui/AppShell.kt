@@ -25,6 +25,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DriveDisplayController
@@ -52,6 +53,7 @@ import com.huanfuli.lapsight.shared.ui.components.LapDialog
 import com.huanfuli.lapsight.shared.ui.components.LapDialogTextButton
 import com.huanfuli.lapsight.shared.ui.drive.DriveScreen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -141,6 +143,7 @@ fun AppShell(
     var driveTimingActive by remember { mutableStateOf(false) }
     var recoveryBusy by remember { mutableStateOf(false) }
     var pendingPhoneGpsSelection by remember { mutableStateOf(false) }
+    var orientationChangePending by remember { mutableStateOf(false) }
     val uiScope = rememberCoroutineScope()
 
     // On launch, surface an unfinished draft recovery prompt (D-15).
@@ -156,8 +159,25 @@ fun AppShell(
         onSessionControllerReady(sessionController)
     }
 
+    val windowSize = LocalWindowInfo.current.containerSize
+    val windowOrientation = if (windowSize.width > windowSize.height) {
+        DashOrientation.Landscape
+    } else {
+        DashOrientation.Portrait
+    }
+    LaunchedEffect(orientation, windowOrientation) {
+        if (orientation == windowOrientation) {
+            orientationChangePending = false
+        }
+    }
+    LaunchedEffect(orientationChangePending, orientation) {
+        if (orientationChangePending) {
+            delay(OrientationChangePendingTimeoutMillis)
+            orientationChangePending = false
+        }
+    }
     val driveFullscreen = tab == AppTab.Drive && (
-        orientation == DashOrientation.Landscape ||
+        windowOrientation == DashOrientation.Landscape ||
             (driveTimingActive && displaySettings.fullscreenWhileTiming)
         )
     val showBottomNav = !driveFullscreen
@@ -316,15 +336,20 @@ fun AppShell(
         ) {
             when (tab) {
                 AppTab.Drive -> DriveScreen(
-                    orientationController = orientationController,
                     orientation = orientation,
                     onToggleOrientation = {
-                        orientation = if (orientation == DashOrientation.Portrait) {
-                            DashOrientation.Landscape
-                        } else {
-                            DashOrientation.Portrait
+                        if (!orientationChangePending) {
+                            val nextOrientation = if (orientation == DashOrientation.Portrait) {
+                                DashOrientation.Landscape
+                            } else {
+                                DashOrientation.Portrait
+                            }
+                            orientationChangePending = true
+                            orientationController.apply(nextOrientation)
+                            orientation = nextOrientation
                         }
                     },
+                    orientationToggleEnabled = !orientationChangePending,
                     onSavedTrack = { savedVersion++ },
                     onSavedSession = { savedVersion++ },
                     onTimingActiveChanged = { driveTimingActive = it },
@@ -376,3 +401,5 @@ private fun navItemColors() = NavigationBarItemDefaults.colors(
     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
 )
+
+private const val OrientationChangePendingTimeoutMillis = 900L

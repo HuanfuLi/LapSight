@@ -144,6 +144,9 @@ class MainActivity : ComponentActivity() {
     // not rotate from accelerometer input under racing G-forces.
     private val orientationController = object : OrientationController {
         override fun apply(orientation: DashOrientation) {
+            window.attributes = window.attributes.apply {
+                rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_JUMPCUT
+            }
             requestedOrientation = when (orientation) {
                 DashOrientation.Portrait -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 DashOrientation.Landscape -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE

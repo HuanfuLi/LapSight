@@ -120,6 +120,7 @@ internal fun DriveSurface(
     phoneGpsPermission: PhoneGpsPermissionState,
     sessionStore: LocalSessionStore,
     onToggleOrientation: () -> Unit,
+    orientationToggleEnabled: Boolean,
     onSelectProfile: (String) -> Unit,
     onSelectDirection: (CourseDirection) -> Unit,
     onSelectTopology: (CourseTopology) -> Unit,
@@ -190,6 +191,7 @@ internal fun DriveSurface(
                 isLandscapeWindow = isLandscape,
                 displaySettings = displaySettings,
                 onToggleOrientation = onToggleOrientation,
+                orientationToggleEnabled = orientationToggleEnabled,
                 onStopTiming = onStopTiming,
                 isCompactLandscape = isCompactLandscape,
                 padding = padding,
@@ -211,6 +213,7 @@ internal fun DriveSurface(
                 locationFeedMode = locationFeedMode,
                 phoneGpsPermission = phoneGpsPermission,
                 onToggleOrientation = onToggleOrientation,
+                orientationToggleEnabled = orientationToggleEnabled,
                 onSelectProfile = onSelectProfile,
                 onSelectDirection = onSelectDirection,
                 onSelectTopology = onSelectTopology,
@@ -255,6 +258,7 @@ internal fun DriveSurface(
                     orientation = orientation,
                     sessionStore = sessionStore,
                     onToggleOrientation = onToggleOrientation,
+                    orientationToggleEnabled = orientationToggleEnabled,
                     onSelectProfile = onSelectProfile,
                     onSelectDirection = onSelectDirection,
                     onSelectTopology = onSelectTopology,
@@ -296,6 +300,7 @@ private fun LandscapeCockpit(
     locationFeedMode: LocationFeedMode,
     phoneGpsPermission: PhoneGpsPermissionState,
     onToggleOrientation: () -> Unit,
+    orientationToggleEnabled: Boolean,
     onSelectProfile: (String) -> Unit,
     onSelectDirection: (CourseDirection) -> Unit,
     onSelectTopology: (CourseTopology) -> Unit,
@@ -431,6 +436,7 @@ private fun LandscapeCockpit(
                             onPrimary = onStopMarking,
                             orientation = orientation,
                             onToggleOrientation = onToggleOrientation,
+                            orientationToggleEnabled = orientationToggleEnabled,
                             compact = compactControls,
                         )
                     }
@@ -457,6 +463,7 @@ private fun LandscapeCockpit(
                             onPrimary = onStopRawRecording,
                             orientation = orientation,
                             onToggleOrientation = onToggleOrientation,
+                            orientationToggleEnabled = orientationToggleEnabled,
                             compact = compactControls,
                         )
                     }
@@ -504,6 +511,7 @@ private fun LandscapeCockpit(
                             onPrimary = onStartTiming,
                             orientation = orientation,
                             onToggleOrientation = onToggleOrientation,
+                            orientationToggleEnabled = orientationToggleEnabled,
                             compact = compactControls,
                         )
                     }
@@ -732,6 +740,7 @@ private fun ControlPanel(
     orientation: DashOrientation,
     sessionStore: LocalSessionStore,
     onToggleOrientation: () -> Unit,
+    orientationToggleEnabled: Boolean,
     onSelectProfile: (String) -> Unit,
     onSelectDirection: (CourseDirection) -> Unit,
     onSelectTopology: (CourseTopology) -> Unit,
@@ -776,6 +785,7 @@ private fun ControlPanel(
                     onPrimary = onStopMarking,
                     orientation = orientation,
                     onToggleOrientation = onToggleOrientation,
+                    orientationToggleEnabled = orientationToggleEnabled,
                     compact = compact,
                 )
             }
@@ -803,6 +813,7 @@ private fun ControlPanel(
                     onPrimary = onStopRawRecording,
                     orientation = orientation,
                     onToggleOrientation = onToggleOrientation,
+                    orientationToggleEnabled = orientationToggleEnabled,
                     compact = compact,
                 )
             } else {
@@ -887,6 +898,7 @@ private fun ControlPanel(
                     onPrimary = onStartTiming,
                     orientation = orientation,
                     onToggleOrientation = onToggleOrientation,
+                    orientationToggleEnabled = orientationToggleEnabled,
                     compact = compact,
                 )
             }
@@ -1255,6 +1267,7 @@ private fun DriveActionRow(
     onPrimary: () -> Unit,
     orientation: DashOrientation,
     onToggleOrientation: () -> Unit,
+    orientationToggleEnabled: Boolean,
     compact: Boolean = false,
 ) {
     val spacing = LapSightTheme.spacing
@@ -1298,12 +1311,15 @@ private fun DriveActionRow(
         }
         Button(
             onClick = onToggleOrientation,
+            enabled = orientationToggleEnabled,
             modifier = Modifier.weight(0.34f).height(actionHeight),
             shape = MaterialTheme.shapes.medium,
             contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,
+                disabledContainerColor = MaterialTheme.colorScheme.surface,
+                disabledContentColor = LapSightTheme.colors.disabledContent,
             ),
         ) {
             Icon(

@@ -26,7 +26,6 @@ import com.huanfuli.lapsight.shared.GpsFixStatus
 import com.huanfuli.lapsight.shared.LocationFeedMode
 import com.huanfuli.lapsight.shared.LocationSampleProvider
 import com.huanfuli.lapsight.shared.LocationSource
-import com.huanfuli.lapsight.shared.OrientationController
 import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.session.RawRecordingController
 import com.huanfuli.lapsight.shared.session.SaveDraftResult
@@ -71,9 +70,9 @@ private const val DISCARD_SESSION_ARMED_TIMEOUT_MILLIS = 4500L
  */
 @Composable
 fun DriveScreen(
-    orientationController: OrientationController,
     orientation: DashOrientation,
     onToggleOrientation: () -> Unit,
+    orientationToggleEnabled: Boolean,
     onSavedTrack: () -> Unit,
     onSavedSession: () -> Unit,
     onTimingActiveChanged: (Boolean) -> Unit,
@@ -135,11 +134,6 @@ fun DriveScreen(
         } else {
             true
         }
-    }
-
-    // Apply the chosen orientation through the platform window lock (app-wide).
-    LaunchedEffect(orientation) {
-        orientationController.apply(orientation)
     }
 
     LaunchedEffect(timingActive) {
@@ -359,6 +353,7 @@ fun DriveScreen(
         phoneGpsPermission = phoneGpsPermission,
         sessionStore = sessionStore,
         onToggleOrientation = onToggleOrientation,
+        orientationToggleEnabled = orientationToggleEnabled,
         onSelectProfile = { profileId ->
             // Explicit user selection only (D-02/D-03); the controller never auto-derives.
             controller.selectTrack(profileId)

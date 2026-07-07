@@ -74,6 +74,7 @@ internal fun TimingRunSurface(
     isLandscapeWindow: Boolean,
     displaySettings: DriveDisplaySettings,
     onToggleOrientation: () -> Unit,
+    orientationToggleEnabled: Boolean,
     onStopTiming: () -> Unit,
     isCompactLandscape: Boolean,
     padding: Dp,
@@ -221,6 +222,7 @@ internal fun TimingRunSurface(
                 clockUpdateIntervalMillis = clockUpdateIntervalMillis,
                 orientation = orientation,
                 onToggleOrientation = onToggleOrientation,
+                orientationToggleEnabled = orientationToggleEnabled,
                 onStopTiming = onStopTiming,
             )
             TimingPanelLapFocusDark -> LapFocusPanel(
@@ -230,6 +232,7 @@ internal fun TimingRunSurface(
                 clockUpdateIntervalMillis = clockUpdateIntervalMillis,
                 orientation = orientation,
                 onToggleOrientation = onToggleOrientation,
+                orientationToggleEnabled = orientationToggleEnabled,
                 onStopTiming = onStopTiming,
                 isLandscapeWindow = isLandscapeWindow,
                 isCompactLandscape = isCompactLandscape,
@@ -242,6 +245,7 @@ internal fun TimingRunSurface(
                 clockUpdateIntervalMillis = clockUpdateIntervalMillis,
                 orientation = orientation,
                 onToggleOrientation = onToggleOrientation,
+                orientationToggleEnabled = orientationToggleEnabled,
                 onStopTiming = onStopTiming,
                 isLandscapeWindow = isLandscapeWindow,
                 isCompactLandscape = isCompactLandscape,
@@ -282,6 +286,7 @@ private fun TelemetryTimingPanel(
     clockUpdateIntervalMillis: Long,
     orientation: DashOrientation,
     onToggleOrientation: () -> Unit,
+    orientationToggleEnabled: Boolean,
     onStopTiming: () -> Unit,
 ) {
     val spacing = LapSightTheme.spacing
@@ -316,6 +321,7 @@ private fun TelemetryTimingPanel(
                 TimingControls(
                     orientation = orientation,
                     onToggleOrientation = onToggleOrientation,
+                    orientationToggleEnabled = orientationToggleEnabled,
                     onStopTiming = onStopTiming,
                 )
             }
@@ -351,6 +357,7 @@ private fun TelemetryTimingPanel(
             TimingControls(
                 orientation = orientation,
                 onToggleOrientation = onToggleOrientation,
+                orientationToggleEnabled = orientationToggleEnabled,
                 onStopTiming = onStopTiming,
             )
         }
@@ -365,6 +372,7 @@ private fun LapFocusPanel(
     clockUpdateIntervalMillis: Long,
     orientation: DashOrientation,
     onToggleOrientation: () -> Unit,
+    orientationToggleEnabled: Boolean,
     onStopTiming: () -> Unit,
     isLandscapeWindow: Boolean,
     isCompactLandscape: Boolean,
@@ -482,6 +490,7 @@ private fun LapFocusPanel(
                     TimingControls(
                         orientation = orientation,
                         onToggleOrientation = onToggleOrientation,
+                        orientationToggleEnabled = orientationToggleEnabled,
                         onStopTiming = onStopTiming,
                     )
                 }
@@ -547,6 +556,7 @@ private fun LapFocusPanel(
         TimingControls(
             orientation = orientation,
             onToggleOrientation = onToggleOrientation,
+            orientationToggleEnabled = orientationToggleEnabled,
             onStopTiming = onStopTiming,
         )
     }
@@ -913,6 +923,7 @@ private fun SpeedTrace(
 private fun TimingControls(
     orientation: DashOrientation,
     onToggleOrientation: () -> Unit,
+    orientationToggleEnabled: Boolean,
     onStopTiming: () -> Unit,
 ) {
     val spacing = LapSightTheme.spacing
@@ -941,12 +952,15 @@ private fun TimingControls(
         }
         Button(
             onClick = onToggleOrientation,
+            enabled = orientationToggleEnabled,
             modifier = Modifier.weight(0.65f).height(64.dp),
             shape = MaterialTheme.shapes.medium,
             contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,
+                disabledContainerColor = MaterialTheme.colorScheme.surface,
+                disabledContentColor = LapSightTheme.colors.disabledContent,
             ),
         ) {
             Icon(
