@@ -451,22 +451,44 @@ Plans:
 
 **Goal:** As a user who needs better timing precision, I want to connect an external GPS receiver, so that LapSight can exceed phone GPS limitations.
 **Mode:** mvp
-**Status:** Deferred until suitable external GNSS hardware is available for real-device validation.
+**Status:** Resumed as a protocol-first compatibility preview. Real hardware validation is explicitly deferred until a receiver or user feedback is available.
 
 **Requirements:** EXT-01, EXT-02, EXT-03
 
+**Plans:** 0/4 plans complete
+
+Plans:
+
+**Wave 1**
+
+- [ ] 06-01-PLAN.md - Shared external GNSS contracts, NMEA parser, and replay provider
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 06-02-PLAN.md - RaceBox protocol parser and synthetic replay corpus
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 06-03-PLAN.md - Android external GNSS provider shell and Settings source UX
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 06-04-PLAN.md - End-to-end timing replay, documentation, and hardware-risk closeout
+
 **Success Criteria:**
 
-1. App can ingest external GPS samples from at least one transport.
-2. App records sample source and frequency.
-3. Lap engine works unchanged regardless of phone GPS vs external GNSS input.
-4. UI exposes source quality and warns when timing precision is limited.
+1. App can decode external GNSS samples from protocol fixtures/replay, including NMEA 0183 and RaceBox-family synthetic frames.
+2. App records sample source, protocol, update frequency, and hardware-validation status.
+3. Lap engine works unchanged regardless of phone GPS, simulated replay, or external GNSS input.
+4. UI exposes external GNSS source quality and connection/status without returning diagnostic raw GPS tools to the main Drive surface.
+5. Documentation clearly separates protocol support from unvalidated hardware support.
 
 **Implementation Notes:**
 
-- Do not mark Phase 6 complete from simulator-only work; the point of this phase is validating a real external GNSS input path.
+- Phase 6 may be marked protocol-complete from parser/replay/build verification, but must remain hardware-unvalidated until a real receiver is tested.
 - Keep the existing `LocationSampleProvider` boundary as the ingestion seam so Phase 7 can consume the same phone-owned timing state regardless of whether samples come from phone GPS now or external GNSS later.
-- Phase 6 may be planned or spiked without hardware, but completion requires at least one supported receiver and on-device validation.
+- Do not copy GPL or unlicensed RaceBox client/emulator code. Use official RaceBox protocol documentation when available and clean-room tests/fixtures for parser implementation.
+- Supported-hardware wording must be conservative: RaceBox and NMEA can be listed as protocol targets, not guaranteed hardware compatibility, until field feedback confirms real receivers.
 
 ## Milestone 3: Meta DAT Display Extension
 
@@ -477,7 +499,7 @@ Plans:
 
 **Requirements:** MR-01, MR-02, MR-03
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans executed
 
 Plans:
 
@@ -500,7 +522,7 @@ Plans:
 
 **Wave 5** *(after Wave 4; optional/experimental)*
 
-- [ ] 07-06-PLAN.md — Experimental captouch input (hardware-gated) — phase does not depend on it
+- [x] 07-06-PLAN.md — Experimental captouch input fallback (raw captouch unavailable; Display click cycles pages)
 
 **Success Criteria:**
 

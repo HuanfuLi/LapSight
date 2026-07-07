@@ -1,0 +1,142 @@
+# Phase 6 Research: Protocol-First External GNSS
+
+**Date:** 2026-07-07
+**Status:** Complete enough for protocol-first planning
+
+## Summary
+
+External GNSS can be advanced without buying hardware by treating Phase 6 as a
+protocol compatibility preview. The viable path is:
+
+1. Normalize all external samples into the existing `LocationSampleProvider`.
+2. Support NMEA 0183 first because it is widely documented and replayable.
+3. Support RaceBox BLE protocol from official docs / clean-room fixtures, while
+   clearly labeling the feature hardware-unvalidated.
+4. Verify through parser fixtures, public NMEA logs, synthetic RaceBox frames,
+   high-rate queue tests, and full timing replay.
+
+This cannot prove BLE behavior for every receiver model. It can prove that once
+bytes arrive, LapSight decodes, labels, records, and feeds them into timing
+correctly.
+
+## Sources
+
+- RaceBox protocol documentation page: RaceBox provides BLE protocol
+  documentation for Mini, Mini S, and Micro by request, sufficient for an
+  experienced developer to access sensor readings:
+  https://www.racebox.pro/products/mini-micro-protocol-documentation
+- RaceBox Mini/Mini S technical specs: BLE 5.2 and 25 Hz multi-constellation GPS:
+  https://www.racebox.pro/products/racebox-mini/tech-specs
+- RaceBox Micro product page: supports RaceBox Protocol and NMEA over BLE:
+  https://www.racebox.pro/products/racebox-micro
+- gpsd NMEA reference: documents common NMEA GPS sentence families such as RMC,
+  GGA, GSA, GSV, VTG, GST, and ZDA:
+  https://gpsd.gitlab.io/gpsd/NMEA.html
+- Public NMEA log repository for parser testing:
+  https://github.com/esutton/gps-nmea-log-files
+- Public RaceBox compatibility signals, not code sources:
+  - ESP32 RaceBox Mini emulator, GPL-3.0, custom UBX-like 88-byte packet:
+    https://github.com/anchit92/Open-Source-RaceBox-mini-Emulator
+  - RaceBox Micro/Mini S client library notes: live GNSS/IMU data, UBX framing,
+    1/5/10/25 Hz device settings:
+    https://github.com/lgnap/RaceBoxMicroBleClient
+  - RaceBox Mini binary dump field layout gist, no license and not authoritative:
+    https://gist.github.com/francois-baptiste/236f0c1785de8731d18418db0de8e095
+
+## Findings
+
+### RaceBox family
+
+RaceBox Mini and Mini S share the same real-time GNSS class: 25 Hz
+multi-constellation GPS over BLE. Mini S mainly adds internal storage, which is
+not required for LapSight's live timing path. RaceBox Micro is cheaper and
+developer-oriented; importantly, the official product page states it supports
+both RaceBox Protocol and NMEA over BLE.
+
+Practical implication: implement RaceBox as one protocol family, not one parser
+per retail model. Model differences should be captured in metadata/capability
+flags, not separate timing logic.
+
+### NMEA support
+
+NMEA is the lowest-risk compatibility layer because it is text-based,
+checksum-protected, fixture-friendly, and broadly documented. The first parser
+should support at least:
+
+- RMC: date/time, valid flag, latitude, longitude, speed over ground, course.
+- GGA/GNS: fix quality, altitude, satellite count, HDOP.
+- VTG: course and speed fallback.
+- GST/GSA when present: quality/dilution diagnostics.
+
+NMEA should accept fragmented byte streams and multiple sentences per read, then
+emit `LocationSample` only when enough current fix data exists.
+
+### RaceBox protocol support
+
+RaceBox BLE data appears to use a UBX-like binary framing model. Public
+compatibility projects and the binary dump gist point to fields that map cleanly
+to `LocationSample`: GPS time, fix status, satellite count, latitude, longitude,
+altitude, horizontal/vertical accuracy, speed, heading, speed accuracy, heading
+accuracy, and IMU fields.
+
+Because public implementations have GPL or unclear licensing, LapSight should
+not copy parser code. Implementation should be clean-room:
+
+- Prefer official RaceBox protocol docs if available.
+- Otherwise implement only from publicly described field semantics and generated
+  tests, with RaceBox support labeled experimental until hardware confirms it.
+- Store IMU fields only if the data model is extended deliberately; do not block
+  GNSS timing on IMU.
+
+### Android transport
+
+Android BLE transport can be added behind an `ExternalGnssLocationProvider`.
+The provider should:
+
+- Scan for user-selected compatible devices.
+- Connect to BLE GATT notifications.
+- Buffer bytes in a finite queue and expose samples through `drainPending()`.
+- Survive notification bursts faster than the UI tick.
+- Report connection state without blocking Drive.
+
+Hardware-less testing can verify state machines and parser queues by injecting
+fake byte streams. It cannot prove real BLE services/characteristics or firmware
+quirks.
+
+## Replay Corpus
+
+Use a layered replay corpus:
+
+1. Public NMEA logs from `esutton/gps-nmea-log-files`.
+2. Generated NMEA fixtures for high-speed laps, malformed checksums,
+   no-fix/acquiring, stale timestamps, and fragmented reads.
+3. Synthetic RaceBox binary frames generated by our tests from an internal frame
+   builder, not copied from GPL code.
+4. Existing LapSight oval/variable-pace fixtures converted to external GNSS
+   source metadata to prove the timing engine remains unchanged.
+
+## Plan Recommendation
+
+Create four implementation plans:
+
+1. Shared external GNSS contracts and replay harness.
+2. NMEA parser and NMEA replay provider.
+3. RaceBox frame parser and synthetic compatibility corpus.
+4. Android external-source UX/provider shell and hardware-unvalidated closeout.
+
+## Risks
+
+- Real RaceBox firmware may expose BLE services/characteristics differently than
+  public references imply.
+- Android BLE permission and reconnect behavior cannot be fully validated without
+  a receiver.
+- RaceBox timing precision claims cannot be made without on-track comparison.
+- Qstarz/Garmin/Dual may require proprietary app-level access or OS-level mock
+  location behavior outside this phase.
+
+## Research Conclusion
+
+Proceed with Phase 6 as protocol compatibility preview. A no-hardware phase is
+worth doing if we are honest about its boundary and test aggressively at the byte
+stream, decoded sample, provider queue, session provenance, and timing replay
+levels.
