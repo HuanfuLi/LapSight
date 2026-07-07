@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
     private val selectedGlassesDeviceId = MutableStateFlow<String?>(null)
     private val glassesCastingEnabled = MutableStateFlow(false)
     private val glassesPage = MutableStateFlow(HudPage.FOCUSED)
+    private var timingForegroundServiceActive = false
     private val glassesPreferences by lazy {
         getSharedPreferences("glasses_settings", Context.MODE_PRIVATE)
     }
@@ -241,6 +242,9 @@ class MainActivity : ComponentActivity() {
                 onGlassesIdleGpsStateChanged = { state ->
                     glassesIdleGpsState.value = state
                 },
+                onTimingForegroundChanged = { active, feedMode ->
+                    setTimingForegroundService(active && feedMode == LocationFeedMode.PhoneGps)
+                },
             )
         }
     }
@@ -260,6 +264,16 @@ class MainActivity : ComponentActivity() {
 
     private fun hasFineLocationPermission(): Boolean =
         checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    private fun setTimingForegroundService(active: Boolean) {
+        if (timingForegroundServiceActive == active) return
+        timingForegroundServiceActive = active
+        if (active) {
+            TimingForegroundService.start(this)
+        } else {
+            TimingForegroundService.stop(this)
+        }
+    }
 
     private fun installGlassesBridge(controller: SessionController) {
         if (sessionController === controller && glassesBridge != null) return

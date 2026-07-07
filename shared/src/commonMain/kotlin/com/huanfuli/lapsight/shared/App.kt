@@ -64,6 +64,7 @@ fun App(
     glassesPage: StateFlow<HudPage> = MutableStateFlow(HudPage.FOCUSED),
     glassesActions: GlassesActions = NoOpGlassesActions,
     onGlassesIdleGpsStateChanged: (GlassesGpsState) -> Unit = {},
+    onTimingForegroundChanged: (Boolean, LocationFeedMode) -> Unit = { _, _ -> },
 ) {
     var displaySettings by remember { mutableStateOf(displaySettingsStore.load()) }
     val simulatedGpsProvider = remember {
@@ -98,6 +99,7 @@ fun App(
                 glassesPage = glassesPage,
                 glassesActions = glassesActions,
                 onGlassesIdleGpsStateChanged = onGlassesIdleGpsStateChanged,
+                onTimingForegroundChanged = onTimingForegroundChanged,
             )
         }
     }

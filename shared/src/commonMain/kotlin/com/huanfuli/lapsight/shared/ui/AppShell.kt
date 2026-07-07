@@ -101,6 +101,7 @@ fun AppShell(
     glassesPage: StateFlow<HudPage> = MutableStateFlow(HudPage.FOCUSED),
     glassesActions: GlassesActions = NoOpGlassesActions,
     onGlassesIdleGpsStateChanged: (GlassesGpsState) -> Unit = {},
+    onTimingForegroundChanged: (Boolean, LocationFeedMode) -> Unit = { _, _ -> },
 ) {
     val s = strings
     var tab by remember { mutableStateOf(AppTab.Drive) }
@@ -176,6 +177,10 @@ fun AppShell(
             keepScreenAwake =
                 driveTimingActive && displaySettings.keepScreenAwakeWhileTiming,
         )
+    }
+
+    LaunchedEffect(driveTimingActive, effectiveLocationFeedMode) {
+        onTimingForegroundChanged(driveTimingActive, effectiveLocationFeedMode)
     }
 
     // Recovery prompt: Resume / Save / Discard; never auto-promotes to history (D-16).

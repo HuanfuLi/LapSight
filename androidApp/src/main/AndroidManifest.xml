@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!-- Meta DAT SDK: BLE transport to the glasses + registration/attestation network calls. -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
@@ -41,6 +43,11 @@
                 <data android:scheme="lapsight" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name="com.huanfuli.lapsight.TimingForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
