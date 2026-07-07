@@ -2,6 +2,7 @@ package com.huanfuli.lapsight.glasses.hud
 
 import com.huanfuli.lapsight.shared.glasses.HudModel
 import com.huanfuli.lapsight.shared.glasses.HudPage
+import com.huanfuli.lapsight.shared.GpsFixStatus
 import com.meta.wearable.dat.display.views.Alignment
 import com.meta.wearable.dat.display.views.ContentScope
 import com.meta.wearable.dat.display.views.Direction
@@ -36,18 +37,13 @@ object HudRenderer {
     private fun FlexBoxScope.idleScreen(model: HudModel) {
         flexBox(
             direction = Direction.COLUMN,
-            gap = 10,
-            padding = 24,
+            gap = 8,
+            padding = 8,
             alignment = Alignment.CENTER,
             crossAlignment = Alignment.CENTER,
-            background = FlexBoxBackground.CARD,
         ) {
-            icon(
-                name = if (model.gpsReady) IconName.CHECKMARK_CIRCLE else IconName.EXCLAMATION_TRIANGLE,
-                style = IconStyle.FILLED,
-            )
             text(
-                if (model.gpsReady) "Ready — start timing" else "Waiting for GPS",
+                model.idleStatusText(),
                 style = TextStyle.HEADING,
             )
             text(
@@ -56,6 +52,17 @@ object HudRenderer {
                 color = TextColor.SECONDARY,
             )
         }
+    }
+
+    private fun HudModel.idleStatusText(): String = when {
+        gpsReady -> "READY"
+        gpsFixStatus == GpsFixStatus.Live ||
+            gpsFixStatus == GpsFixStatus.Simulated ||
+            gpsFixStatus == GpsFixStatus.Degraded ||
+            gpsAccuracyMeters != null ||
+            gpsSampleRateHz != null -> "GPS WEAK"
+        gpsFixStatus == GpsFixStatus.Acquiring -> "ACQUIRING GPS"
+        else -> "WAITING GPS"
     }
 
     private fun FlexBoxScope.timingScreen(model: HudModel) {

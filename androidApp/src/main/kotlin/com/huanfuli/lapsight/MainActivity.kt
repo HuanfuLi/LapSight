@@ -33,6 +33,7 @@ import com.huanfuli.lapsight.shared.export.AndroidExportShareTarget
 import com.huanfuli.lapsight.shared.glasses.GlassesActions
 import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
 import com.huanfuli.lapsight.shared.glasses.GlassesDeviceSummary
+import com.huanfuli.lapsight.shared.glasses.GlassesGpsState
 import com.huanfuli.lapsight.shared.glasses.HudPage
 import com.huanfuli.lapsight.shared.session.SessionController
 import com.huanfuli.lapsight.shared.storage.StoragePaths
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
     private var glassesBridgeCollectionJobs: List<Job> = emptyList()
     private val glassesConnectionState = MutableStateFlow<GlassesConnectionState>(GlassesConnectionState.Idle)
     private val glassesDevices = MutableStateFlow<List<GlassesDeviceSummary>>(emptyList())
+    private val glassesIdleGpsState = MutableStateFlow(GlassesGpsState.idle())
     private val selectedGlassesDeviceId = MutableStateFlow<String?>(null)
     private val glassesCastingEnabled = MutableStateFlow(false)
     private val glassesPage = MutableStateFlow(HudPage.FOCUSED)
@@ -236,6 +238,9 @@ class MainActivity : ComponentActivity() {
                 glassesCastingEnabled = glassesCastingEnabled,
                 glassesPage = glassesPage,
                 glassesActions = glassesActions,
+                onGlassesIdleGpsStateChanged = { state ->
+                    glassesIdleGpsState.value = state
+                },
             )
         }
     }
@@ -264,6 +269,7 @@ class MainActivity : ComponentActivity() {
         val bridge = GlassesBridge(
             sessionController = controller,
             scope = glassesScope,
+            idleGpsState = { glassesIdleGpsState.value },
             speedUnit = { displaySettingsStore.load().speedUnit },
         )
         bridge.page = glassesPage.value

@@ -39,6 +39,7 @@ import com.huanfuli.lapsight.shared.export.NoOpExportShareTarget
 import com.huanfuli.lapsight.shared.glasses.GlassesActions
 import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
 import com.huanfuli.lapsight.shared.glasses.GlassesDeviceSummary
+import com.huanfuli.lapsight.shared.glasses.GlassesGpsState
 import com.huanfuli.lapsight.shared.glasses.HudPage
 import com.huanfuli.lapsight.shared.glasses.NoOpGlassesActions
 import com.huanfuli.lapsight.shared.session.DraftRecoveryAction
@@ -99,6 +100,7 @@ fun AppShell(
     glassesCastingEnabled: StateFlow<Boolean> = MutableStateFlow(false),
     glassesPage: StateFlow<HudPage> = MutableStateFlow(HudPage.FOCUSED),
     glassesActions: GlassesActions = NoOpGlassesActions,
+    onGlassesIdleGpsStateChanged: (GlassesGpsState) -> Unit = {},
 ) {
     val s = strings
     var tab by remember { mutableStateOf(AppTab.Drive) }
@@ -333,6 +335,7 @@ fun AppShell(
                     glassesCastingEnabled = glassesCastingEnabled,
                     glassesPage = glassesPage,
                     glassesActions = glassesActions,
+                    onGlassesIdleGpsStateChanged = onGlassesIdleGpsStateChanged,
                 )
                 AppTab.Review -> ReviewScreen(
                     sessionStore = sessionStore,

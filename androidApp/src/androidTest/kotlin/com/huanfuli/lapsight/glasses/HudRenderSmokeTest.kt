@@ -3,6 +3,7 @@ package com.huanfuli.lapsight.glasses
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.huanfuli.lapsight.glasses.hud.HudRenderer
+import com.huanfuli.lapsight.shared.GpsFixStatus
 import com.huanfuli.lapsight.shared.glasses.DeltaCaret
 import com.huanfuli.lapsight.shared.glasses.HudModel
 import com.huanfuli.lapsight.shared.glasses.HudPage
@@ -53,13 +54,33 @@ class HudRenderSmokeTest {
 
     @Test
     fun idleScreensRenderWaitingAndReadyStatesDistinctly() {
-        val waiting = renderTree(model(isIdle = true, gpsReady = false))
-        waiting.assertText("Waiting for GPS")
-        waiting.assertIcon(IconName.EXCLAMATION_TRIANGLE)
+        val waiting = renderTree(
+            model(
+                isIdle = true,
+                gpsReady = false,
+                gpsFixStatus = GpsFixStatus.Idle,
+                gpsAccuracyMeters = null,
+                gpsSampleRateHz = null,
+            ),
+        )
+        waiting.assertText("WAITING GPS")
+        assertFalse("Idle waiting state should not render the warning glyph", IconName.EXCLAMATION_TRIANGLE.value in waiting.icons)
+        assertFalse("Idle screen should avoid CARD background on glasses", FlexBoxBackground.CARD.name in waiting.backgrounds)
+
+        val weak = renderTree(
+            model(
+                isIdle = true,
+                gpsReady = false,
+                gpsFixStatus = GpsFixStatus.Live,
+                gpsAccuracyMeters = 31.0,
+                gpsSampleRateHz = 0.7,
+            ),
+        )
+        weak.assertText("GPS WEAK")
 
         val ready = renderTree(model(isIdle = true, gpsReady = true))
-        ready.assertText("Ready — start timing")
-        ready.assertIcon(IconName.CHECKMARK_CIRCLE)
+        ready.assertText("READY")
+        assertFalse("Idle ready state should not render a top glyph", IconName.CHECKMARK_CIRCLE.value in ready.icons)
     }
 
     @Test
@@ -159,6 +180,9 @@ class HudRenderSmokeTest {
         isStaleFix: Boolean = false,
         isNeutralDelta: Boolean = false,
         gpsReady: Boolean = true,
+        gpsFixStatus: GpsFixStatus = GpsFixStatus.Live,
+        gpsAccuracyMeters: Double? = 5.0,
+        gpsSampleRateHz: Double? = 2.0,
     ) = HudModel(
         page = page,
         deltaText = deltaText,
@@ -173,8 +197,9 @@ class HudRenderSmokeTest {
         isStaleFix = isStaleFix,
         isNeutralDelta = isNeutralDelta,
         gpsReady = gpsReady,
-        gpsAccuracyMeters = 5.0,
-        gpsSampleRateHz = 2.0,
+        gpsFixStatus = gpsFixStatus,
+        gpsAccuracyMeters = gpsAccuracyMeters,
+        gpsSampleRateHz = gpsSampleRateHz,
     )
 
     private data class RenderTree(

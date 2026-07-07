@@ -22,8 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.huanfuli.lapsight.shared.DashOrientation
 import com.huanfuli.lapsight.shared.DriveDisplaySettings
+import com.huanfuli.lapsight.shared.GpsFixStatus
 import com.huanfuli.lapsight.shared.LocationFeedMode
 import com.huanfuli.lapsight.shared.LocationSampleProvider
+import com.huanfuli.lapsight.shared.LocationSource
 import com.huanfuli.lapsight.shared.OrientationController
 import com.huanfuli.lapsight.shared.PhoneGpsPermissionState
 import com.huanfuli.lapsight.shared.session.RawRecordingController
@@ -37,6 +39,7 @@ import com.huanfuli.lapsight.shared.ui.CloseActionIcon
 import com.huanfuli.lapsight.shared.ui.DeleteActionIcon
 import com.huanfuli.lapsight.shared.ui.DriveMarkingController
 import com.huanfuli.lapsight.shared.ui.DriveMarkingPhase
+import com.huanfuli.lapsight.shared.ui.DriveMarkingSnapshot
 import com.huanfuli.lapsight.shared.ui.LapSightTheme
 import com.huanfuli.lapsight.shared.ui.SaveSessionIcon
 import com.huanfuli.lapsight.shared.ui.START_TIMING_BLOCKED_COPY
@@ -45,6 +48,7 @@ import com.huanfuli.lapsight.shared.ui.components.LapDialogTextButton
 import com.huanfuli.lapsight.shared.ui.strings
 import com.huanfuli.lapsight.shared.glasses.GlassesActions
 import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
+import com.huanfuli.lapsight.shared.glasses.GlassesGpsState
 import com.huanfuli.lapsight.shared.glasses.HudPage
 import com.huanfuli.lapsight.shared.glasses.NoOpGlassesActions
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +90,7 @@ fun DriveScreen(
     glassesCastingEnabled: StateFlow<Boolean> = MutableStateFlow(false),
     glassesPage: StateFlow<HudPage> = MutableStateFlow(HudPage.FOCUSED),
     glassesActions: GlassesActions = NoOpGlassesActions,
+    onGlassesIdleGpsStateChanged: (GlassesGpsState) -> Unit = {},
 ) {
     val s = strings
     val controller = remember(locationProvider, sessionStore) {
@@ -188,6 +193,16 @@ fun DriveScreen(
             delay(2400L)
             startTimingBlockedMessage = null
         }
+    }
+
+    LaunchedEffect(
+        snapshot.latestSample?.elapsedMillis,
+        snapshot.feedQuality?.averageUpdateRateHz,
+        snapshot.isDemoFeedRunning,
+        locationFeedMode,
+        phoneGpsPermission.isGranted,
+    ) {
+        onGlassesIdleGpsStateChanged(snapshot.toGlassesGpsState(locationFeedMode, phoneGpsPermission))
     }
 
     // Poll the provider on a timer while the demo feed runs (D-05). The feed
@@ -494,6 +509,35 @@ fun DriveScreen(
         }
         DriveToast(message = message, warning = isWarning)
     }
+}
+
+private fun DriveMarkingSnapshot.toGlassesGpsState(
+    locationFeedMode: LocationFeedMode,
+    phoneGpsPermission: PhoneGpsPermissionState,
+): GlassesGpsState {
+    latestSample?.let { sample ->
+        val fixStatus = when (sample.source) {
+            LocationSource.Simulated -> GpsFixStatus.Simulated
+            LocationSource.PhoneGps,
+            LocationSource.ExternalGnss -> GpsFixStatus.Live
+        }
+        return GlassesGpsState.from(
+            fixStatus = fixStatus,
+            accuracyMeters = sample.horizontalAccuracyMeters,
+            sampleRateHz = feedQuality?.averageUpdateRateHz,
+        )
+    }
+    val fixStatus = when {
+        locationFeedMode == LocationFeedMode.PhoneGps && !phoneGpsPermission.isGranted ->
+            GpsFixStatus.Unavailable
+        isDemoFeedRunning -> GpsFixStatus.Acquiring
+        else -> GpsFixStatus.Idle
+    }
+    return GlassesGpsState.from(
+        fixStatus = fixStatus,
+        accuracyMeters = null,
+        sampleRateHz = feedQuality?.averageUpdateRateHz,
+    )
 }
 
 @Composable

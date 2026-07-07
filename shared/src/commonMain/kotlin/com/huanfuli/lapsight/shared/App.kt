@@ -13,6 +13,7 @@ import com.huanfuli.lapsight.shared.fixtures.GpsFixtureLibrary
 import com.huanfuli.lapsight.shared.glasses.GlassesActions
 import com.huanfuli.lapsight.shared.glasses.GlassesConnectionState
 import com.huanfuli.lapsight.shared.glasses.GlassesDeviceSummary
+import com.huanfuli.lapsight.shared.glasses.GlassesGpsState
 import com.huanfuli.lapsight.shared.glasses.HudPage
 import com.huanfuli.lapsight.shared.glasses.NoOpGlassesActions
 import com.huanfuli.lapsight.shared.session.SessionController
@@ -62,6 +63,7 @@ fun App(
     glassesCastingEnabled: StateFlow<Boolean> = MutableStateFlow(false),
     glassesPage: StateFlow<HudPage> = MutableStateFlow(HudPage.FOCUSED),
     glassesActions: GlassesActions = NoOpGlassesActions,
+    onGlassesIdleGpsStateChanged: (GlassesGpsState) -> Unit = {},
 ) {
     var displaySettings by remember { mutableStateOf(displaySettingsStore.load()) }
     val simulatedGpsProvider = remember {
@@ -95,6 +97,7 @@ fun App(
                 glassesCastingEnabled = glassesCastingEnabled,
                 glassesPage = glassesPage,
                 glassesActions = glassesActions,
+                onGlassesIdleGpsStateChanged = onGlassesIdleGpsStateChanged,
             )
         }
     }

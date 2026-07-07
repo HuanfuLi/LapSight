@@ -1,6 +1,7 @@
 package com.huanfuli.lapsight.shared.glasses
 
 import com.huanfuli.lapsight.shared.SpeedUnit
+import com.huanfuli.lapsight.shared.GpsFixStatus
 import com.huanfuli.lapsight.shared.ghost.DeltaDisplayState
 import com.huanfuli.lapsight.shared.ghost.DeltaTone
 import com.huanfuli.lapsight.shared.lap.formatLapTime
@@ -64,6 +65,8 @@ enum class DeltaCaret { Up, Down, None }
  *   [deltaText]/[deltaCaret] already read `--`/[DeltaCaret.None] in this case,
  *   but the flag lets the renderer keep the exact same pill geometry.
  * @property gpsReady the GPS readiness this model was built from (D-13).
+ * @property gpsFixStatus the raw feed status used to distinguish no fix from a
+ *   weak-but-present fix on the idle HUD.
  * @property gpsAccuracyMeters / [gpsSampleRateHz] raw GPS quality for the D-13
  *   idle screen's fix-state readout.
  */
@@ -81,6 +84,7 @@ data class HudModel(
     val isStaleFix: Boolean,
     val isNeutralDelta: Boolean,
     val gpsReady: Boolean,
+    val gpsFixStatus: GpsFixStatus = GpsFixStatus.Idle,
     val gpsAccuracyMeters: Double?,
     val gpsSampleRateHz: Double?,
 ) {
@@ -154,6 +158,7 @@ data class HudModel(
                 isStaleFix = isStaleFix,
                 isNeutralDelta = isNeutralDelta,
                 gpsReady = gps.ready,
+                gpsFixStatus = gps.fixStatus,
                 gpsAccuracyMeters = gps.accuracyMeters,
                 gpsSampleRateHz = gps.sampleRateHz,
             )
