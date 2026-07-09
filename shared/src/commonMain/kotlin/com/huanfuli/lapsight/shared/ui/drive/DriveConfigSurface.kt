@@ -760,7 +760,12 @@ private fun ControlPanel(
                     sessionStore = sessionStore,
                     compact = compact,
                     livePosition = snapshot.latestSample,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = if (fillHeight) {
+                        Modifier.fillMaxWidth().weight(1f)
+                    } else {
+                        Modifier.fillMaxWidth()
+                    },
+                    fillParent = fillHeight,
                 )
 
                 if (snapshot.canStartTiming && snapshot.currentTrackTopology != CourseTopology.PointToPoint) {
@@ -777,9 +782,6 @@ private fun ControlPanel(
                     actions = glassesActions,
                     compact = compact,
                 )
-                if (fillHeight) {
-                    Spacer(Modifier.weight(1f))
-                }
                 DriveActionRow(
                     primaryIcon = PlayActionIcon,
                     primaryLabel = s.startTiming,
@@ -809,12 +811,13 @@ private fun GlassesDriveControls(
 ) {
     val state by connectionState.collectAsState()
     val selectedId by selectedDeviceId.collectAsState()
+    if (selectedId == null) return
+
     val casting by castingEnabled.collectAsState()
     val selectedPage by page.collectAsState()
     val spacing = LapSightTheme.spacing
     val s = strings
-    val hasSelectedDevice = selectedId != null
-    val castChecked = casting && hasSelectedDevice
+    val castChecked = casting
     val selectedIndex = if (castChecked) selectedPage.ordinal + 1 else 0
 
     Column(
@@ -844,7 +847,6 @@ private fun GlassesDriveControls(
                         if (!castChecked) actions.startCasting()
                     }
                 },
-                optionEnabled = { index -> index == 0 || hasSelectedDevice },
                 modifier = Modifier.weight(1.55f),
             )
         }
