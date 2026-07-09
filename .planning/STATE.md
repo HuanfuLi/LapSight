@@ -47,7 +47,7 @@ feedback confirms behavior.
 - Lap engine must be clean-room and testable.
 - Open-source references are research inputs, not direct copy sources.
 - Android uses Fused Location Provider through the shared `LocationSampleProvider` boundary.
-- iOS still needs a Core Location provider through the same boundary.
+- iOS uses Core Location through the same shared `LocationSampleProvider` boundary; real-device GPS UAT is in progress on an iPhone XR.
 
 ## Next Command Candidates
 
@@ -150,6 +150,7 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 - Phase 7 plan 07-04 completed the full DAT HudRenderer/DeltaPill path and replaced the 07-03 placeholder render. `HudRenderSmokeTest` compiles and inspects generated DAT content trees directly; full MockDeviceKit Display-session testing remains impossible with `mwdat-mockdevice:0.8.0` because it has no Display capability handler. Real-glasses validation is deferred to 07-05.
 - Phase 7 plan 07-05 added the Settings Glasses area, Android `GlassesActions` wiring, selected-device persistence, Drive "Cast to glasses" controls, non-blocking reconnect chip, phone-side HUD page selector, and phone speed-unit mirroring in `GlassesBridge`. Verification passed: `:shared:testAndroidHostTest`, `:androidApp:assembleDebug`, and `:androidApp:compileDebugAndroidTestKotlin`. Product-owner real-glasses UAT accepted the HUD readability and passive display behavior on 2026-07-07, closing the 07-05 Task 3 gate.
 - Phase 7 plan 07-06 closed the optional captouch input stretch as a hardware/API-gated fallback: DAT 0.8 public APIs do not expose confirmed real-device raw captouch receive events, so `GlassesInput` implements only a Display root-click page-cycle fallback and ignores unsupported tap-and-hold/unknown events. Verification passed: `:shared:testAndroidHostTest`, `:androidApp:assembleDebug`, and `:androidApp:compileDebugAndroidTestKotlin`.
+- iOS build/GPS bring-up (2026-07-09): restored the Gradle wrapper executable bit, fixed Kotlin 2.4 Foundation extension imports, renamed the Xcode target/scheme from `iosApp` to `LapSight`, and wired a Core Location-backed `LocationSampleProvider` with live permission state. Dual-architecture Kotlin compilation, iOS simulator tests, signed Xcode device build, install, and launch passed on an iPhone XR running iOS 18.7.9. Outdoor GPS usability evidence remains pending.
 
 ## Performance Metrics
 
