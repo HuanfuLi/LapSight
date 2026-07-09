@@ -172,6 +172,7 @@ Requirements satisfied: GHOST-01, GHOST-02, GHOST-03, GHOST-04
 | 260629-wwd | Phase 5.1 field-test blocker hardening: relax GPS Ready rate, tidy pre-timing Drive layout, replace rotate icon | 2026-06-30 | 04fff42 | [260629-wwd-phase-5-1-field-test-blocker-hardening-r](./quick/260629-wwd-phase-5-1-field-test-blocker-hardening-r/) |
 | 260702-uju | Track editor field-test hardening: fix start/finish drag behavior, editable sectors, live review refresh, duplicated profile editability, and track rendering polish | 2026-07-03 | ed5e81b | [260702-uju-track-editor-field-test-hardening-fix-st](./quick/260702-uju-track-editor-field-test-hardening-fix-st/) |
 | 260702-vn1 | Unify Track detail trace and edit course map so the original Trace is beautified and editing does not render a duplicate map | 2026-07-03 | ee84fef | [260702-vn1-unify-track-detail-trace-and-edit-course](./quick/260702-vn1-unify-track-detail-trace-and-edit-course/) |
+| 260709-2iv | Keep the current Drive UI, always show the nearby location canvas, and replace the Track picker dialog with Track Center | 2026-07-09 | 973a332 | [260709-2iv-keep-current-drive-ui-always-show-nearby](./quick/260709-2iv-keep-current-drive-ui-always-show-nearby/) |
 
 ## Session Continuity
 
