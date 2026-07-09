@@ -76,6 +76,7 @@ fun DriveScreen(
     onSavedTrack: () -> Unit,
     onSavedSession: () -> Unit,
     onTimingActiveChanged: (Boolean) -> Unit,
+    onSecondaryScreenActiveChanged: (Boolean) -> Unit,
     requestedTimingActive: Boolean,
     displaySettings: DriveDisplaySettings,
     locationFeedMode: LocationFeedMode,
@@ -110,6 +111,8 @@ fun DriveScreen(
     var confirmDiscardSession by remember { mutableStateOf(false) }
     var saveToast by remember { mutableStateOf<String?>(null) }
     var saveInProgress by remember { mutableStateOf(false) }
+    var trackCenterActive by remember { mutableStateOf(false) }
+    var showNewTrackDialog by remember { mutableStateOf(false) }
     var startTimingBlockedMessage by remember { mutableStateOf<String?>(null) }
     var wrongCourseBlock by remember {
         mutableStateOf<StartTimingResult.WrongCourseBlocked?>(null)
@@ -138,6 +141,10 @@ fun DriveScreen(
 
     LaunchedEffect(timingActive) {
         onTimingActiveChanged(timingActive)
+    }
+
+    LaunchedEffect(trackCenterActive) {
+        onSecondaryScreenActiveChanged(trackCenterActive)
     }
 
     LaunchedEffect(requestedTimingActive) {
@@ -345,6 +352,45 @@ fun DriveScreen(
         )
     }
 
+    val beginMarking: () -> Unit = {
+        if (ensureSelectedLocationFeedReady()) {
+            startTimingBlockedMessage = null
+            controller.beginMarking()
+            snapshot = controller.snapshot()
+        }
+    }
+
+    if (showNewTrackDialog) {
+        NewTrackCourseDialog(
+            selectedTopology = snapshot.selectedTopology,
+            onSelectTopology = { topology ->
+                controller.selectTopology(topology)
+                snapshot = controller.snapshot()
+            },
+            onBeginMarking = {
+                trackCenterActive = false
+                beginMarking()
+            },
+            onClose = { showNewTrackDialog = false },
+        )
+    }
+
+    if (trackCenterActive) {
+        TrackCenterScreen(
+            snapshot = snapshot,
+            sessionStore = sessionStore,
+            onSelectProfile = { profileId ->
+                controller.selectTrack(profileId)
+                startTimingBlockedMessage = null
+                snapshot = controller.snapshot()
+                trackCenterActive = false
+            },
+            onNewTrack = { showNewTrackDialog = true },
+            onBack = { trackCenterActive = false },
+        )
+        return
+    }
+
     DriveSurface(
         snapshot = snapshot,
         orientation = orientation,
@@ -354,19 +400,10 @@ fun DriveScreen(
         sessionStore = sessionStore,
         onToggleOrientation = onToggleOrientation,
         orientationToggleEnabled = orientationToggleEnabled,
-        onSelectProfile = { profileId ->
-            // Explicit user selection only (D-02/D-03); the controller never auto-derives.
-            controller.selectTrack(profileId)
-            startTimingBlockedMessage = null
-            snapshot = controller.snapshot()
-        },
+        onOpenTrackCenter = { trackCenterActive = true },
         onSelectDirection = { direction ->
             // Pre-Timing Recorded/Reverse choice over the current Track (D-18).
             controller.selectDirection(direction)
-            snapshot = controller.snapshot()
-        },
-        onSelectTopology = { topology ->
-            controller.selectTopology(topology)
             snapshot = controller.snapshot()
         },
         onStartTiming = action@{
@@ -420,12 +457,6 @@ fun DriveScreen(
                     }
                 }
             }
-        },
-        onBeginMarking = action@{
-            if (!ensureSelectedLocationFeedReady()) return@action
-            startTimingBlockedMessage = null
-            controller.beginMarking()
-            snapshot = controller.snapshot()
         },
         onStopMarking = {
             when (snapshot.phase) {

@@ -141,6 +141,7 @@ fun AppShell(
     var recoveryPrompt by remember { mutableStateOf<DraftRecoveryPrompt?>(null) }
     var confirmDiscardDraft by remember { mutableStateOf(false) }
     var driveTimingActive by remember { mutableStateOf(false) }
+    var driveSecondaryScreenActive by remember { mutableStateOf(false) }
     var recoveryBusy by remember { mutableStateOf(false) }
     var pendingPhoneGpsSelection by remember { mutableStateOf(false) }
     var orientationChangePending by remember { mutableStateOf(false) }
@@ -180,7 +181,7 @@ fun AppShell(
         windowOrientation == DashOrientation.Landscape ||
             (driveTimingActive && displaySettings.fullscreenWhileTiming)
         )
-    val showBottomNav = !driveFullscreen
+    val showBottomNav = !driveFullscreen && !driveSecondaryScreenActive
     val activeLocationProvider =
         if (effectiveLocationFeedMode == LocationFeedMode.PhoneGps) phoneGpsProvider!! else simulatedGpsProvider
 
@@ -353,6 +354,7 @@ fun AppShell(
                     onSavedTrack = { savedVersion++ },
                     onSavedSession = { savedVersion++ },
                     onTimingActiveChanged = { driveTimingActive = it },
+                    onSecondaryScreenActiveChanged = { driveSecondaryScreenActive = it },
                     requestedTimingActive = driveTimingActive,
                     displaySettings = displaySettings,
                     locationFeedMode = effectiveLocationFeedMode,
